@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyShopzy Operations & Store Hub | Ravulapalem</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#0B132B',
+              navyLight: '#1C2541',
+              accent: '#3A86FF',
+              accentHover: '#2563EB',
+              slateBg: '#F8FAFC',
+              border: '#E2E8F0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-16">
+
+  <!-- HEADER -->
+  <header class="bg-brand-navy text-white px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+      
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand-accent flex items-center justify-center font-extrabold text-white text-lg">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-extrabold uppercase tracking-wider text-cyan-400">MyShopzy Store Hub</h1>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <p class="text-xs text-slate-300">Ravulapalem RTC Operations Console</p>
+        </div>
+      </div>
+
+      <!-- Navigation Switcher -->
+      <div class="flex items-center gap-2 bg-brand-navyLight p-1 rounded-2xl border border-slate-700">
+        <button id="tabBtnOrders" onclick="switchView('orders')" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition">
+          <i data-lucide="bell" class="w-4 h-4"></i> Dispatch Orders
+        </button>
+        <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+          <i data-lucide="package-plus" class="w-4 h-4"></i> Manage Products
+        </button>
+      </div>
+
+      <!-- Sound Settings -->
+      <div class="flex items-center gap-2">
+        <button onclick="playOrderAlertSound()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition">
+          <i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-400"></i> Test Chime
+        </button>
+        <button id="toggleSoundBtn" onclick="toggleAudioState()" class="px-3 py-1.5 rounded-xl bg-slate-700 text-slate-200 text-xs font-bold transition">
+          Alert: Active
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- TAB 1: LIVE ORDERS QUEUE -->
+  <main id="ordersViewSection" class="max-w-7xl mx-auto px-6 py-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Active Orders</p>
+        <h3 id="metricActiveOrders" class="text-2xl font-black text-brand-navy mt-1">0</h3>
+        <p class="text-[10px] text-amber-600 font-bold mt-0.5">Packing & Out for Delivery</p>
+      </div>
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Delivered Today</p>
+        <h3 id="metricDelivered" class="text-2xl font-black text-emerald-600 mt-1">0</h3>
+        <p class="text-[10px] text-slate-400 font-medium mt-0.5">Verified via OTP</p>
+      </div>
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Dedicated Riders</p>
+        <div class="flex items-center gap-4 mt-2">
+          <span class="text-xs font-bold text-slate-800">🛵 Suresh: <strong class="text-emerald-600">Active</strong></span>
+          <span class="text-xs font-bold text-slate-800">🛵 Ramesh: <strong class="text-emerald-600">Active</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Live Dispatch Queue</h2>
+          <p class="text-xs text-slate-500">Orders placed by customers in Ravulapalem</p>
+        </div>
+        <button onclick="fetchAdminQueue()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
+        </button>
+      </div>
+      <div id="adminQueueContainer" class="space-y-3">
+        <p class="text-center text-slate-400 py-10">Connecting to Live Queue...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 2: PRODUCT & INVENTORY MANAGEMENT (WITH CAMERA/FILE UPLOAD) -->
+  <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
+    
+    <!-- Add Product Form -->
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+        <i data-lucide="plus-circle" class="w-5 h-5 text-brand-accent"></i> Add New Product to Store
+      </h2>
+      <p class="text-xs text-slate-500 mb-4">Fill details or upload image. Instant live update on Customer App.</p>
+
+      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
+          <input id="pName" type="text" required placeholder="e.g. Cadbury Silk 60g" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
+          <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-white">
+            <option value="snacks">Snacks & Munchies</option>
+            <option value="dairy">Dairy & Milk</option>
+            <option value="veggies">Fresh Veggies</option>
+            <option value="staples">Atta, Rice & Oils</option>
+            <option value="instant">Instant Food & Drinks</option>
+            <option value="personal">Personal Care</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Unit / Weight *</label>
+          <input id="pUnit" type="text" required placeholder="e.g. 500 ml, 1 kg, 1 pc" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Sale Price (₹) *</label>
+            <input id="pPrice" type="number" required placeholder="190" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">MRP (₹)</label>
+            <input id="pOldPrice" type="number" placeholder="200" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+          </div>
+        </div>
+
+        <!-- Direct Phone Gallery / Camera Upload -->
+        <div class="sm:col-span-2 lg:col-span-3">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Image (Select File / Take Photo or Paste Link)</label>
+          <div class="flex items-center gap-3 mt-1 flex-wrap sm:flex-nowrap">
+            <input 
+              id="pFileInput" 
+              type="file" 
+              accept="image/*" 
+              onchange="handleImageFileSelect(this)" 
+              class="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-accent/10 file:text-brand-accent hover:file:bg-brand-accent/20 cursor-pointer"
+            >
+            <span class="text-xs text-slate-400 font-bold">OR</span>
+            <input 
+              id="pImage" 
+              type="url" 
+              placeholder="Paste image web link..." 
+              class="flex-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-slate-50"
+            >
+          </div>
+          <!-- Live Preview -->
+          <div id="imagePreviewContainer" class="hidden mt-2 flex items-center gap-2">
+            <img id="previewImg" src="" class="w-12 h-12 object-cover rounded-xl border border-slate-300">
+            <span class="text-[11px] text-emerald-600 font-bold">✓ Photo selected</span>
+          </div>
+        </div>
+
+        <div class="flex items-end">
+          <button type="submit" id="saveProdBtn" class="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition shadow-md flex items-center justify-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Live Products List Table -->
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">Current Store Inventory</h3>
+          <p id="totalStockCount" class="text-xs text-slate-500">0 Products available in Ravulapalem Hub</p>
+        </div>
+        <button onclick="loadAdminInventory()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh List
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+              <th class="py-3 px-3">Item</th>
+              <th class="py-3 px-3">Category</th>
+              <th class="py-3 px-3">Unit</th>
+              <th class="py-3 px-3">Selling Price</th>
+              <th class="py-3 px-3">MRP</th>
+              <th class="py-3 px-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://esztasmunjrbxkxvshue.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_ph5c3E_uwe1-twjsHnIzlQ_kiIZx..."; 
+
+    let supabaseClient = null;
+    try {
+      if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch(err) {}
+
+    // TAB CONTROLLER
+    function switchView(tab) {
+      const ordersSec = document.getElementById('ordersViewSection');
+      const invSec = document.getElementById('inventoryViewSection');
+      const btnOrders = document.getElementById('tabBtnOrders');
+      const btnInv = document.getElementById('tabBtnInventory');
+
+      if (tab === 'orders') {
+        ordersSec.classList.remove('hidden');
+        invSec.classList.add('hidden');
+        btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
+        btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
+        fetchAdminQueue();
+      } else {
+        ordersSec.classList.add('hidden');
+        invSec.classList.remove('hidden');
+        btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
+        btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
+        loadAdminInventory();
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // ==========================================
+    // 📸 IMAGE UPLOAD & INVENTORY ENGINE
+    // ==========================================
+    let adminProducts = [];
+    let selectedBase64Image = "";
+
+    function handleImageFileSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        selectedBase64Image = e.target.result;
+        document.getElementById('previewImg').src = selectedBase64Image;
+        document.getElementById('imagePreviewContainer').classList.remove('hidden');
+        document.getElementById('pImage').value = "";
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadAdminInventory() {
+      const tbody = document.getElementById('inventoryTableBody');
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">Loading catalog...</td></tr>`;
+
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient.from('products').select('*').order('id', { ascending: false });
+          if (data && data.length > 0) adminProducts = data;
+        } catch(e) {}
+      }
+      if (adminProducts.length === 0) {
+        adminProducts = JSON.parse(localStorage.getItem('quickdash_custom_products') || '[]');
+      }
+
+      document.getElementById('totalStockCount').innerText = `${adminProducts.length} Products registered in Ravulapalem Hub`;
+      tbody.innerHTML = '';
+
+      if (adminProducts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">No custom products added yet. Add your first item above!</td></tr>`;
+        return;
+      }
+
+      adminProducts.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition";
+        tr.innerHTML = `
+          <td class="py-3 px-3 flex items-center gap-2.5">
+            <img src="${p.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=100&q=80'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200">
+            <div>
+              <p class="font-bold text-slate-900 line-clamp-1">${p.name}</p>
+              <span class="text-[10px] text-slate-400">ID: #${p.id}</span>
+            </div>
+          </td>
+          <td class="py-3 px-3 uppercase text-[10px] font-bold text-slate-500">${p.category}</td>
+          <td class="py-3 px-3 font-semibold text-slate-700">${p.unit}</td>
+          <td class="py-3 px-3 font-black text-brand-navy">₹${p.price}</td>
+          <td class="py-3 px-3 text-slate-400 line-through">₹${p.old_price || p.price}</td>
+          <td class="py-3 px-3 text-right">
+            <button onclick="deleteProductItem(${p.id})" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] border border-rose-200 transition">
+              Delete
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function handleAddNewProduct(e) {
+      e.preventDefault();
+      const saveBtn = document.getElementById('saveProdBtn');
+      saveBtn.innerText = "Adding...";
+      saveBtn.disabled = true;
+
+      const finalImage = selectedBase64Image || 
+                         document.getElementById('pImage').value.trim() || 
+                         "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
+
+      const newProd = {
+        id: Date.now(),
+        name: document.getElementById('pName').value.trim(),
+        category: document.getElementById('pCategory').value,
+        unit: document.getElementById('pUnit').value.trim(),
+        price: Number(document.getElementById('pPrice').value),
+        old_price: Number(document.getElementById('pOldPrice').value) || Number(document.getElementById('pPrice').value),
+        image_url: finalImage
+      };
+
+      if (supabaseClient) {
+        try { await supabaseClient.from('products').insert([newProd]); } catch(err) {}
+      }
+
+      adminProducts.unshift(newProd);
+      localStorage.setItem('quickdash_custom_products', JSON.stringify(adminProducts));
+
+      document.getElementById('addProductForm').reset();
+      selectedBase64Image = "";
+      document.getElementById('imagePreviewContainer').classList.add('hidden');
+
+      saveBtn.innerText = "Added Successfully!";
+      setTimeout(() => {
+        saveBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog`;
+        saveBtn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+      }, 1000);
+
+      loadAdminInventory();
+    }
+
+    async function deleteProductItem(id) {
+      if (!confirm("Are you sure you want to delete this product?")) return;
+
+      if (supabaseClient) {
+        try { await supabaseClient.from('products').delete().eq('id', id); } catch(err) {}
+      }
+
+      adminProducts = adminProducts.filter(p => p.id !== id);
+      localStorage.setItem('quickdash_custom_products', JSON.stringify(adminProducts));
+      loadAdminInventory();
+    }
+
+    // ==========================================
+    // 🔔 DISPATCH & AUDIO ENGINE
+    // ==========================================
+    let audioAlertsEnabled = true;
+    let audioCtx = null;
+
+    function initAudioContext() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playOrderAlertSound() {
+      if (!audioAlertsEnabled) return;
+      try {
+        initAudioContext();
+        const now = audioCtx.currentTime;
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(0.4, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.35);
+
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1320, now + 0.12);
+        gain2.gain.setValueAtTime(0.001, now);
+        gain2.gain.setValueAtTime(0.45, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.7);
+      } catch (err) {}
+    }
+
+    function toggleAudioState() {
+      audioAlertsEnabled = !audioAlertsEnabled;
+      const btn = document.getElementById('toggleSoundBtn');
+      btn.innerText = audioAlertsEnabled ? "Alert: Active" : "Alert: Muted";
+      btn.className = audioAlertsEnabled ? "px-3 py-1.5 rounded-xl bg-slate-700 text-slate-200 text-xs font-bold" : "px-3 py-1.5 rounded-xl bg-rose-900 text-rose-200 text-xs font-bold";
+    }
+
+    async function fetchAdminQueue() {
+      const container = document.getElementById('adminQueueContainer');
+      let orders = [];
+
+      if (supabaseClient) {
+        try {
+          const { data } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
+          if (data && data.length > 0) orders = data;
+        } catch(e) {}
+      }
+      if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+
+      if (orders.length === 0) {
+        container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
+        return;
+      }
+
+      const activeCount = orders.filter(o => o.status !== "Delivered").length;
+      const deliveredCount = orders.filter(o => o.status === "Delivered").length;
+      document.getElementById('metricActiveOrders').innerText = activeCount;
+      document.getElementById('metricDelivered').innerText = deliveredCount;
+
+      container.innerHTML = '';
+      orders.forEach(o => {
+        const row = document.createElement('div');
+        row.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4";
+        
+        let itemsSummary = "";
+        if (Array.isArray(o.items)) itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+
+        row.innerHTML = `
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-brand-navy">${o.id}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
+              <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
+              <span class="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
+            </div>
+            <p class="text-xs text-slate-700 font-semibold">${o.delivery_address} • Phone: ${o.customer_phone}</p>
+            ${itemsSummary ? `<p class="text-[11px] text-slate-500">📦 ${itemsSummary}</p>` : ''}
+          </div>
+
+          <div class="flex items-center gap-3 shrink-0">
+            <span class="text-sm font-black text-brand-accent">₹${o.total_amount || o.total}</span>
+            
+            <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
+              <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Rider: Suresh</option>
+              <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Rider: Ramesh</option>
+            </select>
+
+            <select onchange="updateStatus('${o.id}', this.value)" class="text-xs font-bold bg-brand-navy text-white rounded-xl px-2.5 py-1.5">
+              <option value="Order Confirmed" ${o.status === 'Order Confirmed' ? 'selected' : ''}>Confirmed</option>
+              <option value="Packing" ${o.status === 'Packing' ? 'selected' : ''}>Packing</option>
+              <option value="Out for Delivery" ${o.status === 'Out for Delivery' ? 'selected' : ''}>Dispatch</option>
+              <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+            </select>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function updateStatus(orderId, status) {
+      if (supabaseClient) {
+        try { await supabaseClient.from('orders').update({ status }).eq('id', orderId); } catch(e) {}
+      }
+      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+      localOrders = localOrders.map(o => o.id === orderId ? { ...o, status } : o);
+      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
+      fetchAdminQueue();
+    }
+
+    async function updateRider(orderId, assigned_rider) {
+      if (supabaseClient) {
+        try { await supabaseClient.from('orders').update({ assigned_rider }).eq('id', orderId); } catch(e) {}
+      }
+      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+      localOrders = localOrders.map(o => o.id === orderId ? { ...o, assigned_rider } : o);
+      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
+      fetchAdminQueue();
+    }
+
+    fetchAdminQueue();
+    setInterval(fetchAdminQueue, 8000);
+    if (window.lucide) lucide.createIcons();
+  </script>
+</body>
+</html>

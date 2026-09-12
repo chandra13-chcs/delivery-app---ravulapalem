@@ -3,21 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QuickDash Ravulapalem | 10-Min Fast Delivery</title>
-  <!-- Google Fonts -->
+  <title>MyShopzy | 10-Min Fast Delivery Ravulapalem</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- QR Code Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     tailwind.config = {
@@ -47,12 +41,12 @@
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased selection:bg-brand-accent selection:text-white pb-28">
 
-  <!-- TOP NAV BAR -->
+  <!-- TOP NAV BAR (CUSTOMER ONLY) -->
   <header class="sticky top-0 z-40 bg-brand-navy text-white shadow-lg border-b border-slate-800">
     <div class="max-w-7xl mx-auto px-4 lg:px-8 py-3.5">
       <div class="flex items-center justify-between gap-4">
         
-        <!-- Brand + Location Picker -->
+        <!-- Brand + Location -->
         <div onclick="openLocationModal()" class="flex items-center gap-3 cursor-pointer group">
           <div class="w-10 h-10 rounded-xl bg-brand-accent flex items-center justify-center font-extrabold text-white text-lg shadow-md shadow-brand-accent/30 group-hover:scale-105 transition">
             ⚡
@@ -76,29 +70,16 @@
             id="searchInputDesktop" 
             oninput="handleSearch(this.value)" 
             type="text" 
-            placeholder='Search "milk", "onion", "chips", "paneer"...' 
+            placeholder='Search "milk", "onion", "chocolate", "chips"...' 
             class="w-full pl-10 pr-4 py-2 text-xs bg-brand-navyLight border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
           >
         </div>
 
-        <!-- 3 Ecosystem Portals Switcher -->
+        <!-- Right Side: Pure Customer Orders Button (NO ADMIN/RIDER BUTTONS) -->
         <div class="flex items-center gap-2">
-          <!-- Rider Portal Button -->
-          <button onclick="toggleRiderPanel()" class="px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition">
-            <i data-lucide="bike" class="w-4 h-4 text-emerald-400"></i>
-            <span class="hidden sm:inline">Rider Portal</span>
-          </button>
-
-          <!-- Store Hub Button -->
-          <button onclick="toggleAdminPanel()" class="px-2.5 sm:px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-amber-300 flex items-center gap-1.5 transition">
-            <i data-lucide="store" class="w-4 h-4 text-amber-300"></i>
-            <span class="hidden sm:inline">Store Hub</span>
-          </button>
-
-          <!-- Customer Orders Button -->
-          <button onclick="toggleOrdersView()" class="px-2.5 sm:px-3 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition">
+          <button onclick="toggleOrdersView()" class="px-3 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition">
             <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
-            <span class="hidden sm:inline">Orders</span>
+            <span>My Orders</span>
           </button>
         </div>
 
@@ -139,15 +120,16 @@
       <!-- PRODUCT SHOWCASE FEED -->
       <main class="flex-1">
         
+        <!-- Store Banner -->
         <div class="bg-gradient-to-r from-brand-navy via-brand-navyLight to-slate-900 rounded-2xl p-5 text-white mb-6 flex items-center justify-between shadow-md border border-slate-800">
           <div>
             <span class="text-[10px] font-bold uppercase tracking-wider bg-brand-accent/20 text-cyan-300 border border-brand-accent/30 px-2.5 py-0.5 rounded-full">
               Ravulapalem Dark Store • RTC Hub
             </span>
-            <h2 class="text-base sm:text-lg font-extrabold mt-1.5 text-white">Groceries at Your Doorstep in 10 Mins</h2>
-            <p class="text-xs text-slate-300 mt-0.5">Siddhartha Nagar, Kotipalli Rd & Local Colonies Express Service.</p>
+            <h2 class="text-base sm:text-lg font-extrabold mt-1.5 text-white">Groceries & Daily Essentials in 10 Mins</h2>
+            <p class="text-xs text-slate-300 mt-0.5">Original Store Prices • Express Local Delivery.</p>
           </div>
-          <div class="text-4xl hidden sm:block">🛵</div>
+          <div class="text-4xl hidden sm:block">⚡</div>
         </div>
 
         <div class="flex items-center justify-between mb-4">
@@ -156,7 +138,7 @@
             <p id="categorySubheading" class="text-xs text-slate-500">Live store inventory in Ravulapalem</p>
           </div>
           <span id="itemCountBadge" class="text-xs font-bold text-slate-600 bg-white border border-brand-border px-3 py-1 rounded-full shadow-sm">
-            8 Items
+            0 Items
           </span>
         </div>
 
@@ -186,7 +168,7 @@
     </div>
   </div>
 
-  <!-- INTERACTIVE LOCATION PICKER MODAL -->
+  <!-- LOCATION PICKER MODAL -->
   <div id="locationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-brand-border animate-in zoom-in-95 duration-200">
       <div class="p-4 bg-brand-navy text-white flex items-center justify-between">
@@ -288,7 +270,7 @@
             <div id="qrcodeWrapper" class="p-2.5 bg-white rounded-xl shadow-sm border border-slate-200">
               <div id="qrcodeCanvas"></div>
             </div>
-            <p class="text-[10px] text-slate-400 mt-2 font-medium">Auto-confirms order upon QR scan</p>
+            <p class="text-[10px] text-slate-400 mt-2 font-medium">Instant order confirmation</p>
           </div>
 
           <div id="upiAppsBox" class="hidden pt-2 text-center p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
@@ -302,7 +284,7 @@
 
           <div id="codNoticeBox" class="hidden pt-1 p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
             <i data-lucide="info" class="w-4 h-4 shrink-0 text-amber-600"></i>
-            <span>Pay directly to Suresh/Ramesh via Cash or UPI at your doorstep in Ravulapalem.</span>
+            <span>Pay directly via Cash or UPI to delivery rider at your doorstep.</span>
           </div>
         </div>
 
@@ -326,7 +308,7 @@
     </div>
   </div>
 
-  <!-- PAYMENT SUCCESS ANIMATION OVERLAY -->
+  <!-- PAYMENT ANIMATION OVERLAY -->
   <div id="paymentOverlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-200">
       <div id="payStatusAnim" class="w-16 h-16 mx-auto rounded-full bg-brand-slateBg flex items-center justify-center text-brand-accent">
@@ -334,13 +316,13 @@
       </div>
       <div>
         <h4 id="payStatusTitle" class="text-base font-extrabold text-slate-900">Processing Payment...</h4>
-        <p id="payStatusSubtitle" class="text-xs text-slate-500 mt-1">Connecting to UPI Payment Gateway</p>
+        <p id="payStatusSubtitle" class="text-xs text-slate-500 mt-1">Connecting to UPI Gateway</p>
       </div>
       <p class="text-[10px] text-slate-400">Please do not refresh</p>
     </div>
   </div>
 
-  <!-- LIVE ORDER TRACKING MODAL (WITH DELIVERY OTP DISPLAY) -->
+  <!-- LIVE ORDER TRACKING MODAL (WITH DELIVERY OTP) -->
   <div id="trackingModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border animate-in zoom-in-95 duration-200">
       
@@ -356,7 +338,6 @@
           <button onclick="closeTrackingModal()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:text-white transition">✕</button>
         </div>
 
-        <!-- Rider Partner Card -->
         <div class="mt-4 p-2.5 rounded-2xl bg-brand-navyLight border border-slate-700 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <div class="w-9 h-9 rounded-xl bg-cyan-400 text-brand-navy flex items-center justify-center font-bold text-base">
@@ -387,23 +368,23 @@
       <div class="p-6 space-y-6">
         <div class="flex items-start gap-4">
           <div class="flex flex-col items-center">
-            <div id="stepDot1" class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-emerald-500/30">✓</div>
+            <div id="stepDot1" class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md">✓</div>
             <div id="stepLine1" class="w-0.5 h-10 bg-emerald-500 my-1"></div>
           </div>
           <div>
             <h4 class="text-xs font-bold text-slate-900">Order Confirmed & Paid</h4>
-            <p class="text-[11px] text-slate-500">Order verified at Ravulapalem RTC Hub.</p>
+            <p class="text-[11px] text-slate-500">Order verified at Ravulapalem Hub.</p>
           </div>
         </div>
 
         <div class="flex items-start gap-4">
           <div class="flex flex-col items-center">
-            <div id="stepDot2" class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-emerald-500/30">2</div>
+            <div id="stepDot2" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">2</div>
             <div id="stepLine2" class="w-0.5 h-10 bg-slate-200 my-1"></div>
           </div>
           <div>
             <h4 class="text-xs font-bold text-slate-900">Packing at Dark Store</h4>
-            <p class="text-[11px] text-slate-500">Items being scanned and packed.</p>
+            <p class="text-[11px] text-slate-500">Items being packed.</p>
           </div>
         </div>
 
@@ -439,117 +420,7 @@
     </div>
   </div>
 
-  <!-- 🛵 PILLAR 3: DEDICATED RIDER PORTAL (SURESH / RAMESH) -->
-  <div id="riderModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] flex flex-col shadow-2xl border border-brand-border animate-in zoom-in-95 duration-200">
-      
-      <!-- Rider Header -->
-      <div class="flex items-center justify-between pb-3 border-b border-brand-border">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black text-lg shadow-md shadow-emerald-500/30">
-            🛵
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <select id="riderProfileSelect" onchange="switchRiderProfile(this.value)" class="text-xs font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-lg outline-none border border-slate-300">
-                <option value="Suresh">Rider: Suresh (Hero Splendor)</option>
-                <option value="Ramesh">Rider: Ramesh (Honda Activa)</option>
-              </select>
-            </div>
-            <p class="text-[10px] text-slate-500">Ravulapalem Dedicated Fleet</p>
-          </div>
-        </div>
-        <button onclick="closeRiderPanel()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-base transition">✕</button>
-      </div>
-
-      <!-- Rider Stats & Wallet Bar (Akka's Payout Tracker) -->
-      <div class="grid grid-cols-2 gap-3 my-3">
-        <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
-          <p class="text-[10px] font-bold text-emerald-700 uppercase">Today's Payout</p>
-          <div class="flex items-baseline gap-1 mt-0.5">
-            <span id="riderEarningsValue" class="text-lg font-black text-emerald-900">₹90</span>
-            <span class="text-[10px] text-emerald-600 font-bold">(₹30/delivery)</span>
-          </div>
-        </div>
-        <div class="p-3 bg-blue-50 rounded-2xl border border-blue-200">
-          <p class="text-[10px] font-bold text-blue-700 uppercase">Trips Completed</p>
-          <div class="flex items-baseline gap-1 mt-0.5">
-            <span id="riderTripsValue" class="text-lg font-black text-blue-900">3 Orders</span>
-            <span class="text-[10px] text-blue-600 font-bold">in Ravulapalem</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between text-xs py-1">
-        <span class="font-extrabold text-slate-800 flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-          Assigned Delivery Tasks
-        </span>
-        <button onclick="renderRiderTasks()" class="text-brand-accent font-bold text-xs hover:underline flex items-center gap-1">
-          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
-        </button>
-      </div>
-
-      <!-- Rider Active Task Feed -->
-      <div id="riderTasksFeed" class="overflow-y-auto space-y-3 py-2 flex-1 text-xs"></div>
-
-      <div class="pt-3 border-t border-brand-border text-[10px] text-slate-400 text-center">
-        Akka Delivery Partner Network • Ravulapalem Hub
-      </div>
-    </div>
-  </div>
-
-  <!-- STORE HUB / ADMIN OPERATIONS PANEL (WITH RIDER ASSIGNMENT) -->
-  <div id="adminModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 max-h-[88vh] flex flex-col shadow-2xl border border-brand-border">
-      
-      <div class="flex items-center justify-between pb-4 border-b border-brand-border">
-        <div>
-          <span class="text-[10px] font-extrabold text-brand-accent uppercase tracking-widest">DARK STORE OPERATIONS</span>
-          <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-            <i data-lucide="store" class="w-5 h-5 text-brand-navy"></i> Ravulapalem Hub Manager
-          </h3>
-        </div>
-        <button onclick="closeAdminPanel()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-base transition">✕</button>
-      </div>
-
-      <div class="my-3 p-3 bg-brand-slateBg rounded-2xl border border-brand-border flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-2.5">
-          <div id="soundIndicator" class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-            <i data-lucide="bell" class="w-4 h-4"></i>
-          </div>
-          <div>
-            <p class="text-xs font-bold text-slate-900 leading-tight">Order Alert Sound: <span id="soundStatusText" class="text-emerald-600">Active</span></p>
-            <p class="text-[10px] text-slate-500">Plays "Ting-Ting" chime on incoming order</p>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-2">
-          <button onclick="playOrderAlertSound()" class="px-3 py-1.5 rounded-xl bg-white border border-brand-border hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm flex items-center gap-1.5 transition">
-            <i data-lucide="volume-2" class="w-3.5 h-3.5 text-brand-accent"></i> Test Chime
-          </button>
-          <button id="toggleSoundBtn" onclick="toggleAudioState()" class="px-3 py-1.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white text-xs font-bold transition">
-            Mute Sound
-          </button>
-        </div>
-      </div>
-
-      <div class="py-1 flex items-center justify-between text-xs">
-        <span class="text-slate-500 font-semibold">Live Store Queue & Dispatch</span>
-        <button onclick="renderAdminOrders()" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1">
-          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
-        </button>
-      </div>
-
-      <div id="adminOrdersFeed" class="overflow-y-auto space-y-3 py-2 flex-1 text-xs"></div>
-
-      <div class="pt-3 border-t border-brand-border text-[11px] text-slate-400 text-center">
-        Ravulapalem Dark Store • PostgreSQL Sync
-      </div>
-    </div>
-  </div>
-
-  <!-- CLOUD ORDERS MODAL -->
+  <!-- MY ORDERS MODAL -->
   <div id="ordersModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-lg w-full p-5 max-h-[85vh] flex flex-col shadow-2xl border border-brand-border">
       <div class="flex items-center justify-between pb-3 border-b border-brand-border">
@@ -562,10 +433,6 @@
         <button onclick="closeOrdersView()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-base transition">✕</button>
       </div>
       <div id="ordersFeed" class="overflow-y-auto space-y-3 py-3 flex-1 text-xs"></div>
-      <div class="pt-2 border-t border-brand-border flex items-center justify-between text-[10px] text-slate-400">
-        <span>Table: <code class="text-brand-accent font-bold">orders</code></span>
-        <button onclick="fetchCloudOrders()" class="text-brand-accent font-bold hover:underline">Refresh List</button>
-      </div>
     </div>
   </div>
 
@@ -579,7 +446,7 @@
       if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     } catch(err) {}
 
-    // 🗺️ RAVULAPALEM GPS & LEAFLET MAP ENGINE
+    // GPS & LEAFLET ENGINE
     const DARK_STORE_COORDS = { lat: 16.7483, lng: 81.8488, name: "Ravulapalem RTC Dark Store" };
     let currentCustomerCoords = { lat: 16.7483, lng: 81.8488, address: "RTC Complex, Ravulapalem" };
     let leafletMap = null;
@@ -676,9 +543,8 @@
       closeLocationModal();
     }
 
-    // PAYMENT ENGINE
+    // PAYMENT & ORDER ENGINE
     let selectedPaymentMode = 'UPI_QR';
-    let qrInstance = null;
 
     function setPaymentMethod(mode) {
       selectedPaymentMode = mode;
@@ -720,7 +586,7 @@
       const canvas = document.getElementById('qrcodeCanvas');
       canvas.innerHTML = '';
       
-      qrInstance = new QRCode(canvas, {
+      new QRCode(canvas, {
         text: upiUrl,
         width: 130,
         height: 130,
@@ -783,7 +649,6 @@
         return { id: item.id, name: item.name, quantity: qty, price: item.price };
       });
 
-      // Generate Random 4-digit Delivery OTP
       const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const orderPayload = {
@@ -795,7 +660,7 @@
         status: "Order Confirmed",
         payment_mode: selectedPaymentMode,
         payment_status: paymentStatus,
-        assigned_rider: "Suresh", // Default initial assigned rider
+        assigned_rider: "Suresh",
         delivery_otp: deliveryOtp
       };
 
@@ -807,8 +672,6 @@
       localOrders.unshift(orderPayload);
       localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
 
-      playOrderAlertSound();
-
       cartState = {};
       filterAndRender();
       syncCartBar();
@@ -816,194 +679,15 @@
       openTrackingScreen(orderPayload);
     }
 
-    // ==========================================
-    // 🛵 PILLAR 3: RIDER PORTAL & OTP ENGINE
-    // ==========================================
-    let currentRider = "Suresh";
-
-    function switchRiderProfile(name) {
-      currentRider = name;
-      renderRiderTasks();
-    }
-
-    function toggleRiderPanel() {
-      const modal = document.getElementById('riderModal');
-      const isHidden = modal.classList.contains('hidden');
-      closeAllModals();
-      if (isHidden) {
-        modal.classList.remove('hidden');
-        renderRiderTasks();
-      }
-    }
-
-    function closeRiderPanel() { document.getElementById('riderModal').classList.add('hidden'); }
-
-    async function renderRiderTasks() {
-      const feed = document.getElementById('riderTasksFeed');
-      feed.innerHTML = `<p class="text-center text-slate-400 py-6">Checking for assigned deliveries...</p>`;
-      
-      let orders = [];
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
-          if (data && data.length > 0) orders = data;
-        } catch(e) {}
-      }
-      if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-
-      // Filter tasks assigned to this rider OR unassigned dispatched
-      const riderOrders = orders.filter(o => o.assigned_rider === currentRider || !o.assigned_rider);
-      const deliveredCount = riderOrders.filter(o => o.status === "Delivered").length;
-      
-      document.getElementById('riderTripsValue').innerText = `${deliveredCount} Orders`;
-      document.getElementById('riderEarningsValue').innerText = `₹${deliveredCount * 30}`;
-
-      const activeTasks = riderOrders.filter(o => o.status !== "Delivered");
-
-      if (activeTasks.length === 0) {
-        feed.innerHTML = `
-          <div class="p-6 text-center bg-slate-50 rounded-2xl border border-slate-200">
-            <i data-lucide="check-circle" class="w-8 h-8 text-emerald-500 mx-auto mb-1.5"></i>
-            <p class="font-bold text-slate-700">All deliveries completed!</p>
-            <p class="text-[11px] text-slate-400">Waiting for dark store to dispatch next order</p>
-          </div>
-        `;
-        lucide.createIcons();
-        return;
-      }
-
-      feed.innerHTML = '';
-      activeTasks.forEach(o => {
-        const card = document.createElement('div');
-        card.className = "p-4 rounded-2xl bg-slate-50 border border-slate-300 shadow-sm space-y-3";
-        
-        card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div>
-              <span class="font-black text-brand-navy text-sm">${o.id}</span>
-              <span class="ml-2 text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">${o.status}</span>
-            </div>
-            <span class="font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg text-xs">+₹30 Earning</span>
-          </div>
-
-          <div class="space-y-1">
-            <p class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500"></i> ${o.delivery_address}
-            </p>
-            <p class="text-[11px] text-slate-500 flex items-center gap-1.5">
-              <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i> Customer Phone: <strong>${o.customer_phone}</strong>
-            </p>
-            <p class="text-[11px] text-slate-500 flex items-center gap-1.5">
-              <i data-lucide="wallet" class="w-3.5 h-3.5 text-slate-400"></i> Collect: <strong>₹${o.total_amount || o.total}</strong> (${o.payment_mode || 'PAID'})
-            </p>
-          </div>
-
-          <div class="pt-2 border-t border-slate-200 flex items-center gap-2">
-            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.delivery_address)}" target="_blank" class="flex-1 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-center font-bold text-[11px] flex items-center justify-center gap-1">
-              <i data-lucide="navigation" class="w-3.5 h-3.5 text-brand-accent"></i> Maps Route
-            </a>
-
-            ${o.status === "Packing" || o.status === "Order Confirmed" ? `
-              <button onclick="updateOrderStatus('${o.id}', 'Out for Delivery')" class="flex-1 py-2 rounded-xl bg-brand-accent hover:bg-brand-accentHover text-white font-bold text-[11px]">
-                Start Delivery 🛵
-              </button>
-            ` : `
-              <div class="flex-1 flex gap-1">
-                <input id="otpInput-${o.id}" type="number" placeholder="Enter OTP" class="w-20 px-2 py-1 text-center font-black bg-white border border-slate-300 rounded-lg text-xs outline-none">
-                <button onclick="verifyAndDeliverOrder('${o.id}', '${o.delivery_otp || '4821'}')" class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg">
-                  Verify & Deliver
-                </button>
-              </div>
-            `}
-          </div>
-        `;
-        feed.appendChild(card);
-      });
-      lucide.createIcons();
-    }
-
-    // Secure OTP Delivery Verification
-    async function verifyAndDeliverOrder(orderId, correctOtp) {
-      const input = document.getElementById(`otpInput-${orderId}`);
-      const typedOtp = input ? input.value.trim() : "";
-
-      if (typedOtp === correctOtp || typedOtp === "1234") { // "1234" as master testing OTP
-        alert("✅ OTP Verified! Delivery successfully completed. ₹30 added to your shift wallet.");
-        await updateOrderStatus(orderId, 'Delivered');
-        renderRiderTasks();
-      } else {
-        alert("❌ Invalid OTP! Please ask customer for the 4-digit code shown on their tracking screen.");
-      }
-    }
-
-    // 🔔 AUDIO SYNTHESIZER
-    let audioAlertsEnabled = true;
-    let audioCtx = null;
-
-    function initAudioContext() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    function playOrderAlertSound() {
-      if (!audioAlertsEnabled) return;
-      try {
-        initAudioContext();
-        const now = audioCtx.currentTime;
-        const osc1 = audioCtx.createOscillator();
-        const gain1 = audioCtx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now);
-        gain1.gain.setValueAtTime(0.4, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-        osc1.connect(gain1);
-        gain1.connect(audioCtx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.35);
-
-        const osc2 = audioCtx.createOscillator();
-        const gain2 = audioCtx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1320, now + 0.12);
-        gain2.gain.setValueAtTime(0.001, now);
-        gain2.gain.setValueAtTime(0.45, now + 0.12);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.start(now + 0.12);
-        osc2.stop(now + 0.7);
-      } catch (err) {}
-    }
-
-    function toggleAudioState() {
-      audioAlertsEnabled = !audioAlertsEnabled;
-      const statusText = document.getElementById('soundStatusText');
-      const btn = document.getElementById('toggleSoundBtn');
-      const indicator = document.getElementById('soundIndicator');
-
-      if (audioAlertsEnabled) {
-        statusText.innerText = "Active";
-        statusText.className = "text-emerald-600";
-        btn.innerText = "Mute Sound";
-        indicator.className = "w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center";
-        playOrderAlertSound();
-      } else {
-        statusText.innerText = "Muted";
-        statusText.className = "text-slate-400";
-        btn.innerText = "Enable Sound";
-        indicator.className = "w-8 h-8 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center";
-      }
-    }
-
-    // MODAL HANDLERS
+    // MODAL HELPERS
     function closeAllModals() {
-      ['checkoutModal', 'trackingModal', 'adminModal', 'ordersModal', 'locationModal', 'riderModal', 'paymentOverlay'].forEach(id => {
+      ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
       });
     }
 
-    ['checkoutModal', 'trackingModal', 'adminModal', 'ordersModal', 'locationModal', 'riderModal'].forEach(id => {
+    ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal'].forEach(id => {
       const modal = document.getElementById(id);
       if (modal) modal.addEventListener('click', function(e) { if (e.target === this) closeAllModals(); });
     });
@@ -1012,27 +696,32 @@
 
     function closeCheckout() { document.getElementById('checkoutModal').classList.add('hidden'); }
     function closeTrackingModal() { document.getElementById('trackingModal').classList.add('hidden'); }
-    function closeAdminPanel() { document.getElementById('adminModal').classList.add('hidden'); }
     function closeOrdersView() { document.getElementById('ordersModal').classList.add('hidden'); }
 
-    // CATALOG & CART
+    // CATALOG & CART ENGINE
     const categories = [
       { id: "all", name: "All Products", icon: "layout-grid" },
+      { id: "snacks", name: "Snacks & Munchies", icon: "cookie" },
       { id: "dairy", name: "Dairy & Milk", icon: "milk" },
       { id: "veggies", name: "Fresh Veggies", icon: "carrot" },
-      { id: "snacks", name: "Snacks & Munchies", icon: "cookie" },
-      { id: "instant", name: "Instant Foods", icon: "flame" }
+      { id: "staples", name: "Atta, Rice & Oils", icon: "shopping-bag" },
+      { id: "instant", name: "Instant Foods", icon: "flame" },
+      { id: "personal", name: "Personal Care", icon: "heart" }
     ];
 
     const fallbackCatalog = [
-      { id: 1, name: "Amul Taaza Homogenised Toned Milk", unit: "500 ml", price: 27, old_price: 30, category: "dairy", image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" },
-      { id: 2, name: "Fresh Country Farm Tomatoes", unit: "500 g", price: 18, old_price: 24, category: "veggies", image_url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80" },
-      { id: 3, name: "Lay's India's Magic Masala Chips", unit: "50 g", price: 20, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80" },
-      { id: 4, name: "Maggi 2-Minute Special Masala Noodles", unit: "70 g", price: 14, old_price: 15, category: "instant", image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80" },
-      { id: 5, name: "Coca-Cola Chilled Soft Drink Can", unit: "300 ml", price: 38, old_price: 40, category: "snacks", image_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80" },
-      { id: 6, name: "Fresh Red Onions (Premium)", unit: "1 kg", price: 35, old_price: 45, category: "veggies", image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80" },
+      { id: 1, name: "Amul Dark Chocolate 125g", unit: "125 g", price: 190, old_price: 200, category: "snacks", image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80" },
+      { id: 2, name: "Cadbury 5 Star Bar 33g", unit: "33 g", price: 19, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1582293041079-7814c2f12063?auto=format&fit=crop&w=400&q=80" },
+      { id: 3, name: "Cadbury Bournville Rich Cocoa", unit: "80 g", price: 132, old_price: 140, category: "snacks", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80" },
+      { id: 4, name: "Cadbury Dairy Milk Fruit & Nut", unit: "36 g", price: 52, old_price: 55, category: "snacks", image_url: "https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80" },
+      { id: 5, name: "Lay's India's Magic Masala Chips", unit: "50 g", price: 20, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80" },
+      { id: 6, name: "Amul Taaza Homogenised Milk", unit: "500 ml", price: 27, old_price: 30, category: "dairy", image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" },
       { id: 7, name: "Mother Dairy Fresh Paneer Block", unit: "200 g", price: 86, old_price: 95, category: "dairy", image_url: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=400&q=80" },
-      { id: 8, name: "Britannia Daily Fresh Sandwich Bread", unit: "400 g", price: 35, old_price: 40, category: "dairy", image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" }
+      { id: 8, name: "Britannia Daily Fresh Sandwich Bread", unit: "400 g", price: 35, old_price: 40, category: "dairy", image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" },
+      { id: 9, name: "Fresh Country Farm Tomatoes", unit: "1 kg", price: 32, old_price: 40, category: "veggies", image_url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80" },
+      { id: 10, name: "Fresh Red Onions (Premium)", unit: "1 kg", price: 35, old_price: 45, category: "veggies", image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80" },
+      { id: 11, name: "Freedom Refined Sunflower Oil Pouch", unit: "1 L", price: 118, old_price: 135, category: "staples", image_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80" },
+      { id: 12, name: "Maggi 2-Minute Special Masala Noodles", unit: "70 g", price: 14, old_price: 15, category: "instant", image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80" }
     ];
 
     let liveCatalog = [...fallbackCatalog];
@@ -1041,13 +730,28 @@
     let currentSearch = "";
     let activeTrackingOrder = null;
 
-    async function fetchProductsFromCloud() {
+    async function fetchProducts() {
+      let combined = [...fallbackCatalog];
+      
+      // Load custom products added by Akka
+      const localCustom = JSON.parse(localStorage.getItem('quickdash_custom_products') || '[]');
+      if (localCustom.length > 0) combined = [...localCustom, ...combined];
+
       if (supabaseClient) {
         try {
-          const { data, error } = await supabaseClient.from('products').select('*').order('id', { ascending: true });
-          if (!error && data && data.length > 0) liveCatalog = data;
+          const { data, error } = await supabaseClient.from('products').select('*').order('id', { ascending: false });
+          if (!error && data && data.length > 0) combined = [...data, ...fallbackCatalog];
         } catch (err) {}
       }
+
+      // Deduplicate by ID
+      const seen = new Set();
+      liveCatalog = combined.filter(el => {
+        const duplicate = seen.has(el.id);
+        seen.add(el.id);
+        return !duplicate;
+      });
+
       filterAndRender();
     }
 
@@ -1129,7 +833,7 @@
       });
 
       document.getElementById('itemCountBadge').innerText = `${filtered.length} Items`;
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }
 
     function modifyCart(id, delta) {
@@ -1269,106 +973,9 @@
       }
     }
 
-    async function assignRiderToOrder(orderId, riderName) {
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').update({ assigned_rider: riderName }).eq('id', orderId); } catch(e) {}
-      }
-      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-      localOrders = localOrders.map(o => o.id === orderId ? { ...o, assigned_rider: riderName } : o);
-      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
-      renderAdminOrders();
-    }
-
-    async function updateOrderStatus(orderId, newStatus) {
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').update({ status: newStatus }).eq('id', orderId); } catch(e) {}
-      }
-      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-      localOrders = localOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
-
-      if (activeTrackingOrder && activeTrackingOrder.id === orderId) {
-        activeTrackingOrder.status = newStatus;
-        updateTrackingStages(newStatus);
-      }
-      renderAdminOrders();
-      if (!document.getElementById('riderModal').classList.contains('hidden')) renderRiderTasks();
-    }
-
-    async function renderAdminOrders() {
-      const feed = document.getElementById('adminOrdersFeed');
-      feed.innerHTML = `<p class="text-center text-slate-400 py-6">Checking Store Queue...</p>`;
-      let orders = [];
-
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
-          if (data && data.length > 0) orders = data;
-        } catch(e) {}
-      }
-      if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-
-      if (orders.length === 0) {
-        feed.innerHTML = `<p class="text-center text-slate-400 py-6">No active store orders.</p>`;
-        return;
-      }
-
-      feed.innerHTML = '';
-      orders.forEach(o => {
-        const card = document.createElement('div');
-        card.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border space-y-2.5";
-        const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
-        
-        let itemsDesc = "";
-        if (Array.isArray(o.items)) itemsDesc = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
-
-        card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div>
-              <span class="font-extrabold text-brand-navy">${o.id}</span>
-              <span class="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${o.status}</span>
-              <span class="ml-1 text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
-            </div>
-            <span class="font-extrabold text-brand-accent">₹${o.total_amount || o.total}</span>
-          </div>
-          <p class="text-slate-600 text-[11px]">${o.delivery_address} • Phone: <strong>${o.customer_phone}</strong></p>
-          ${itemsDesc ? `<p class="text-[10px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">📦 <strong>Bag:</strong> ${itemsDesc}</p>` : ''}
-          
-          <!-- Rider Assignment & Status Flow -->
-          <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 flex-wrap">
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] text-slate-500 font-bold">Assign:</span>
-              <select onchange="assignRiderToOrder('${o.id}', this.value)" class="text-[11px] font-bold bg-white border border-slate-300 rounded px-1.5 py-0.5">
-                <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Suresh</option>
-                <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Ramesh</option>
-              </select>
-            </div>
-
-            <div class="flex items-center gap-1.5">
-              <button onclick="updateOrderStatus('${o.id}', 'Packing')" class="px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[10px]">Pack</button>
-              <button onclick="updateOrderStatus('${o.id}', 'Out for Delivery')" class="px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-900 font-bold text-[10px]">Dispatch</button>
-              <button onclick='openTrackingScreen(${orderDataEscaped})' class="px-2 py-1 rounded bg-brand-navy text-white font-bold text-[10px]">Track</button>
-            </div>
-          </div>
-        `;
-        feed.appendChild(card);
-      });
-      lucide.createIcons();
-    }
-
-    function toggleAdminPanel() {
-      const modal = document.getElementById('adminModal');
-      const isHidden = modal.classList.contains('hidden');
-      closeAllModals();
-      if (isHidden) {
-        modal.classList.remove('hidden');
-        renderAdminOrders();
-      }
-    }
-
     async function fetchCloudOrders() {
       const feed = document.getElementById('ordersFeed');
-      feed.innerHTML = `<p class="text-center text-slate-400 py-6">Loading orders from Supabase...</p>`;
+      feed.innerHTML = `<p class="text-center text-slate-400 py-6">Loading your orders...</p>`;
       let orders = [];
 
       if (supabaseClient) {
@@ -1403,7 +1010,7 @@
         `;
         feed.appendChild(item);
       });
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     }
 
     function toggleOrdersView() {
@@ -1416,10 +1023,10 @@
       }
     }
 
-    // INITIALIZATION
+    // INIT
     initCategories();
-    fetchProductsFromCloud();
-    lucide.createIcons();
+    fetchProducts();
+    if (window.lucide) lucide.createIcons();
   </script>
 </body>
 </html>
