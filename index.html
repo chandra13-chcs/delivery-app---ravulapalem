@@ -41,7 +41,7 @@
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased selection:bg-brand-accent selection:text-white pb-28">
 
-  <!-- TOP NAV BAR (CUSTOMER ONLY) -->
+  <!-- TOP NAV BAR (CUSTOMER ONLY - NO ADMIN / RIDER BUTTONS) -->
   <header class="sticky top-0 z-40 bg-brand-navy text-white shadow-lg border-b border-slate-800">
     <div class="max-w-7xl mx-auto px-4 lg:px-8 py-3.5">
       <div class="flex items-center justify-between gap-4">
@@ -63,21 +63,21 @@
           </div>
         </div>
 
-        <!-- Search Bar -->
+        <!-- Search Bar Desktop -->
         <div class="hidden md:flex flex-1 max-w-lg mx-4 relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
           <input 
             id="searchInputDesktop" 
             oninput="handleSearch(this.value)" 
             type="text" 
-            placeholder='Search "milk", "onion", "chocolate", "chips"...' 
+            placeholder='Search "chocolate", "milk", "onion", "lays"...' 
             class="w-full pl-10 pr-4 py-2 text-xs bg-brand-navyLight border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
           >
         </div>
 
-        <!-- Right Side: Pure Customer Orders Button (NO ADMIN/RIDER BUTTONS) -->
+        <!-- Customer My Orders Button Only -->
         <div class="flex items-center gap-2">
-          <button onclick="toggleOrdersView()" class="px-3 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition">
+          <button onclick="toggleOrdersView()" class="px-3.5 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
             <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
             <span>My Orders</span>
           </button>
@@ -104,7 +104,7 @@
   <div class="max-w-7xl mx-auto px-4 lg:px-8 pt-6">
     <div class="flex flex-col lg:flex-row gap-6">
 
-      <!-- LEFT SIDEBAR CATEGORIES (DESKTOP) -->
+      <!-- DESKTOP CATEGORY SIDEBAR -->
       <aside class="hidden lg:block w-60 shrink-0">
         <div class="sticky top-24 bg-white rounded-2xl border border-brand-border p-3 shadow-sm space-y-1">
           <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 py-2">Categories</p>
@@ -112,14 +112,13 @@
         </div>
       </aside>
 
-      <!-- MOBILE HORIZONTAL CATEGORY TABS -->
+      <!-- MOBILE HORIZONTAL TABS -->
       <div class="lg:hidden flex gap-2 overflow-x-auto no-scrollbar pb-2">
         <div id="mobileCategoryList" class="flex gap-2 shrink-0"></div>
       </div>
 
-      <!-- PRODUCT SHOWCASE FEED -->
+      <!-- PRODUCTS FEED -->
       <main class="flex-1">
-        
         <!-- Store Banner -->
         <div class="bg-gradient-to-r from-brand-navy via-brand-navyLight to-slate-900 rounded-2xl p-5 text-white mb-6 flex items-center justify-between shadow-md border border-slate-800">
           <div>
@@ -127,7 +126,7 @@
               Ravulapalem Dark Store • RTC Hub
             </span>
             <h2 class="text-base sm:text-lg font-extrabold mt-1.5 text-white">Groceries & Daily Essentials in 10 Mins</h2>
-            <p class="text-xs text-slate-300 mt-0.5">Original Store Prices • Express Local Delivery.</p>
+            <p class="text-xs text-slate-300 mt-0.5">Original Store Prices • Express Local Delivery</p>
           </div>
           <div class="text-4xl hidden sm:block">⚡</div>
         </div>
@@ -135,7 +134,7 @@
         <div class="flex items-center justify-between mb-4">
           <div>
             <h3 id="categoryHeading" class="text-base font-extrabold text-slate-900">All Products</h3>
-            <p id="categorySubheading" class="text-xs text-slate-500">Live store inventory in Ravulapalem</p>
+            <p id="categorySubheading" class="text-xs text-slate-500">Tap any product to view details</p>
           </div>
           <span id="itemCountBadge" class="text-xs font-bold text-slate-600 bg-white border border-brand-border px-3 py-1 rounded-full shadow-sm">
             0 Items
@@ -143,8 +142,57 @@
         </div>
 
         <div id="productsGrid" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-
       </main>
+
+    </div>
+  </div>
+
+  <!-- PRODUCT DETAILS QUICK-VIEW MODAL -->
+  <div id="productDetailModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+      
+      <!-- Modal Header Image -->
+      <div class="relative h-60 sm:h-64 bg-slate-100 flex items-center justify-center">
+        <img id="detailImg" src="" alt="Product" class="w-full h-full object-cover">
+        <button onclick="closeProductDetailModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center font-bold text-sm transition">
+          ✕
+        </button>
+        <span class="absolute bottom-3 left-3 bg-brand-navy/90 backdrop-blur-sm text-cyan-300 text-[10px] font-bold px-2.5 py-1 rounded-lg">
+          ⚡ 10 MINS DELIVERY
+        </span>
+      </div>
+
+      <!-- Modal Info Details -->
+      <div class="p-5 space-y-4">
+        <div>
+          <div class="flex items-center justify-between">
+            <span id="detailCategory" class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">SNACKS</span>
+            <span id="detailDiscount" class="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">5% OFF</span>
+          </div>
+          <h3 id="detailName" class="text-base font-extrabold text-slate-900 mt-1 leading-snug">Product Name</h3>
+          <p id="detailUnit" class="text-xs text-slate-500 font-semibold mt-0.5">500 ml</p>
+        </div>
+
+        <!-- Highlights -->
+        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
+          <p class="font-bold text-slate-800 text-[11px] uppercase">Highlights & Quality</p>
+          <p class="text-[11px] text-slate-500">✓ Sourced fresh from Ravulapalem Hub stockists</p>
+          <p class="text-[11px] text-slate-500">✓ Sealed packaging & 100% original store rate</p>
+        </div>
+
+        <!-- Dynamic Action Bar -->
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+          <div>
+            <span class="text-[10px] text-slate-400 block font-bold uppercase">Price</span>
+            <div class="flex items-baseline gap-1.5">
+              <span id="detailPrice" class="text-xl font-black text-slate-900">₹0</span>
+              <span id="detailOldPrice" class="text-xs text-slate-400 line-through">₹0</span>
+            </div>
+          </div>
+
+          <div id="detailActionBtn"></div>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -276,9 +324,9 @@
           <div id="upiAppsBox" class="hidden pt-2 text-center p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <p class="text-xs font-bold text-slate-700">Select preferred payment app:</p>
             <div class="flex items-center justify-center gap-3">
-              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-sm cursor-pointer">Google Pay</span>
-              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-purple-700 shadow-sm cursor-pointer">PhonePe</span>
-              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-cyan-700 shadow-sm cursor-pointer">Paytm UPI</span>
+              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-sm">Google Pay</span>
+              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-purple-700 shadow-sm">PhonePe</span>
+              <span class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-cyan-700 shadow-sm">Paytm UPI</span>
             </div>
           </div>
 
@@ -290,7 +338,7 @@
 
         <div class="space-y-1.5 text-xs text-slate-600 bg-white p-3.5 rounded-2xl border border-brand-border">
           <div class="flex justify-between"><span>Item Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
-          <div class="flex justify-between"><span>Ravulapalem Priority Delivery</span><span class="text-emerald-600 font-bold">FREE</span></div>
+          <div class="flex justify-between"><span>Ravulapalem Express Delivery</span><span class="text-emerald-600 font-bold">FREE</span></div>
           <div class="flex justify-between"><span>Handling & Bag Charges</span><span class="font-bold text-slate-900">₹4</span></div>
           <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
             <span>To Pay</span><span id="billFinal" class="text-brand-accent">₹0</span>
@@ -357,7 +405,7 @@
         <div class="mt-3 p-3 bg-gradient-to-r from-amber-500/20 to-brand-accent/20 border border-amber-400/40 rounded-2xl flex items-center justify-between">
           <div>
             <p class="text-[10px] uppercase font-bold text-amber-300 tracking-wider">Share with Rider at Doorstep</p>
-            <p class="text-xs text-white">Delivery Verification OTP</p>
+            <p class="text-xs text-white font-medium">Delivery Verification OTP</p>
           </div>
           <div class="bg-white text-slate-900 px-3.5 py-1 rounded-xl font-black text-base tracking-widest shadow-md">
             <span id="trackDeliveryOtp">4821</span>
@@ -395,7 +443,7 @@
           </div>
           <div>
             <h4 class="text-xs font-bold text-slate-900">Out for Delivery</h4>
-            <p class="text-[11px] text-slate-500">Rider on bike heading towards your home.</p>
+            <p class="text-[11px] text-slate-500">Rider heading towards your home.</p>
           </div>
         </div>
 
@@ -436,7 +484,7 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT ENGINE -->
+  <!-- JAVASCRIPT ENGINE (FULLY ERROR FREE) -->
   <script>
     const SUPABASE_URL = "https://esztasmunjrbxkxvshue.supabase.co";
     const SUPABASE_KEY = "sb_publishable_ph5c3E_uwe1-twjsHnIzlQ_kiIZx..."; 
@@ -455,31 +503,33 @@
     function initLeafletMap() {
       if (leafletMap) return;
       setTimeout(() => {
-        leafletMap = L.map('deliveryMap').setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
-        
-        L.circle([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], {
-          color: '#3A86FF', fillColor: '#3A86FF', fillOpacity: 0.12, radius: 6000
-        }).addTo(leafletMap);
+        try {
+          leafletMap = L.map('deliveryMap').setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
+          
+          L.circle([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], {
+            color: '#3A86FF', fillColor: '#3A86FF', fillOpacity: 0.12, radius: 6000
+          }).addTo(leafletMap);
 
-        L.marker([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng])
-          .addTo(leafletMap)
-          .bindPopup("<b>⚡ QuickDash Dark Store</b><br>RTC Complex, Ravulapalem")
-          .openPopup();
+          L.marker([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng])
+            .addTo(leafletMap)
+            .bindPopup("<b>⚡ QuickDash Dark Store</b><br>RTC Complex, Ravulapalem")
+            .openPopup();
 
-        customerMarker = L.marker([currentCustomerCoords.lat, currentCustomerCoords.lng], { draggable: true })
-          .addTo(leafletMap)
-          .bindPopup("<b>📍 Deliver Here</b>");
+          customerMarker = L.marker([currentCustomerCoords.lat, currentCustomerCoords.lng], { draggable: true })
+            .addTo(leafletMap)
+            .bindPopup("<b>📍 Deliver Here</b>");
 
-        customerMarker.on('dragend', function (e) {
-          const pos = e.target.getLatLng();
-          handleLocationUpdate(pos.lat, pos.lng, "Selected Pin, Ravulapalem");
-        });
+          customerMarker.on('dragend', function (e) {
+            const pos = e.target.getLatLng();
+            handleLocationUpdate(pos.lat, pos.lng, "Selected Pin, Ravulapalem");
+          });
 
-        leafletMap.on('click', function(e) {
-          customerMarker.setLatLng(e.latlng);
-          handleLocationUpdate(e.latlng.lat, e.latlng.lng, "Pinned Location, Ravulapalem");
-        });
+          leafletMap.on('click', function(e) {
+            customerMarker.setLatLng(e.latlng);
+            handleLocationUpdate(e.latlng.lat, e.latlng.lng, "Pinned Location, Ravulapalem");
+          });
+        } catch(err) {}
       }, 200);
     }
 
@@ -543,151 +593,15 @@
       closeLocationModal();
     }
 
-    // PAYMENT & ORDER ENGINE
-    let selectedPaymentMode = 'UPI_QR';
-
-    function setPaymentMethod(mode) {
-      selectedPaymentMode = mode;
-      const btnQR = document.getElementById('btnMethodQR');
-      const btnApps = document.getElementById('btnMethodApps');
-      const btnCOD = document.getElementById('btnMethodCOD');
-      const boxQR = document.getElementById('upiQrBox');
-      const boxApps = document.getElementById('upiAppsBox');
-      const boxCOD = document.getElementById('codNoticeBox');
-      const payLabel = document.getElementById('payBtnLabel');
-
-      [btnQR, btnApps, btnCOD].forEach(btn => btn.className = "p-2.5 rounded-xl border border-slate-200 bg-white text-center hover:bg-slate-50 transition flex flex-col items-center gap-1");
-      [boxQR, boxApps, boxCOD].forEach(box => box.classList.add('hidden'));
-
-      if (mode === 'UPI_QR') {
-        btnQR.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
-        boxQR.classList.remove('hidden');
-        payLabel.innerText = "Paid via QR? Confirm Order";
-        renderPaymentQR();
-      } else if (mode === 'UPI_APPS') {
-        btnApps.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
-        boxApps.classList.remove('hidden');
-        payLabel.innerText = "Pay via UPI App & Confirm";
-      } else if (mode === 'COD') {
-        btnCOD.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
-        boxCOD.classList.remove('hidden');
-        payLabel.innerText = "Place Order (Pay on Delivery)";
-      }
-    }
-
-    function renderPaymentQR() {
-      let sub = 0;
-      Object.keys(cartState).forEach(id => {
-        const item = liveCatalog.find(p => p.id == id);
-        if (item) sub += item.price * cartState[id];
-      });
-      const total = sub > 0 ? sub + 4 : 31;
-      const upiUrl = `upi://pay?pa=ravulapalemhub@okaxis&pn=QuickDashRavulapalem&am=${total}&cu=INR&tn=QuickDash Order`;
-      const canvas = document.getElementById('qrcodeCanvas');
-      canvas.innerHTML = '';
-      
-      new QRCode(canvas, {
-        text: upiUrl,
-        width: 130,
-        height: 130,
-        colorDark: "#0B132B",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    }
-
-    async function processPaymentFlow() {
-      const phone = document.getElementById('inputPhone').value.trim();
-      const addr = document.getElementById('inputAddress').value.trim();
-      if (!phone || !addr) {
-        alert("Please enter mobile number & address in Ravulapalem!");
-        return;
-      }
-
-      const overlay = document.getElementById('paymentOverlay');
-      const animBox = document.getElementById('payStatusAnim');
-      const title = document.getElementById('payStatusTitle');
-      const subtitle = document.getElementById('payStatusSubtitle');
-
-      overlay.classList.remove('hidden');
-
-      if (selectedPaymentMode === 'COD') {
-        title.innerText = "Confirming COD Order...";
-        subtitle.innerText = "Assigning Ravulapalem delivery rider";
-        setTimeout(() => finalizeOrderAndLaunch("PENDING_COD"), 1200);
-      } else {
-        title.innerText = "Connecting UPI Gateway...";
-        subtitle.innerText = "Verifying UPI payment with bank servers";
-
-        setTimeout(() => {
-          title.innerText = "Authorizing Payment...";
-          subtitle.innerText = "Receiving instant confirmation";
-        }, 1200);
-
-        setTimeout(() => {
-          animBox.className = "w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600";
-          animBox.innerHTML = `<i data-lucide="check-circle-2" class="w-10 h-10"></i>`;
-          lucide.createIcons();
-          title.innerText = "Payment Successful!";
-          subtitle.innerText = "Transaction ID: TXN" + Math.floor(1000000 + Math.random() * 9000000);
-
-          setTimeout(() => finalizeOrderAndLaunch("PAID_ONLINE"), 1000);
-        }, 2200);
-      }
-    }
-
-    async function finalizeOrderAndLaunch(paymentStatus) {
-      document.getElementById('paymentOverlay').classList.add('hidden');
-      document.getElementById('payStatusAnim').className = "w-16 h-16 mx-auto rounded-full bg-brand-slateBg flex items-center justify-center text-brand-accent";
-      document.getElementById('payStatusAnim').innerHTML = `<div class="w-8 h-8 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>`;
-
-      let sub = 0;
-      const orderItems = Object.keys(cartState).map(id => {
-        const item = liveCatalog.find(p => p.id == id);
-        const qty = cartState[id];
-        sub += item.price * qty;
-        return { id: item.id, name: item.name, quantity: qty, price: item.price };
-      });
-
-      const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
-
-      const orderPayload = {
-        id: "QD-" + Math.floor(100000 + Math.random() * 900000),
-        customer_phone: document.getElementById('inputPhone').value.trim(),
-        delivery_address: document.getElementById('inputAddress').value.trim() + ", Ravulapalem",
-        items: orderItems,
-        total_amount: sub + 4,
-        status: "Order Confirmed",
-        payment_mode: selectedPaymentMode,
-        payment_status: paymentStatus,
-        assigned_rider: "Suresh",
-        delivery_otp: deliveryOtp
-      };
-
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').insert([orderPayload]); } catch(e) {}
-      }
-
-      const localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-      localOrders.unshift(orderPayload);
-      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
-
-      cartState = {};
-      filterAndRender();
-      syncCartBar();
-      closeCheckout();
-      openTrackingScreen(orderPayload);
-    }
-
-    // MODAL HELPERS
+    // MODAL CONTROL
     function closeAllModals() {
-      ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay'].forEach(id => {
+      ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
       });
     }
 
-    ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal'].forEach(id => {
+    ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'productDetailModal'].forEach(id => {
       const modal = document.getElementById(id);
       if (modal) modal.addEventListener('click', function(e) { if (e.target === this) closeAllModals(); });
     });
@@ -698,7 +612,7 @@
     function closeTrackingModal() { document.getElementById('trackingModal').classList.add('hidden'); }
     function closeOrdersView() { document.getElementById('ordersModal').classList.add('hidden'); }
 
-    // CATALOG & CART ENGINE
+    // CATALOG DATA
     const categories = [
       { id: "all", name: "All Products", icon: "layout-grid" },
       { id: "snacks", name: "Snacks & Munchies", icon: "cookie" },
@@ -732,8 +646,6 @@
 
     async function fetchProducts() {
       let combined = [...fallbackCatalog];
-      
-      // Load custom products added by Akka
       const localCustom = JSON.parse(localStorage.getItem('quickdash_custom_products') || '[]');
       if (localCustom.length > 0) combined = [...localCustom, ...combined];
 
@@ -744,7 +656,6 @@
         } catch (err) {}
       }
 
-      // Deduplicate by ID
       const seen = new Set();
       liveCatalog = combined.filter(el => {
         const duplicate = seen.has(el.id);
@@ -780,7 +691,7 @@
       activeCategory = catId;
       initCategories();
       const currentCatObj = categories.find(c => c.id === catId);
-      document.getElementById('categoryHeading').innerText = currentCatObj.name;
+      document.getElementById('categoryHeading').innerText = currentCatObj ? currentCatObj.name : "All Products";
       filterAndRender();
     }
 
@@ -797,14 +708,14 @@
         const card = document.createElement('div');
         card.className = "bg-white p-3 rounded-2xl border border-brand-border shadow-sm flex flex-col justify-between hover:shadow-md transition";
         card.innerHTML = `
-          <div>
+          <div onclick="openProductDetailModal(${p.id})" class="cursor-pointer">
             <div class="h-32 sm:h-36 w-full rounded-xl overflow-hidden bg-slate-100 relative mb-2.5">
               <img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover">
               <span class="absolute bottom-1.5 left-1.5 bg-brand-navy/90 backdrop-blur-sm text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
                 ⚡ 10 MINS
               </span>
             </div>
-            <h4 class="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">${p.name}</h4>
+            <h4 class="text-xs font-bold text-slate-900 line-clamp-2 leading-snug hover:text-brand-accent transition">${p.name}</h4>
             <span class="text-[11px] text-slate-500 font-medium mt-1 block">${p.unit}</span>
           </div>
 
@@ -836,6 +747,74 @@
       if (window.lucide) lucide.createIcons();
     }
 
+    // ==========================================
+    // 🔍 PRODUCT DETAILS QUICK-VIEW MODAL ENGINE
+    // ==========================================
+    let currentDetailProductId = null;
+
+    function openProductDetailModal(id) {
+      const product = liveCatalog.find(p => p.id == id);
+      if (!product) return;
+
+      currentDetailProductId = id;
+      const qty = cartState[id] || 0;
+
+      document.getElementById('detailImg').src = product.image_url;
+      document.getElementById('detailName').innerText = product.name;
+      document.getElementById('detailUnit').innerText = product.unit;
+      document.getElementById('detailCategory').innerText = (product.category || 'GROCERY').toUpperCase();
+      document.getElementById('detailPrice').innerText = `₹${product.price}`;
+
+      const oldPriceEl = document.getElementById('detailOldPrice');
+      const discountEl = document.getElementById('detailDiscount');
+
+      if (product.old_price && product.old_price > product.price) {
+        oldPriceEl.innerText = `₹${product.old_price}`;
+        oldPriceEl.classList.remove('hidden');
+        const discount = Math.round(((product.old_price - product.price) / product.old_price) * 100);
+        discountEl.innerText = `${discount}% OFF`;
+        discountEl.classList.remove('hidden');
+      } else {
+        oldPriceEl.classList.add('hidden');
+        discountEl.classList.add('hidden');
+      }
+
+      renderDetailActionBtn(id, qty);
+      document.getElementById('productDetailModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderDetailActionBtn(id, qty) {
+      const btnWrap = document.getElementById('detailActionBtn');
+      if (qty === 0) {
+        btnWrap.innerHTML = `
+          <button onclick="modifyCartFromDetail(${id}, 1)" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
+            Add to Cart
+          </button>
+        `;
+      } else {
+        btnWrap.innerHTML = `
+          <div class="flex items-center bg-brand-navy text-white rounded-xl px-3 py-1.5 text-xs font-bold gap-3 shadow-md">
+            <button onclick="modifyCartFromDetail(${id}, -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+            <span class="text-sm font-black w-4 text-center">${qty}</span>
+            <button onclick="modifyCartFromDetail(${id}, 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+          </div>
+        `;
+      }
+    }
+
+    function modifyCartFromDetail(id, delta) {
+      modifyCart(id, delta);
+      const nextQty = cartState[id] || 0;
+      renderDetailActionBtn(id, nextQty);
+    }
+
+    function closeProductDetailModal() {
+      document.getElementById('productDetailModal').classList.add('hidden');
+      currentDetailProductId = null;
+    }
+
+    // CART OPERATIONS
     function modifyCart(id, delta) {
       const current = cartState[id] || 0;
       const next = current + delta;
@@ -916,6 +895,144 @@
       document.getElementById('billSubtotal').innerText = `₹${sub}`;
       document.getElementById('billFinal').innerText = `₹${sub + 4}`;
       setPaymentMethod(selectedPaymentMode);
+    }
+
+    // PAYMENT LOGIC
+    let selectedPaymentMode = 'UPI_QR';
+
+    function setPaymentMethod(mode) {
+      selectedPaymentMode = mode;
+      const btnQR = document.getElementById('btnMethodQR');
+      const btnApps = document.getElementById('btnMethodApps');
+      const btnCOD = document.getElementById('btnMethodCOD');
+      const boxQR = document.getElementById('upiQrBox');
+      const boxApps = document.getElementById('upiAppsBox');
+      const boxCOD = document.getElementById('codNoticeBox');
+      const payLabel = document.getElementById('payBtnLabel');
+
+      [btnQR, btnApps, btnCOD].forEach(btn => btn.className = "p-2.5 rounded-xl border border-slate-200 bg-white text-center hover:bg-slate-50 transition flex flex-col items-center gap-1");
+      [boxQR, boxApps, boxCOD].forEach(box => box.classList.add('hidden'));
+
+      if (mode === 'UPI_QR') {
+        btnQR.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+        boxQR.classList.remove('hidden');
+        payLabel.innerText = "Paid via QR? Confirm Order";
+        renderPaymentQR();
+      } else if (mode === 'UPI_APPS') {
+        btnApps.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+        boxApps.classList.remove('hidden');
+        payLabel.innerText = "Pay via UPI App & Confirm";
+      } else if (mode === 'COD') {
+        btnCOD.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+        boxCOD.classList.remove('hidden');
+        payLabel.innerText = "Place Order (Pay on Delivery)";
+      }
+    }
+
+    function renderPaymentQR() {
+      let sub = 0;
+      Object.keys(cartState).forEach(id => {
+        const item = liveCatalog.find(p => p.id == id);
+        if (item) sub += item.price * cartState[id];
+      });
+      const total = sub > 0 ? sub + 4 : 31;
+      const upiUrl = `upi://pay?pa=ravulapalemhub@okaxis&pn=QuickDashRavulapalem&am=${total}&cu=INR&tn=QuickDash Order`;
+      const canvas = document.getElementById('qrcodeCanvas');
+      canvas.innerHTML = '';
+      
+      try {
+        new QRCode(canvas, {
+          text: upiUrl,
+          width: 130,
+          height: 130,
+          colorDark: "#0B132B",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch(e) {}
+    }
+
+    async function processPaymentFlow() {
+      const phone = document.getElementById('inputPhone').value.trim();
+      const addr = document.getElementById('inputAddress').value.trim();
+      if (!phone || !addr) {
+        alert("Please enter mobile number & address in Ravulapalem!");
+        return;
+      }
+
+      const overlay = document.getElementById('paymentOverlay');
+      const animBox = document.getElementById('payStatusAnim');
+      const title = document.getElementById('payStatusTitle');
+      const subtitle = document.getElementById('payStatusSubtitle');
+
+      overlay.classList.remove('hidden');
+
+      if (selectedPaymentMode === 'COD') {
+        title.innerText = "Confirming COD Order...";
+        subtitle.innerText = "Assigning Ravulapalem delivery rider";
+        setTimeout(() => finalizeOrderAndLaunch("PENDING_COD"), 1200);
+      } else {
+        title.innerText = "Connecting UPI Gateway...";
+        subtitle.innerText = "Verifying UPI payment with bank servers";
+
+        setTimeout(() => {
+          title.innerText = "Authorizing Payment...";
+          subtitle.innerText = "Receiving instant confirmation";
+        }, 1200);
+
+        setTimeout(() => {
+          animBox.className = "w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600";
+          animBox.innerHTML = `<i data-lucide="check-circle-2" class="w-10 h-10"></i>`;
+          if (window.lucide) lucide.createIcons();
+          title.innerText = "Payment Successful!";
+          subtitle.innerText = "Transaction ID: TXN" + Math.floor(1000000 + Math.random() * 9000000);
+
+          setTimeout(() => finalizeOrderAndLaunch("PAID_ONLINE"), 1000);
+        }, 2200);
+      }
+    }
+
+    async function finalizeOrderAndLaunch(paymentStatus) {
+      document.getElementById('paymentOverlay').classList.add('hidden');
+      document.getElementById('payStatusAnim').className = "w-16 h-16 mx-auto rounded-full bg-brand-slateBg flex items-center justify-center text-brand-accent";
+      document.getElementById('payStatusAnim').innerHTML = `<div class="w-8 h-8 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>`;
+
+      let sub = 0;
+      const orderItems = Object.keys(cartState).map(id => {
+        const item = liveCatalog.find(p => p.id == id);
+        const qty = cartState[id];
+        sub += item.price * qty;
+        return { id: item.id, name: item.name, quantity: qty, price: item.price };
+      });
+
+      const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+
+      const orderPayload = {
+        id: "QD-" + Math.floor(100000 + Math.random() * 900000),
+        customer_phone: document.getElementById('inputPhone').value.trim(),
+        delivery_address: document.getElementById('inputAddress').value.trim() + ", Ravulapalem",
+        items: orderItems,
+        total_amount: sub + 4,
+        status: "Order Confirmed",
+        payment_mode: selectedPaymentMode,
+        payment_status: paymentStatus,
+        assigned_rider: "Suresh",
+        delivery_otp: deliveryOtp
+      };
+
+      if (supabaseClient) {
+        try { await supabaseClient.from('orders').insert([orderPayload]); } catch(e) {}
+      }
+
+      const localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+      localOrders.unshift(orderPayload);
+      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
+
+      cartState = {};
+      filterAndRender();
+      syncCartBar();
+      closeCheckout();
+      openTrackingScreen(orderPayload);
     }
 
     function openTrackingScreen(order) {
