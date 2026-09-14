@@ -267,40 +267,54 @@
       }
     }
 
-    function openOtpModal(orderId) {
-      verifyingOrder = allRiderOrders.find(o => o.id === orderId);
-      if (!verifyingOrder) return;
-      document.getElementById('inputDeliveryOtp').value = '';
-      document.getElementById('otpErrorMessage').classList.add('hidden');
-      document.getElementById('otpModal').classList.remove('hidden');
-    }
+function openOtpModal(orderId) {
+  currentVerifyingOrderId = orderId;
+  const foundOrder = allRiderOrders.find(o => o.id === orderId);
+  if (!foundOrder) return;
 
-    function closeOtpModal() {
-      document.getElementById('otpModal').classList.add('hidden');
-      verifyingOrder = null;
-    }
+  const inputEl = document.getElementById('inputDeliveryOtp');
+  inputEl.value = '';
+  inputEl.dataset.expectedOtp = foundOrder.delivery_otp; // Store correct OTP directly in element
+  
+  document.getElementById('otpErrorMessage').classList.add('hidden');
+  document.getElementById('otpModal').classList.remove('hidden');
+  inputEl.focus();
+}
 
-    async function confirmOtpAndDeliver() {
-      if (!verifyingOrder) return;
-      const enteredOtp = document.getElementById('inputDeliveryOtp').value.trim();
+function closeOtpModal() {
+  document.getElementById('otpModal').classList.add('hidden');
+  currentVerifyingOrderId = null;
+}
 
-      // Check OTP match
-      if (enteredOtp === verifyingOrder.delivery_otp) {
-        try {
-          await db.collection("orders").doc(verifyingOrder.id).update({
-            status: "Delivered",
-            payment_status: "COMPLETED",
-            delivered_at: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          closeOtpModal();
-          alert(`Order ${verifyingOrder.id} marked Delivered safely!`);
-        } catch(e) {
-          alert("Update failed: " + e.message);
-        }
-      } else {
-        document.getElementById('otpErrorMessage').classList.remove('hidden');
-      }
+async function confirmOtpAndDeliver() {
+  const inputEl = document.getElementById('inputDeliveryOtp');
+  const enteredOtp = inputEl.value.trim();
+  const expectedOtp = inputEl.dataset.expectedOtp;
+
+  if (!currentVerifyingOrderId) {
+    alert("Session expired. Please click 'Enter Delivery OTP' again.");
+    return;
+  }
+
+  // Strict OTP verification match
+  if (enteredOtp === expectedOtp) {
+    try {
+      await db.collection("orders").doc(currentVerifyingOrderId).update({
+        status: "Delivered",
+        payment_status: "COMPLETED",
+        delivered_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      
+      const deliveredId = currentVerifyingOrderId;
+      closeOtpModal();
+      alert(`🎉 Order ${deliveredId} successfully verified and Delivered!`);
+    } catch(e) {
+      alert("Update failed: " + e.message);
     }
+  } else {
+    document.getElementById('otpErrorMessage').classList.remove('hidden');
+  }
+}
 
     if (window.lucide) lucide.createIcons();
   </script>
