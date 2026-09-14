@@ -9,7 +9,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- GOOGLE FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -33,6 +37,29 @@
   </style>
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-16">
+
+  <!-- MASTER TERMINAL PIN SECURITY OVERLAY -->
+  <div id="adminAuthLock" class="fixed inset-0 z-50 bg-brand-navy flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-700">
+      <div class="w-12 h-12 rounded-2xl bg-brand-accent text-white flex items-center justify-center mx-auto text-xl font-black mb-3">
+        🔒
+      </div>
+      <h3 class="text-base font-extrabold text-slate-900">Store Manager Access</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">Ravulapalem Dark Store Operations</p>
+      
+      <input 
+        id="adminPinInput" 
+        type="password" 
+        maxlength="6" 
+        placeholder="Enter 6-Digit PIN" 
+        class="w-full text-center tracking-widest text-lg font-black py-2.5 border border-brand-border rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-brand-accent"
+      >
+      <button onclick="verifyAdminAccess()" class="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition">
+        Unlock Terminal
+      </button>
+      <p id="pinErrorMsg" class="hidden text-[11px] font-bold text-rose-500 mt-2">Incorrect Access PIN (Default: 748801)</p>
+    </div>
+  </div>
 
   <!-- HEADER -->
   <header class="bg-brand-navy text-white px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
@@ -100,27 +127,25 @@
       <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
         <div>
           <h2 class="text-base font-extrabold text-slate-900">Live Dispatch Queue</h2>
-          <p class="text-xs text-slate-500">Orders placed by customers in Ravulapalem</p>
+          <p class="text-xs text-slate-500">Real-time incoming orders from Ravulapalem</p>
         </div>
-        <button onclick="fetchAdminQueue()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition">
-          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
-        </button>
+        <span class="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1.5 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Realtime Active
+        </span>
       </div>
       <div id="adminQueueContainer" class="space-y-3">
-        <p class="text-center text-slate-400 py-10">Connecting to Live Queue...</p>
+        <p class="text-center text-slate-400 py-10">Connecting to Realtime Firebase Queue...</p>
       </div>
     </div>
   </main>
 
-  <!-- TAB 2: PRODUCT & INVENTORY MANAGEMENT (WITH CAMERA/FILE UPLOAD) -->
+  <!-- TAB 2: PRODUCT MANAGEMENT -->
   <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
-    
-    <!-- Add Product Form -->
     <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
       <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
         <i data-lucide="plus-circle" class="w-5 h-5 text-brand-accent"></i> Add New Product to Store
       </h2>
-      <p class="text-xs text-slate-500 mb-4">Fill details or upload image. Instant live update on Customer App.</p>
+      <p class="text-xs text-slate-500 mb-4">Instant live update on Customer App via Firestore.</p>
 
       <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
@@ -156,9 +181,8 @@
           </div>
         </div>
 
-        <!-- Direct Phone Gallery / Camera Upload -->
         <div class="sm:col-span-2 lg:col-span-3">
-          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Image (Select File / Take Photo or Paste Link)</label>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Image (File Upload or URL)</label>
           <div class="flex items-center gap-3 mt-1 flex-wrap sm:flex-nowrap">
             <input 
               id="pFileInput" 
@@ -175,7 +199,6 @@
               class="flex-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-slate-50"
             >
           </div>
-          <!-- Live Preview -->
           <div id="imagePreviewContainer" class="hidden mt-2 flex items-center gap-2">
             <img id="previewImg" src="" class="w-12 h-12 object-cover rounded-xl border border-slate-300">
             <span class="text-[11px] text-emerald-600 font-bold">✓ Photo selected</span>
@@ -190,16 +213,13 @@
       </form>
     </div>
 
-    <!-- Live Products List Table -->
+    <!-- Inventory Table -->
     <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
       <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
         <div>
           <h3 class="text-base font-extrabold text-slate-900">Current Store Inventory</h3>
-          <p id="totalStockCount" class="text-xs text-slate-500">0 Products available in Ravulapalem Hub</p>
+          <p id="totalStockCount" class="text-xs text-slate-500">0 Products registered in Ravulapalem Hub</p>
         </div>
-        <button onclick="loadAdminInventory()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition">
-          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh List
-        </button>
       </div>
 
       <div class="overflow-x-auto">
@@ -218,17 +238,39 @@
         </table>
       </div>
     </div>
-
   </main>
 
   <script>
-    const SUPABASE_URL = "https://esztasmunjrbxkxvshue.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_ph5c3E_uwe1-twjsHnIzlQ_kiIZx..."; 
+    // FIREBASE INITIALIZATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyBW6PuEVu91Ej8bA0FCAEdYTyhSMu912yM",
+      authDomain: "myshopzy-ravulapalem-96b34.firebaseapp.com",
+      projectId: "myshopzy-ravulapalem-96b34",
+      storageBucket: "myshopzy-ravulapalem-96b34.firebasestorage.app",
+      messagingSenderId: "1082906750454",
+      appId: "1:1082906750454:web:14b7f951da98596ee02bd7"
+    };
 
-    let supabaseClient = null;
-    try {
-      if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } catch(err) {}
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    // TERMINAL ACCESS LOCK
+    const STORE_TERMINAL_PIN = "748801"; // Default PIN
+    function verifyAdminAccess() {
+      const entered = document.getElementById('adminPinInput').value;
+      if (entered === STORE_TERMINAL_PIN) {
+        sessionStorage.setItem('hub_session_unlocked', 'true');
+        document.getElementById('adminAuthLock').classList.add('hidden');
+      } else {
+        document.getElementById('pinErrorMsg').classList.remove('hidden');
+      }
+    }
+
+    if (sessionStorage.getItem('hub_session_unlocked') === 'true') {
+      document.getElementById('adminAuthLock').classList.add('hidden');
+    }
 
     // TAB CONTROLLER
     function switchView(tab) {
@@ -242,141 +284,16 @@
         invSec.classList.add('hidden');
         btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
         btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
-        fetchAdminQueue();
       } else {
         ordersSec.classList.add('hidden');
         invSec.classList.remove('hidden');
         btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
         btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
-        loadAdminInventory();
       }
       if (window.lucide) lucide.createIcons();
     }
 
-    // ==========================================
-    // 📸 IMAGE UPLOAD & INVENTORY ENGINE
-    // ==========================================
-    let adminProducts = [];
-    let selectedBase64Image = "";
-
-    function handleImageFileSelect(input) {
-      const file = input.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        selectedBase64Image = e.target.result;
-        document.getElementById('previewImg').src = selectedBase64Image;
-        document.getElementById('imagePreviewContainer').classList.remove('hidden');
-        document.getElementById('pImage').value = "";
-      };
-      reader.readAsDataURL(file);
-    }
-
-    async function loadAdminInventory() {
-      const tbody = document.getElementById('inventoryTableBody');
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">Loading catalog...</td></tr>`;
-
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('products').select('*').order('id', { ascending: false });
-          if (data && data.length > 0) adminProducts = data;
-        } catch(e) {}
-      }
-      if (adminProducts.length === 0) {
-        adminProducts = JSON.parse(localStorage.getItem('quickdash_custom_products') || '[]');
-      }
-
-      document.getElementById('totalStockCount').innerText = `${adminProducts.length} Products registered in Ravulapalem Hub`;
-      tbody.innerHTML = '';
-
-      if (adminProducts.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">No custom products added yet. Add your first item above!</td></tr>`;
-        return;
-      }
-
-      adminProducts.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 transition";
-        tr.innerHTML = `
-          <td class="py-3 px-3 flex items-center gap-2.5">
-            <img src="${p.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=100&q=80'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200">
-            <div>
-              <p class="font-bold text-slate-900 line-clamp-1">${p.name}</p>
-              <span class="text-[10px] text-slate-400">ID: #${p.id}</span>
-            </div>
-          </td>
-          <td class="py-3 px-3 uppercase text-[10px] font-bold text-slate-500">${p.category}</td>
-          <td class="py-3 px-3 font-semibold text-slate-700">${p.unit}</td>
-          <td class="py-3 px-3 font-black text-brand-navy">₹${p.price}</td>
-          <td class="py-3 px-3 text-slate-400 line-through">₹${p.old_price || p.price}</td>
-          <td class="py-3 px-3 text-right">
-            <button onclick="deleteProductItem(${p.id})" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] border border-rose-200 transition">
-              Delete
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      if (window.lucide) lucide.createIcons();
-    }
-
-    async function handleAddNewProduct(e) {
-      e.preventDefault();
-      const saveBtn = document.getElementById('saveProdBtn');
-      saveBtn.innerText = "Adding...";
-      saveBtn.disabled = true;
-
-      const finalImage = selectedBase64Image || 
-                         document.getElementById('pImage').value.trim() || 
-                         "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
-
-      const newProd = {
-        id: Date.now(),
-        name: document.getElementById('pName').value.trim(),
-        category: document.getElementById('pCategory').value,
-        unit: document.getElementById('pUnit').value.trim(),
-        price: Number(document.getElementById('pPrice').value),
-        old_price: Number(document.getElementById('pOldPrice').value) || Number(document.getElementById('pPrice').value),
-        image_url: finalImage
-      };
-
-      if (supabaseClient) {
-        try { await supabaseClient.from('products').insert([newProd]); } catch(err) {}
-      }
-
-      adminProducts.unshift(newProd);
-      localStorage.setItem('quickdash_custom_products', JSON.stringify(adminProducts));
-
-      document.getElementById('addProductForm').reset();
-      selectedBase64Image = "";
-      document.getElementById('imagePreviewContainer').classList.add('hidden');
-
-      saveBtn.innerText = "Added Successfully!";
-      setTimeout(() => {
-        saveBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog`;
-        saveBtn.disabled = false;
-        if (window.lucide) lucide.createIcons();
-      }, 1000);
-
-      loadAdminInventory();
-    }
-
-    async function deleteProductItem(id) {
-      if (!confirm("Are you sure you want to delete this product?")) return;
-
-      if (supabaseClient) {
-        try { await supabaseClient.from('products').delete().eq('id', id); } catch(err) {}
-      }
-
-      adminProducts = adminProducts.filter(p => p.id !== id);
-      localStorage.setItem('quickdash_custom_products', JSON.stringify(adminProducts));
-      loadAdminInventory();
-    }
-
-    // ==========================================
-    // 🔔 DISPATCH & AUDIO ENGINE
-    // ==========================================
+    // AUDIO CHIME ALERT ENGINE
     let audioAlertsEnabled = true;
     let audioCtx = null;
 
@@ -422,92 +339,201 @@
       btn.className = audioAlertsEnabled ? "px-3 py-1.5 rounded-xl bg-slate-700 text-slate-200 text-xs font-bold" : "px-3 py-1.5 rounded-xl bg-rose-900 text-rose-200 text-xs font-bold";
     }
 
-    async function fetchAdminQueue() {
+    // REALTIME LIVE ORDERS QUEUE
+    let previousOrderCount = 0;
+    let isInitialRun = true;
+
+    function startLiveOrderQueue() {
       const container = document.getElementById('adminQueueContainer');
-      let orders = [];
 
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
-          if (data && data.length > 0) orders = data;
-        } catch(e) {}
-      }
-      if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+      db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
+        let orders = [];
+        snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
 
-      if (orders.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
-        return;
-      }
+        // Ring audio chime whenever a new order arrives
+        if (!isInitialRun && orders.length > previousOrderCount) {
+          playOrderAlertSound();
+        }
+        isInitialRun = false;
+        previousOrderCount = orders.length;
 
-      const activeCount = orders.filter(o => o.status !== "Delivered").length;
-      const deliveredCount = orders.filter(o => o.status === "Delivered").length;
-      document.getElementById('metricActiveOrders').innerText = activeCount;
-      document.getElementById('metricDelivered').innerText = deliveredCount;
+        const activeCount = orders.filter(o => o.status !== "Delivered").length;
+        const deliveredCount = orders.filter(o => o.status === "Delivered").length;
+        document.getElementById('metricActiveOrders').innerText = activeCount;
+        document.getElementById('metricDelivered').innerText = deliveredCount;
 
-      container.innerHTML = '';
-      orders.forEach(o => {
-        const row = document.createElement('div');
-        row.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4";
-        
-        let itemsSummary = "";
-        if (Array.isArray(o.items)) itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+        if (orders.length === 0) {
+          container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
+          return;
+        }
 
-        row.innerHTML = `
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <span class="font-extrabold text-brand-navy">${o.id}</span>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
-              <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
-              <span class="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
+        container.innerHTML = '';
+        orders.forEach(o => {
+          const row = document.createElement('div');
+          row.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4";
+          
+          let itemsSummary = "";
+          if (Array.isArray(o.items)) itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+
+          row.innerHTML = `
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-brand-navy">${o.id}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
+                <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
+                <span class="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
+              </div>
+              <p class="text-xs text-slate-700 font-semibold">${o.delivery_address} • Phone: ${o.customer_phone}</p>
+              ${itemsSummary ? `<p class="text-[11px] text-slate-500">📦 ${itemsSummary}</p>` : ''}
             </div>
-            <p class="text-xs text-slate-700 font-semibold">${o.delivery_address} • Phone: ${o.customer_phone}</p>
-            ${itemsSummary ? `<p class="text-[11px] text-slate-500">📦 ${itemsSummary}</p>` : ''}
-          </div>
 
-          <div class="flex items-center gap-3 shrink-0">
-            <span class="text-sm font-black text-brand-accent">₹${o.total_amount || o.total}</span>
-            
-            <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2.5 py-1.5">
-              <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Rider: Suresh</option>
-              <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Rider: Ramesh</option>
-            </select>
+            <div class="flex items-center gap-3 shrink-0">
+              <span class="text-sm font-black text-brand-accent">₹${o.total_amount || o.total}</span>
+              
+              <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none">
+                <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Rider: Suresh</option>
+                <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Rider: Ramesh</option>
+              </select>
 
-            <select onchange="updateStatus('${o.id}', this.value)" class="text-xs font-bold bg-brand-navy text-white rounded-xl px-2.5 py-1.5">
-              <option value="Order Confirmed" ${o.status === 'Order Confirmed' ? 'selected' : ''}>Confirmed</option>
-              <option value="Packing" ${o.status === 'Packing' ? 'selected' : ''}>Packing</option>
-              <option value="Out for Delivery" ${o.status === 'Out for Delivery' ? 'selected' : ''}>Dispatch</option>
-              <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
-            </select>
-          </div>
-        `;
-        container.appendChild(row);
+              <select onchange="updateStatus('${o.id}', this.value)" class="text-xs font-bold bg-brand-navy text-white rounded-xl px-2.5 py-1.5 outline-none">
+                <option value="Order Confirmed" ${o.status === 'Order Confirmed' ? 'selected' : ''}>Confirmed</option>
+                <option value="Packing" ${o.status === 'Packing' ? 'selected' : ''}>Packing</option>
+                <option value="Out for Delivery" ${o.status === 'Out for Delivery' ? 'selected' : ''}>Dispatch</option>
+                <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+              </select>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+        if (window.lucide) lucide.createIcons();
       });
-      if (window.lucide) lucide.createIcons();
     }
 
     async function updateStatus(orderId, status) {
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').update({ status }).eq('id', orderId); } catch(e) {}
+      try {
+        await db.collection("orders").doc(orderId).update({ status: status });
+      } catch(e) {
+        console.error("Status update error:", e);
       }
-      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-      localOrders = localOrders.map(o => o.id === orderId ? { ...o, status } : o);
-      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
-      fetchAdminQueue();
     }
 
     async function updateRider(orderId, assigned_rider) {
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').update({ assigned_rider }).eq('id', orderId); } catch(e) {}
+      try {
+        await db.collection("orders").doc(orderId).update({ assigned_rider: assigned_rider });
+      } catch(e) {
+        console.error("Rider update error:", e);
       }
-      let localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
-      localOrders = localOrders.map(o => o.id === orderId ? { ...o, assigned_rider } : o);
-      localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
-      fetchAdminQueue();
     }
 
-    fetchAdminQueue();
-    setInterval(fetchAdminQueue, 8000);
-    if (window.lucide) lucide.createIcons();
+    // INVENTORY MANAGEMENT
+    let selectedBase64Image = "";
+
+    function handleImageFileSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        selectedBase64Image = e.target.result;
+        document.getElementById('previewImg').src = selectedBase64Image;
+        document.getElementById('imagePreviewContainer').classList.remove('hidden');
+        document.getElementById('pImage').value = "";
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function loadAdminInventory() {
+      const tbody = document.getElementById('inventoryTableBody');
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">Loading catalog...</td></tr>`;
+
+      db.collection("products").onSnapshot((snapshot) => {
+        let prods = [];
+        snapshot.forEach(doc => prods.push({ id: doc.id, ...doc.data() }));
+
+        document.getElementById('totalStockCount').innerText = `${prods.length} Products registered in Ravulapalem Hub`;
+        tbody.innerHTML = '';
+
+        if (prods.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">No custom products added yet. Add your first item above!</td></tr>`;
+          return;
+        }
+
+        prods.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition";
+          tr.innerHTML = `
+            <td class="py-3 px-3 flex items-center gap-2.5">
+              <img src="${p.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=100&q=80'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200">
+              <div>
+                <p class="font-bold text-slate-900 line-clamp-1">${p.name}</p>
+                <span class="text-[10px] text-slate-400">ID: #${p.id.substring(0, 5)}</span>
+              </div>
+            </td>
+            <td class="py-3 px-3 uppercase text-[10px] font-bold text-slate-500">${p.category}</td>
+            <td class="py-3 px-3 font-semibold text-slate-700">${p.unit}</td>
+            <td class="py-3 px-3 font-black text-brand-navy">₹${p.price}</td>
+            <td class="py-3 px-3 text-slate-400 line-through">₹${p.old_price || p.price}</td>
+            <td class="py-3 px-3 text-right">
+              <button onclick="deleteProductItem('${p.id}')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] border border-rose-200 transition">
+                Delete
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+        if (window.lucide) lucide.createIcons();
+      });
+    }
+
+    async function handleAddNewProduct(e) {
+      e.preventDefault();
+      const saveBtn = document.getElementById('saveProdBtn');
+      saveBtn.innerText = "Adding...";
+      saveBtn.disabled = true;
+
+      const finalImage = selectedBase64Image || 
+                         document.getElementById('pImage').value.trim() || 
+                         "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
+
+      const newProd = {
+        name: document.getElementById('pName').value.trim(),
+        category: document.getElementById('pCategory').value,
+        unit: document.getElementById('pUnit').value.trim(),
+        price: Number(document.getElementById('pPrice').value),
+        old_price: Number(document.getElementById('pOldPrice').value) || Number(document.getElementById('pPrice').value),
+        image_url: finalImage,
+        created_at: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      try {
+        await db.collection("products").add(newProd);
+        document.getElementById('addProductForm').reset();
+        selectedBase64Image = "";
+        document.getElementById('imagePreviewContainer').classList.add('hidden');
+        saveBtn.innerText = "Added Successfully!";
+      } catch(err) {
+        alert("Upload failed: " + err.message);
+      }
+
+      setTimeout(() => {
+        saveBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog`;
+        saveBtn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+      }, 1000);
+    }
+
+    async function deleteProductItem(docId) {
+      if (!confirm("Are you sure you want to delete this product?")) return;
+      try {
+        await db.collection("products").doc(docId).delete();
+      } catch(err) {
+        alert("Delete failed: " + err.message);
+      }
+    }
+
+    // BOOTSTRAP
+    startLiveOrderQueue();
+    loadAdminInventory();
   </script>
 </body>
 </html>

@@ -12,7 +12,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- GOOGLE FIREBASE SDK (NEVER SLEEPS / ZERO HIBERNATION) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -41,7 +45,7 @@
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased selection:bg-brand-accent selection:text-white pb-28">
 
-  <!-- TOP NAV BAR (CUSTOMER ONLY - NO ADMIN / RIDER BUTTONS) -->
+  <!-- TOP NAV BAR -->
   <header class="sticky top-0 z-40 bg-brand-navy text-white shadow-lg border-b border-slate-800">
     <div class="max-w-7xl mx-auto px-4 lg:px-8 py-3.5">
       <div class="flex items-center justify-between gap-4">
@@ -75,7 +79,7 @@
           >
         </div>
 
-        <!-- Customer My Orders Button Only -->
+        <!-- Customer My Orders Button -->
         <div class="flex items-center gap-2">
           <button onclick="toggleOrdersView()" class="px-3.5 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
             <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
@@ -119,7 +123,6 @@
 
       <!-- PRODUCTS FEED -->
       <main class="flex-1">
-        <!-- Store Banner -->
         <div class="bg-gradient-to-r from-brand-navy via-brand-navyLight to-slate-900 rounded-2xl p-5 text-white mb-6 flex items-center justify-between shadow-md border border-slate-800">
           <div>
             <span class="text-[10px] font-bold uppercase tracking-wider bg-brand-accent/20 text-cyan-300 border border-brand-accent/30 px-2.5 py-0.5 rounded-full">
@@ -149,9 +152,7 @@
 
   <!-- PRODUCT DETAILS QUICK-VIEW MODAL -->
   <div id="productDetailModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
-      
-      <!-- Modal Header Image -->
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border">
       <div class="relative h-60 sm:h-64 bg-slate-100 flex items-center justify-center">
         <img id="detailImg" src="" alt="Product" class="w-full h-full object-cover">
         <button onclick="closeProductDetailModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center font-bold text-sm transition">
@@ -162,7 +163,6 @@
         </span>
       </div>
 
-      <!-- Modal Info Details -->
       <div class="p-5 space-y-4">
         <div>
           <div class="flex items-center justify-between">
@@ -173,14 +173,12 @@
           <p id="detailUnit" class="text-xs text-slate-500 font-semibold mt-0.5">500 ml</p>
         </div>
 
-        <!-- Highlights -->
         <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
           <p class="font-bold text-slate-800 text-[11px] uppercase">Highlights & Quality</p>
           <p class="text-[11px] text-slate-500">✓ Sourced fresh from Ravulapalem Hub stockists</p>
           <p class="text-[11px] text-slate-500">✓ Sealed packaging & 100% original store rate</p>
         </div>
 
-        <!-- Dynamic Action Bar -->
         <div class="flex items-center justify-between pt-3 border-t border-slate-100">
           <div>
             <span class="text-[10px] text-slate-400 block font-bold uppercase">Price</span>
@@ -189,16 +187,14 @@
               <span id="detailOldPrice" class="text-xs text-slate-400 line-through">₹0</span>
             </div>
           </div>
-
           <div id="detailActionBtn"></div>
         </div>
       </div>
-
     </div>
   </div>
 
   <!-- FLOATING BOTTOM CART BAR -->
-  <div id="bottomCartBar" class="hidden fixed bottom-5 left-0 right-0 max-w-xl mx-auto px-4 z-30 animate-in fade-in slide-in-from-bottom duration-200">
+  <div id="bottomCartBar" class="hidden fixed bottom-5 left-0 right-0 max-w-xl mx-auto px-4 z-30">
     <div onclick="openCheckout()" class="bg-brand-navy hover:bg-slate-900 text-white rounded-2xl p-3.5 shadow-2xl flex items-center justify-between cursor-pointer border border-brand-accent/40 backdrop-blur-md">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-brand-accent text-white flex items-center justify-center font-bold text-base shadow-md shadow-brand-accent/40">
@@ -218,7 +214,7 @@
 
   <!-- LOCATION PICKER MODAL -->
   <div id="locationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-brand-border animate-in zoom-in-95 duration-200">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-brand-border">
       <div class="p-4 bg-brand-navy text-white flex items-center justify-between">
         <div>
           <h3 class="text-sm font-bold">Select Delivery Location</h3>
@@ -271,7 +267,7 @@
     </div>
   </div>
 
-  <!-- CHECKOUT & PAYMENT MODAL -->
+  <!-- CHECKOUT MODAL -->
   <div id="checkoutModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end flex-col sm:items-center sm:justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-brand-border">
       
@@ -370,10 +366,9 @@
     </div>
   </div>
 
-  <!-- LIVE ORDER TRACKING MODAL (WITH DELIVERY OTP) -->
+  <!-- LIVE ORDER TRACKING MODAL -->
   <div id="trackingModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border animate-in zoom-in-95 duration-200">
-      
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border">
       <div class="bg-brand-navy p-5 text-white relative">
         <div class="flex items-center justify-between">
           <div>
@@ -401,7 +396,6 @@
           </span>
         </div>
 
-        <!-- 🔒 CUSTOMER 4-DIGIT SECURE DELIVERY OTP -->
         <div class="mt-3 p-3 bg-gradient-to-r from-amber-500/20 to-brand-accent/20 border border-amber-400/40 rounded-2xl flex items-center justify-between">
           <div>
             <p class="text-[10px] uppercase font-bold text-amber-300 tracking-wider">Share with Rider at Doorstep</p>
@@ -464,7 +458,6 @@
           Close
         </button>
       </div>
-
     </div>
   </div>
 
@@ -484,15 +477,22 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT ENGINE (FULLY ERROR FREE) -->
+  <!-- JAVASCRIPT ENGINE -->
   <script>
-    const SUPABASE_URL = "https://esztasmunjrbxkxvshue.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_ph5c3E_uwe1-twjsHnIzlQ_kiIZx..."; 
+    // FIREBASE INITIALIZATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyBW6PuEVu91Ej8bA0FCAEdYTyhSMu912yM",
+      authDomain: "myshopzy-ravulapalem-96b34.firebaseapp.com",
+      projectId: "myshopzy-ravulapalem-96b34",
+      storageBucket: "myshopzy-ravulapalem-96b34.firebasestorage.app",
+      messagingSenderId: "1082906750454",
+      appId: "1:1082906750454:web:14b7f951da98596ee02bd7"
+    };
 
-    let supabaseClient = null;
-    try {
-      if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } catch(err) {}
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
 
     // GPS & LEAFLET ENGINE
     const DARK_STORE_COORDS = { lat: 16.7483, lng: 81.8488, name: "Ravulapalem RTC Dark Store" };
@@ -593,7 +593,6 @@
       closeLocationModal();
     }
 
-    // MODAL CONTROL
     function closeAllModals() {
       ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal'].forEach(id => {
         const el = document.getElementById(id);
@@ -624,18 +623,18 @@
     ];
 
     const fallbackCatalog = [
-      { id: 1, name: "Amul Dark Chocolate 125g", unit: "125 g", price: 190, old_price: 200, category: "snacks", image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80" },
-      { id: 2, name: "Cadbury 5 Star Bar 33g", unit: "33 g", price: 19, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1582293041079-7814c2f12063?auto=format&fit=crop&w=400&q=80" },
-      { id: 3, name: "Cadbury Bournville Rich Cocoa", unit: "80 g", price: 132, old_price: 140, category: "snacks", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80" },
-      { id: 4, name: "Cadbury Dairy Milk Fruit & Nut", unit: "36 g", price: 52, old_price: 55, category: "snacks", image_url: "https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80" },
-      { id: 5, name: "Lay's India's Magic Masala Chips", unit: "50 g", price: 20, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80" },
-      { id: 6, name: "Amul Taaza Homogenised Milk", unit: "500 ml", price: 27, old_price: 30, category: "dairy", image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" },
-      { id: 7, name: "Mother Dairy Fresh Paneer Block", unit: "200 g", price: 86, old_price: 95, category: "dairy", image_url: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=400&q=80" },
-      { id: 8, name: "Britannia Daily Fresh Sandwich Bread", unit: "400 g", price: 35, old_price: 40, category: "dairy", image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" },
-      { id: 9, name: "Fresh Country Farm Tomatoes", unit: "1 kg", price: 32, old_price: 40, category: "veggies", image_url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80" },
-      { id: 10, name: "Fresh Red Onions (Premium)", unit: "1 kg", price: 35, old_price: 45, category: "veggies", image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80" },
-      { id: 11, name: "Freedom Refined Sunflower Oil Pouch", unit: "1 L", price: 118, old_price: 135, category: "staples", image_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80" },
-      { id: 12, name: "Maggi 2-Minute Special Masala Noodles", unit: "70 g", price: 14, old_price: 15, category: "instant", image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80" }
+      { id: "1", name: "Amul Dark Chocolate 125g", unit: "125 g", price: 190, old_price: 200, category: "snacks", image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80" },
+      { id: "2", name: "Cadbury 5 Star Bar 33g", unit: "33 g", price: 19, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1582293041079-7814c2f12063?auto=format&fit=crop&w=400&q=80" },
+      { id: "3", name: "Cadbury Bournville Rich Cocoa", unit: "80 g", price: 132, old_price: 140, category: "snacks", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80" },
+      { id: "4", name: "Cadbury Dairy Milk Fruit & Nut", unit: "36 g", price: 52, old_price: 55, category: "snacks", image_url: "https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80" },
+      { id: "5", name: "Lay's India's Magic Masala Chips", unit: "50 g", price: 20, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80" },
+      { id: "6", name: "Amul Taaza Homogenised Milk", unit: "500 ml", price: 27, old_price: 30, category: "dairy", image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" },
+      { id: "7", name: "Mother Dairy Fresh Paneer Block", unit: "200 g", price: 86, old_price: 95, category: "dairy", image_url: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=400&q=80" },
+      { id: "8", name: "Britannia Daily Fresh Sandwich Bread", unit: "400 g", price: 35, old_price: 40, category: "dairy", image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" },
+      { id: "9", name: "Fresh Country Farm Tomatoes", unit: "1 kg", price: 32, old_price: 40, category: "veggies", image_url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80" },
+      { id: "10", name: "Fresh Red Onions (Premium)", unit: "1 kg", price: 35, old_price: 45, category: "veggies", image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80" },
+      { id: "11", name: "Freedom Refined Sunflower Oil Pouch", unit: "1 L", price: 118, old_price: 135, category: "staples", image_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80" },
+      { id: "12", name: "Maggi 2-Minute Special Masala Noodles", unit: "70 g", price: 14, old_price: 15, category: "instant", image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80" }
     ];
 
     let liveCatalog = [...fallbackCatalog];
@@ -644,27 +643,31 @@
     let currentSearch = "";
     let activeTrackingOrder = null;
 
-    async function fetchProducts() {
-      let combined = [...fallbackCatalog];
-      const localCustom = JSON.parse(localStorage.getItem('quickdash_custom_products') || '[]');
-      if (localCustom.length > 0) combined = [...localCustom, ...combined];
+  // ✅ FIXED: Kotha products + Paatha products rendoo kalisi untayi
+async function fetchProducts() {
+  db.collection("products").orderBy("created_at", "desc").onSnapshot((snapshot) => {
+    let cloudProducts = [];
+    snapshot.forEach(doc => cloudProducts.push({ id: doc.id, ...doc.data() }));
 
-      if (supabaseClient) {
-        try {
-          const { data, error } = await supabaseClient.from('products').select('*').order('id', { ascending: false });
-          if (!error && data && data.length > 0) combined = [...data, ...fallbackCatalog];
-        } catch (err) {}
-      }
+    // 1. Kotha products ni paatha fallback products tho merge chestunnam
+    let combined = [...cloudProducts, ...fallbackCatalog];
 
-      const seen = new Set();
-      liveCatalog = combined.filter(el => {
-        const duplicate = seen.has(el.id);
-        seen.add(el.id);
-        return !duplicate;
-      });
+    // 2. Duplicates ravakunda clean filter
+    const seen = new Set();
+    liveCatalog = combined.filter(item => {
+      const duplicate = seen.has(item.id) || seen.has(item.name.toLowerCase());
+      seen.add(item.id);
+      seen.add(item.name.toLowerCase());
+      return !duplicate;
+    });
 
-      filterAndRender();
-    }
+    filterAndRender();
+  }, (err) => {
+    console.warn("Using fallback catalog:", err);
+    liveCatalog = [...fallbackCatalog];
+    filterAndRender();
+  });
+}
 
     function initCategories() {
       const desktopList = document.getElementById('desktopCategoryList');
@@ -708,7 +711,7 @@
         const card = document.createElement('div');
         card.className = "bg-white p-3 rounded-2xl border border-brand-border shadow-sm flex flex-col justify-between hover:shadow-md transition";
         card.innerHTML = `
-          <div onclick="openProductDetailModal(${p.id})" class="cursor-pointer">
+          <div onclick="openProductDetailModal('${p.id}')" class="cursor-pointer">
             <div class="h-32 sm:h-36 w-full rounded-xl overflow-hidden bg-slate-100 relative mb-2.5">
               <img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover">
               <span class="absolute bottom-1.5 left-1.5 bg-brand-navy/90 backdrop-blur-sm text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -727,14 +730,14 @@
 
             <div id="btn-wrap-${p.id}">
               ${qty === 0 ? `
-                <button onclick="modifyCart(${p.id}, 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white text-xs font-black uppercase transition">
+                <button onclick="modifyCart('${p.id}', 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white text-xs font-black uppercase transition">
                   ADD
                 </button>
               ` : `
                 <div class="flex items-center bg-brand-navy text-white rounded-lg px-2 py-1 text-xs font-bold gap-2 shadow-sm">
-                  <button onclick="modifyCart(${p.id}, -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+                  <button onclick="modifyCart('${p.id}', -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
                   <span class="text-xs font-black w-3 text-center">${qty}</span>
-                  <button onclick="modifyCart(${p.id}, 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+                  <button onclick="modifyCart('${p.id}', 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
                 </div>
               `}
             </div>
@@ -747,9 +750,7 @@
       if (window.lucide) lucide.createIcons();
     }
 
-    // ==========================================
-    // 🔍 PRODUCT DETAILS QUICK-VIEW MODAL ENGINE
-    // ==========================================
+    // PRODUCT DETAILS MODAL
     let currentDetailProductId = null;
 
     function openProductDetailModal(id) {
@@ -788,16 +789,16 @@
       const btnWrap = document.getElementById('detailActionBtn');
       if (qty === 0) {
         btnWrap.innerHTML = `
-          <button onclick="modifyCartFromDetail(${id}, 1)" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
+          <button onclick="modifyCartFromDetail('${id}', 1)" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
             Add to Cart
           </button>
         `;
       } else {
         btnWrap.innerHTML = `
           <div class="flex items-center bg-brand-navy text-white rounded-xl px-3 py-1.5 text-xs font-bold gap-3 shadow-md">
-            <button onclick="modifyCartFromDetail(${id}, -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+            <button onclick="modifyCartFromDetail('${id}', -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
             <span class="text-sm font-black w-4 text-center">${qty}</span>
-            <button onclick="modifyCartFromDetail(${id}, 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+            <button onclick="modifyCartFromDetail('${id}', 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
           </div>
         `;
       }
@@ -881,9 +882,9 @@
             </div>
             <div class="flex items-center gap-3">
               <div class="flex items-center bg-brand-navy text-white rounded-md px-2 py-0.5 text-xs font-bold gap-2">
-                <button onclick="modifyCart(${item.id}, -1); openCheckout();">-</button>
+                <button onclick="modifyCart('${item.id}', -1); openCheckout();">-</button>
                 <span>${qty}</span>
-                <button onclick="modifyCart(${item.id}, 1); openCheckout();">+</button>
+                <button onclick="modifyCart('${item.id}', 1); openCheckout();">+</button>
               </div>
               <span class="text-xs font-black text-slate-900 w-12 text-right">₹${rowPrice}</span>
             </div>
@@ -897,7 +898,7 @@
       setPaymentMethod(selectedPaymentMode);
     }
 
-    // PAYMENT LOGIC
+    // PAYMENT
     let selectedPaymentMode = 'UPI_QR';
 
     function setPaymentMethod(mode) {
@@ -992,6 +993,9 @@
       }
     }
 
+    // REALTIME ORDER DISPATCH & SYNC
+    let trackingListenerUnsub = null;
+
     async function finalizeOrderAndLaunch(paymentStatus) {
       document.getElementById('paymentOverlay').classList.add('hidden');
       document.getElementById('payStatusAnim').className = "w-16 h-16 mx-auto rounded-full bg-brand-slateBg flex items-center justify-center text-brand-accent";
@@ -1005,10 +1009,11 @@
         return { id: item.id, name: item.name, quantity: qty, price: item.price };
       });
 
+      const orderId = "QD-" + Math.floor(100000 + Math.random() * 900000);
       const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
       const orderPayload = {
-        id: "QD-" + Math.floor(100000 + Math.random() * 900000),
+        id: orderId,
         customer_phone: document.getElementById('inputPhone').value.trim(),
         delivery_address: document.getElementById('inputAddress').value.trim() + ", Ravulapalem",
         items: orderItems,
@@ -1017,13 +1022,18 @@
         payment_mode: selectedPaymentMode,
         payment_status: paymentStatus,
         assigned_rider: "Suresh",
-        delivery_otp: deliveryOtp
+        delivery_otp: deliveryOtp,
+        created_at: firebase.firestore.FieldValue.serverTimestamp()
       };
 
-      if (supabaseClient) {
-        try { await supabaseClient.from('orders').insert([orderPayload]); } catch(e) {}
+      // Push to Firestore
+      try {
+        await db.collection("orders").doc(orderId).set(orderPayload);
+      } catch(e) {
+        console.error("Firestore push error:", e);
       }
 
+      // Local Fallback Storage
       const localOrders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
       localOrders.unshift(orderPayload);
       localStorage.setItem('quickdash_orders', JSON.stringify(localOrders));
@@ -1033,6 +1043,16 @@
       syncCartBar();
       closeCheckout();
       openTrackingScreen(orderPayload);
+
+      // Listen to real-time status updates from Admin Hub
+      if (trackingListenerUnsub) trackingListenerUnsub();
+      trackingListenerUnsub = db.collection("orders").doc(orderId).onSnapshot((doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          updateTrackingStages(data.status);
+          document.getElementById('trackRiderName').innerText = `${data.assigned_rider || 'Suresh'} (Ravulapalem Express)`;
+        }
+      });
     }
 
     function openTrackingScreen(order) {
@@ -1093,41 +1113,38 @@
     async function fetchCloudOrders() {
       const feed = document.getElementById('ordersFeed');
       feed.innerHTML = `<p class="text-center text-slate-400 py-6">Loading your orders...</p>`;
-      let orders = [];
 
-      if (supabaseClient) {
-        try {
-          const { data } = await supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
-          if (data && data.length > 0) orders = data;
-        } catch(e) {}
-      }
-      if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+      db.collection("orders").orderBy("created_at", "desc").limit(20).get().then((snapshot) => {
+        let orders = [];
+        snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
 
-      if (orders.length === 0) {
-        feed.innerHTML = `<p class="text-center text-slate-400 py-6">No orders placed yet.</p>`;
-        return;
-      }
+        if (orders.length === 0) orders = JSON.parse(localStorage.getItem('quickdash_orders') || '[]');
+        if (orders.length === 0) {
+          feed.innerHTML = `<p class="text-center text-slate-400 py-6">No orders placed yet.</p>`;
+          return;
+        }
 
-      feed.innerHTML = '';
-      orders.forEach(o => {
-        const item = document.createElement('div');
-        item.className = "p-3.5 rounded-xl bg-brand-slateBg border border-brand-border space-y-1.5 cursor-pointer hover:border-brand-accent transition";
-        const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
-        item.setAttribute('onclick', `openTrackingScreen(${orderDataEscaped})`);
-        item.innerHTML = `
-          <div class="flex justify-between items-center font-bold text-slate-900">
-            <span class="text-brand-navy font-extrabold">${o.id}</span>
-            <span class="text-brand-accent font-extrabold">₹${o.total_amount || o.total}</span>
-          </div>
-          <p class="text-[11px] text-slate-600">${o.delivery_address}</p>
-          <div class="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-200">
-            <span>Rider: <strong>${o.assigned_rider || 'Suresh'}</strong></span>
-            <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">${o.status}</span>
-          </div>
-        `;
-        feed.appendChild(item);
+        feed.innerHTML = '';
+        orders.forEach(o => {
+          const item = document.createElement('div');
+          item.className = "p-3.5 rounded-xl bg-brand-slateBg border border-brand-border space-y-1.5 cursor-pointer hover:border-brand-accent transition";
+          const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
+          item.setAttribute('onclick', `openTrackingScreen(${orderDataEscaped})`);
+          item.innerHTML = `
+            <div class="flex justify-between items-center font-bold text-slate-900">
+              <span class="text-brand-navy font-extrabold">${o.id}</span>
+              <span class="text-brand-accent font-extrabold">₹${o.total_amount || o.total}</span>
+            </div>
+            <p class="text-[11px] text-slate-600">${o.delivery_address}</p>
+            <div class="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-200">
+              <span>Rider: <strong>${o.assigned_rider || 'Suresh'}</strong></span>
+              <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">${o.status}</span>
+            </div>
+          `;
+          feed.appendChild(item);
+        });
+        if (window.lucide) lucide.createIcons();
       });
-      if (window.lucide) lucide.createIcons();
     }
 
     function toggleOrdersView() {

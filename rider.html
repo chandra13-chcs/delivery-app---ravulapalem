@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyShopzy Rider Hub | Ravulapalem</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#0B132B',
+              navyLight: '#1C2541',
+              accent: '#3A86FF',
+              slateBg: '#F8FAFC',
+              border: '#E2E8F0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans antialiased min-h-screen pb-12">
+
+  <!-- TOP APP BAR -->
+  <header class="bg-brand-navy text-white px-4 py-3.5 sticky top-0 z-30 shadow-md border-b border-slate-800">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-cyan-400 text-brand-navy flex items-center justify-center font-black text-lg">
+          🛵
+        </div>
+        <div>
+          <h1 class="text-xs font-black uppercase tracking-wider text-cyan-300">MyShopzy Express</h1>
+          <p class="text-[11px] text-slate-300">Ravulapalem Delivery Console</p>
+        </div>
+      </div>
+
+      <!-- Active Rider Switcher -->
+      <select id="riderSelect" onchange="switchRider(this.value)" class="text-xs font-bold bg-brand-navyLight border border-slate-700 text-white rounded-xl px-2.5 py-1.5 outline-none">
+        <option value="Suresh">Rider: Suresh</option>
+        <option value="Ramesh">Rider: Ramesh</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
+
+    <!-- RIDER STATUS CARD -->
+    <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm flex items-center justify-between">
+      <div>
+        <span class="text-[10px] uppercase font-bold text-slate-400">Assigned Delivery Partner</span>
+        <h2 id="currentRiderTitle" class="text-base font-extrabold text-slate-900 mt-0.5">Suresh</h2>
+        <p class="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> On-Duty (Express Hub)
+        </p>
+      </div>
+      <div class="text-right">
+        <span class="text-[10px] uppercase font-bold text-slate-400">Pending Orders</span>
+        <h3 id="pendingCount" class="text-2xl font-black text-brand-accent">0</h3>
+      </div>
+    </div>
+
+    <!-- TABS: PENDING vs DELIVERED -->
+    <div class="flex gap-2 bg-slate-200/70 p-1 rounded-xl">
+      <button id="tabPendingBtn" onclick="toggleRiderTab('pending')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition">
+        Active Orders
+      </button>
+      <button id="tabCompletedBtn" onclick="toggleRiderTab('completed')" class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition">
+        Delivered Today
+      </button>
+    </div>
+
+    <!-- ORDERS FEED -->
+    <div id="riderOrdersContainer" class="space-y-3">
+      <p class="text-center text-slate-400 py-12 text-xs">Connecting to dispatch stream...</p>
+    </div>
+
+  </main>
+
+  <!-- OTP VERIFICATION MODAL -->
+  <div id="otpModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-brand-border space-y-4">
+      <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-xl font-bold">
+        🔑
+      </div>
+      <div>
+        <h3 class="text-base font-extrabold text-slate-900">Verify Delivery OTP</h3>
+        <p class="text-xs text-slate-500 mt-1">Ask customer for the 4-digit code shown on their tracking screen.</p>
+      </div>
+
+      <input 
+        id="inputDeliveryOtp" 
+        type="tel" 
+        maxlength="4" 
+        placeholder="••••" 
+        class="w-full text-center tracking-[1em] text-2xl font-black py-3 border-2 border-slate-200 rounded-2xl focus:border-brand-accent outline-none bg-slate-50"
+      >
+
+      <p id="otpErrorMessage" class="hidden text-xs font-bold text-rose-500">Invalid OTP. Please check with customer!</p>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeOtpModal()" class="py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600">
+          Cancel
+        </button>
+        <button onclick="confirmOtpAndDeliver()" class="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
+          Confirm Delivery
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // FIREBASE INITIALIZATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyBW6PuEVu91Ej8bA0FCAEdYTyhSMu912yM",
+      authDomain: "myshopzy-ravulapalem-96b34.firebaseapp.com",
+      projectId: "myshopzy-ravulapalem-96b34",
+      storageBucket: "myshopzy-ravulapalem-96b34.firebasestorage.app",
+      messagingSenderId: "1082906750454",
+      appId: "1:1082906750454:web:14b7f951da98596ee02bd7"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    let currentActiveRider = localStorage.getItem('active_rider_name') || 'Suresh';
+    document.getElementById('riderSelect').value = currentActiveRider;
+    document.getElementById('currentRiderTitle').innerText = currentActiveRider;
+
+    let currentTab = 'pending';
+    let allRiderOrders = [];
+    let verifyingOrder = null;
+
+    function switchRider(name) {
+      currentActiveRider = name;
+      localStorage.setItem('active_rider_name', name);
+      document.getElementById('currentRiderTitle').innerText = name;
+      renderRiderOrders();
+    }
+
+    function toggleRiderTab(tab) {
+      currentTab = tab;
+      const btnPending = document.getElementById('tabPendingBtn');
+      const btnCompleted = document.getElementById('tabCompletedBtn');
+
+      if (tab === 'pending') {
+        btnPending.className = "flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition";
+        btnCompleted.className = "flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition";
+      } else {
+        btnPending.className = "flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition";
+        btnCompleted.className = "flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition";
+      }
+      renderRiderOrders();
+    }
+
+    // REALTIME LISTENER FOR RIDER
+    db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
+      let orders = [];
+      snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+      allRiderOrders = orders;
+      renderRiderOrders();
+    });
+
+    function renderRiderOrders() {
+      const container = document.getElementById('riderOrdersContainer');
+      
+      // Filter for this specific rider
+      const riderOrders = allRiderOrders.filter(o => o.assigned_rider === currentActiveRider);
+      const pendingList = riderOrders.filter(o => o.status !== "Delivered");
+      const completedList = riderOrders.filter(o => o.status === "Delivered");
+
+      document.getElementById('pendingCount').innerText = pendingList.length;
+
+      const activeDisplayList = currentTab === 'pending' ? pendingList : completedList;
+
+      if (activeDisplayList.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center bg-white rounded-2xl border border-brand-border space-y-2">
+            <p class="text-2xl">📦</p>
+            <p class="text-xs font-bold text-slate-600">No ${currentTab} orders found for ${currentActiveRider}</p>
+            <p class="text-[10px] text-slate-400">Hub orders will appear here automatically</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      activeDisplayList.forEach(o => {
+        const card = document.createElement('div');
+        card.className = "p-4 bg-white rounded-2xl border border-brand-border shadow-sm space-y-3";
+
+        let itemsText = "";
+        if (Array.isArray(o.items)) itemsText = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+
+        const encodedAddress = encodeURIComponent(o.delivery_address || 'Ravulapalem');
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span class="text-xs font-black text-brand-navy">${o.id}</span>
+            <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">
+              ${o.status}
+            </span>
+          </div>
+
+          <div>
+            <p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>
+            ${itemsText ? `<p class="text-[11px] text-slate-500 mt-1">📦 ${itemsText}</p>` : ''}
+            <div class="flex items-center justify-between mt-2 text-xs">
+              <span class="font-extrabold text-slate-900">Total: ₹${o.total_amount || o.total}</span>
+              <span class="text-[11px] font-bold ${o.payment_mode === 'COD' ? 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded'}">
+                ${o.payment_mode === 'COD' ? 'Collect Cash at Door' : 'Paid Online'}
+              </span>
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons: Call & Maps Navigation -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <a href="tel:${o.customer_phone}" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+              <i data-lucide="phone" class="w-3.5 h-3.5 text-brand-accent"></i> Call
+            </a>
+            <a href="https://www.google.com/maps/search/?api=1&query=${encodedAddress}" target="_blank" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-brand-accent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+              <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Maps
+            </a>
+          </div>
+
+          ${o.status !== 'Delivered' ? `
+            <div class="pt-1 flex gap-2">
+              ${o.status !== 'Out for Delivery' ? `
+                <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition">
+                  Start Delivery
+                </button>
+              ` : ''}
+              <button onclick="openOtpModal('${o.id}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">
+                Enter Delivery OTP
+              </button>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(card);
+      });
+      if (window.lucide) lucide.createIcons();
+    }
+
+    async function setOutForDelivery(orderId) {
+      try {
+        await db.collection("orders").doc(orderId).update({ status: "Out for Delivery" });
+      } catch(e) {
+        alert("Error: " + e.message);
+      }
+    }
+
+    function openOtpModal(orderId) {
+      verifyingOrder = allRiderOrders.find(o => o.id === orderId);
+      if (!verifyingOrder) return;
+      document.getElementById('inputDeliveryOtp').value = '';
+      document.getElementById('otpErrorMessage').classList.add('hidden');
+      document.getElementById('otpModal').classList.remove('hidden');
+    }
+
+    function closeOtpModal() {
+      document.getElementById('otpModal').classList.add('hidden');
+      verifyingOrder = null;
+    }
+
+    async function confirmOtpAndDeliver() {
+      if (!verifyingOrder) return;
+      const enteredOtp = document.getElementById('inputDeliveryOtp').value.trim();
+
+      // Check OTP match
+      if (enteredOtp === verifyingOrder.delivery_otp) {
+        try {
+          await db.collection("orders").doc(verifyingOrder.id).update({
+            status: "Delivered",
+            payment_status: "COMPLETED",
+            delivered_at: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          closeOtpModal();
+          alert(`Order ${verifyingOrder.id} marked Delivered safely!`);
+        } catch(e) {
+          alert("Update failed: " + e.message);
+        }
+      } else {
+        document.getElementById('otpErrorMessage').classList.remove('hidden');
+      }
+    }
+
+    if (window.lucide) lucide.createIcons();
+  </script>
+</body>
+</html>
