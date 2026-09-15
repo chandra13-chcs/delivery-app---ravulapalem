@@ -9,16 +9,338 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/style.css">
   
-  <!-- GOOGLE FIREBASE SDK -->
+  <!-- FIREBASE SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-  <!-- FIREBASE SHARED CONFIG -->
-  <script src="js/firebase-config.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#0B132B',
+              navyLight: '#1C2541',
+              accent: '#3A86FF',
+              accentHover: '#2563EB',
+              slateBg: '#F8FAFC',
+              border: '#E2E8F0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-16">
 
-  <!-- ADMIN HUB LOGIC -->
+  <!-- TERMINAL PIN SECURITY OVERLAY -->
+  <div id="adminAuthLock" class="fixed inset-0 z-50 bg-brand-navy flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-700">
+      <div class="w-12 h-12 rounded-2xl bg-brand-accent text-white flex items-center justify-center mx-auto text-xl font-black mb-3">
+        🔒
+      </div>
+      <h3 class="text-base font-extrabold text-slate-900">Store Manager Access</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">Ravulapalem Dark Store Operations</p>
+      
+      <input 
+        id="adminPinInput" 
+        type="password" 
+        maxlength="6" 
+        placeholder="Enter 6-Digit PIN" 
+        class="w-full text-center tracking-widest text-lg font-black py-2.5 border border-brand-border rounded-xl mb-3 focus:outline-none focus:ring-2 focus:ring-brand-accent"
+      >
+      <button onclick="verifyAdminAccess()" class="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition">
+        Unlock Terminal
+      </button>
+      <p id="pinErrorMsg" class="hidden text-[11px] font-bold text-rose-500 mt-2">Incorrect Access PIN (Default: 748801)</p>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="bg-brand-navy text-white px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+      
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand-accent flex items-center justify-center font-extrabold text-white text-lg">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-extrabold uppercase tracking-wider text-cyan-400">MyShopzy Store Hub</h1>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <p class="text-xs text-slate-300">Ravulapalem RTC Operations Console</p>
+        </div>
+      </div>
+
+      <!-- 3-Tab Switcher -->
+      <div class="flex items-center gap-2 bg-brand-navyLight p-1 rounded-2xl border border-slate-700">
+        <button id="tabBtnOrders" onclick="switchView('orders')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition">
+          <i data-lucide="bell" class="w-4 h-4"></i> Dispatch Orders
+        </button>
+        <button id="tabBtnAnalytics" onclick="switchView('analytics')" class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+          <i data-lucide="trending-up" class="w-4 h-4"></i> Sales & Reports
+        </button>
+        <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+          <i data-lucide="package-plus" class="w-4 h-4"></i> Inventory
+        </button>
+      </div>
+
+      <!-- Sound Settings -->
+      <div class="flex items-center gap-2">
+        <button onclick="playOrderAlertSound()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition">
+          <i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-400"></i> Test Chime
+        </button>
+        <button id="toggleSoundBtn" onclick="toggleAudioState()" class="px-3 py-1.5 rounded-xl bg-slate-700 text-slate-200 text-xs font-bold transition">
+          Alert: Active
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- TAB 1: LIVE ORDERS QUEUE -->
+  <main id="ordersViewSection" class="max-w-7xl mx-auto px-6 py-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Active Orders in Hub</p>
+        <h3 id="metricActiveOrders" class="text-2xl font-black text-brand-navy mt-1">0</h3>
+        <p class="text-[10px] text-amber-600 font-bold mt-0.5">Packing & Transit</p>
+      </div>
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Delivered Today</p>
+        <h3 id="metricDelivered" class="text-2xl font-black text-emerald-600 mt-1">0</h3>
+        <p class="text-[10px] text-slate-400 font-medium mt-0.5">Verified via Doorstep OTP</p>
+      </div>
+      <div class="p-4 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <p class="text-[11px] font-bold text-slate-400 uppercase">Active Hub Riders</p>
+        <div class="flex items-center gap-4 mt-2">
+          <span class="text-xs font-bold text-slate-800">🛵 Suresh: <strong class="text-emerald-600">Active</strong></span>
+          <span class="text-xs font-bold text-slate-800">🛵 Ramesh: <strong class="text-emerald-600">Active</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Dark Store Dispatch Pipeline</h2>
+          <p class="text-xs text-slate-500">Real-time incoming orders & picker verification</p>
+        </div>
+        <span class="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1.5 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Realtime Active
+        </span>
+      </div>
+      <div id="adminQueueContainer" class="space-y-3">
+        <p class="text-center text-slate-400 py-10">Connecting to Realtime Firebase Queue...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 2: SALES & REPORT ANALYTICS -->
+  <main id="analyticsViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-black text-slate-900">Today's Sales & Operational Settlement</h2>
+        <p class="text-xs text-slate-500">Ravulapalem Dark Store Real-Time Metrics</p>
+      </div>
+      <button onclick="exportDailyOrdersCSV()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-md flex items-center gap-2">
+        <i data-lucide="download" class="w-4 h-4"></i> Download Settlement CSV
+      </button>
+    </div>
+
+    <!-- Analytics Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="p-5 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <div class="flex items-center justify-between text-slate-400">
+          <span class="text-[11px] font-extrabold uppercase">Today's Revenue</span>
+          <i data-lucide="indian-rupee" class="w-4 h-4 text-emerald-500"></i>
+        </div>
+        <h3 id="statTodayRevenue" class="text-2xl font-black text-slate-900 mt-2">₹0</h3>
+        <p class="text-[10px] text-emerald-600 font-bold mt-1">✓ Express Fulfillment</p>
+      </div>
+
+      <div class="p-5 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <div class="flex items-center justify-between text-slate-400">
+          <span class="text-[11px] font-extrabold uppercase">Online Paid (UPI)</span>
+          <i data-lucide="smartphone" class="w-4 h-4 text-blue-500"></i>
+        </div>
+        <h3 id="statOnlinePaid" class="text-2xl font-black text-blue-600 mt-2">₹0</h3>
+        <p class="text-[10px] text-slate-400 mt-1">Direct Bank Settled</p>
+      </div>
+
+      <div class="p-5 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <div class="flex items-center justify-between text-slate-400">
+          <span class="text-[11px] font-extrabold uppercase">COD Cash To Collect</span>
+          <i data-lucide="banknote" class="w-4 h-4 text-amber-500"></i>
+        </div>
+        <h3 id="statCodPaid" class="text-2xl font-black text-amber-600 mt-2">₹0</h3>
+        <p class="text-[10px] text-slate-400 mt-1">With Riders Suresh / Ramesh</p>
+      </div>
+
+      <div class="p-5 bg-white rounded-2xl border border-brand-border shadow-sm">
+        <div class="flex items-center justify-between text-slate-400">
+          <span class="text-[11px] font-extrabold uppercase">Total Orders Today</span>
+          <i data-lucide="shopping-bag" class="w-4 h-4 text-purple-500"></i>
+        </div>
+        <h3 id="statTotalOrders" class="text-2xl font-black text-purple-600 mt-2">0</h3>
+        <p class="text-[10px] text-slate-400 mt-1">10-Min Target SLA: 100%</p>
+      </div>
+    </div>
+
+    <!-- Settlement Breakdown Table -->
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <h3 class="text-sm font-extrabold text-slate-900 mb-4">Detailed Financial Log (Today's Transactions)</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+              <th class="py-3 px-3">Order ID</th>
+              <th class="py-3 px-3">Customer Phone</th>
+              <th class="py-3 px-3">Address</th>
+              <th class="py-3 px-3">Amount</th>
+              <th class="py-3 px-3">Payment Mode</th>
+              <th class="py-3 px-3">Status</th>
+              <th class="py-3 px-3">Rider</th>
+            </tr>
+          </thead>
+          <tbody id="settlementTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 3: PRODUCT MANAGEMENT -->
+  <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+        <i data-lucide="plus-circle" class="w-5 h-5 text-brand-accent"></i> Add New Product to Store
+      </h2>
+      <p class="text-xs text-slate-500 mb-4">Instant live update on Customer App via Firestore.</p>
+
+      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
+          <input id="pName" type="text" required placeholder="e.g. Cadbury Silk 60g" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
+          <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-white">
+            <option value="snacks">Snacks & Munchies</option>
+            <option value="dairy">Dairy & Milk</option>
+            <option value="veggies">Fresh Veggies</option>
+            <option value="staples">Atta, Rice & Oils</option>
+            <option value="instant">Instant Food & Drinks</option>
+            <option value="personal">Personal Care</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Unit / Weight *</label>
+          <input id="pUnit" type="text" required placeholder="e.g. 500 ml, 1 kg, 1 pc" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Sale Price (₹) *</label>
+            <input id="pPrice" type="number" required placeholder="190" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">MRP (₹)</label>
+            <input id="pOldPrice" type="number" placeholder="200" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+          </div>
+        </div>
+
+        <div class="sm:col-span-2 lg:col-span-3">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Image (File Upload or URL)</label>
+          <div class="flex items-center gap-3 mt-1 flex-wrap sm:flex-nowrap">
+            <input 
+              id="pFileInput" 
+              type="file" 
+              accept="image/*" 
+              onchange="handleImageFileSelect(this)" 
+              class="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-accent/10 file:text-brand-accent hover:file:bg-brand-accent/20 cursor-pointer"
+            >
+            <span class="text-xs text-slate-400 font-bold">OR</span>
+            <input 
+              id="pImage" 
+              type="url" 
+              placeholder="Paste image web link..." 
+              class="flex-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-slate-50"
+            >
+          </div>
+          <div id="imagePreviewContainer" class="hidden mt-2 flex items-center gap-2">
+            <img id="previewImg" src="" class="w-12 h-12 object-cover rounded-xl border border-slate-300">
+            <span class="text-[11px] text-emerald-600 font-bold">✓ Photo selected</span>
+          </div>
+        </div>
+
+        <div class="flex items-end">
+          <button type="submit" id="saveProdBtn" class="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition shadow-md flex items-center justify-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
+      <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">Current Store Inventory</h3>
+          <p id="totalStockCount" class="text-xs text-slate-500">0 Products registered in Ravulapalem Hub</p>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+              <th class="py-3 px-3">Item</th>
+              <th class="py-3 px-3">Category</th>
+              <th class="py-3 px-3">Unit</th>
+              <th class="py-3 px-3">Selling Price</th>
+              <th class="py-3 px-3">MRP</th>
+              <th class="py-3 px-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- BLINKIT-STYLE PICKER PACKING CHECKLIST MODAL -->
+  <div id="pickerPackingModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-brand-border flex flex-col max-h-[85vh]">
+      <div class="bg-brand-navy p-4 text-white flex items-center justify-between">
+        <div>
+          <span class="text-[10px] font-black uppercase tracking-wider text-cyan-300">Dark Store Picker</span>
+          <h3 id="packModalOrderId" class="text-sm font-extrabold text-white">QD-XXXXXX</h3>
+        </div>
+        <button onclick="closePackingModal()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:text-white transition">✕</button>
+      </div>
+
+      <div class="p-4 space-y-3 overflow-y-auto flex-1 bg-slate-50">
+        <p class="text-xs text-slate-600 font-semibold">Verify and pack all items before assigning to rider:</p>
+        <div id="pickerItemsList" class="space-y-2"></div>
+      </div>
+
+      <div class="p-4 bg-white border-t border-slate-100">
+        <button id="btnCompletePacking" onclick="markOrderAsPacked()" class="w-full py-3 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md flex items-center justify-center gap-2">
+          <span>Bag Packed & Ready For Dispatch</span>
+          <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULAR JAVASCRIPT CALLS -->
+  <script src="js/firebase-config.js"></script>
   <script src="js/admin.js"></script>
-</body>
 </body>
 </html>

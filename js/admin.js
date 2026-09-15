@@ -2,9 +2,10 @@
 // 🛡️ ADMIN OPERATIONS HUB ENGINE (admin.js)
 // ==========================================
 
-// --- TERMINAL ACCESS LOCK ---
-const STORE_TERMINAL_PIN = "748801"; // Default PIN
+const STORE_TERMINAL_PIN = "748801";
+let allFetchedOrders = [];
 
+// --- TERMINAL ACCESS LOCK ---
 function verifyAdminAccess() {
   const entered = document.getElementById('adminPinInput').value;
   if (entered === STORE_TERMINAL_PIN) {
@@ -20,23 +21,29 @@ if (sessionStorage.getItem('hub_session_unlocked') === 'true') {
   if (lock) lock.classList.add('hidden');
 }
 
-// --- TAB SWITCHER ---
+// --- TAB SWITCHER (3-TABS) ---
 function switchView(tab) {
   const ordersSec = document.getElementById('ordersViewSection');
+  const analyticsSec = document.getElementById('analyticsViewSection');
   const invSec = document.getElementById('inventoryViewSection');
+
   const btnOrders = document.getElementById('tabBtnOrders');
+  const btnAnalytics = document.getElementById('tabBtnAnalytics');
   const btnInv = document.getElementById('tabBtnInventory');
+
+  [ordersSec, analyticsSec, invSec].forEach(el => el.classList.add('hidden'));
+  [btnOrders, btnAnalytics, btnInv].forEach(b => b.className = "px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition");
 
   if (tab === 'orders') {
     ordersSec.classList.remove('hidden');
-    invSec.classList.add('hidden');
-    btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
-    btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
-  } else {
-    ordersSec.classList.add('hidden');
+    btnOrders.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
+  } else if (tab === 'analytics') {
+    analyticsSec.classList.remove('hidden');
+    btnAnalytics.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
+    calculateAndRenderAnalytics();
+  } else if (tab === 'inventory') {
     invSec.classList.remove('hidden');
-    btnInv.className = "px-4 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
-    btnOrders.className = "px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition";
+    btnInv.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-accent text-white flex items-center gap-1.5 transition shadow-sm";
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -97,6 +104,7 @@ function startLiveOrderQueue() {
   db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+    allFetchedOrders = orders;
 
     if (!isInitialRun && orders.length > previousOrderCount) {
       playOrderAlertSound();
@@ -122,9 +130,11 @@ function startLiveOrderQueue() {
       let itemsSummary = "";
       if (Array.isArray(o.items)) itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
 
+      const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
+
       row.innerHTML = `
         <div class="space-y-1">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <span class="font-extrabold text-brand-navy">${o.id}</span>
             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
             <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
@@ -134,10 +144,17 @@ function startLiveOrderQueue() {
           ${itemsSummary ? `<p class="text-[11px] text-slate-500">📦 ${itemsSummary}</p>` : ''}
         </div>
 
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           <span class="text-sm font-black text-brand-accent">₹${o.total_amount || o.total}</span>
+
+          <!-- BLINKIT PACK CHECKLIST BUTTON -->
+          ${o.status !== 'Delivered' ? `
+            <button onclick="openPackingChecklist(${orderDataEscaped})" class="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-extrabold flex items-center gap-1 transition">
+              <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Pack Items
+            </button>
+          ` : ''}
           
-          <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 outline-none">
+          <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2 py-1.5 outline-none">
             <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Rider: Suresh</option>
             <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Rider: Ramesh</option>
           </select>
@@ -153,6 +170,10 @@ function startLiveOrderQueue() {
       container.appendChild(row);
     });
     if (window.lucide) lucide.createIcons();
+
+    if (!document.getElementById('analyticsViewSection').classList.contains('hidden')) {
+      calculateAndRenderAnalytics();
+    }
   });
 }
 
@@ -170,6 +191,131 @@ async function updateRider(orderId, assigned_rider) {
   } catch(e) {
     console.error("Rider update error:", e);
   }
+}
+
+// --- BLINKIT PICKER CHECKLIST MODAL LOGIC ---
+let activePackingOrderId = null;
+
+function openPackingChecklist(order) {
+  activePackingOrderId = order.id;
+  document.getElementById('packModalOrderId').innerText = `${order.id} • ${order.delivery_address}`;
+  const list = document.getElementById('pickerItemsList');
+  list.innerHTML = '';
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length === 0) {
+    list.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">No individual items recorded for this order.</p>`;
+  } else {
+    items.forEach((it, idx) => {
+      const itemRow = document.createElement('label');
+      itemRow.className = "p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition";
+      itemRow.innerHTML = `
+        <input type="checkbox" id="checkItem_${idx}" class="w-4 h-4 text-brand-accent rounded focus:ring-0 cursor-pointer">
+        <div class="flex-1">
+          <p class="text-xs font-bold text-slate-900">${it.quantity}x ${it.name}</p>
+          <span class="text-[10px] text-slate-400">₹${it.price} each</span>
+        </div>
+        <span class="text-xs font-black text-slate-800">₹${it.price * it.quantity}</span>
+      `;
+      list.appendChild(itemRow);
+    });
+  }
+
+  document.getElementById('pickerPackingModal').classList.remove('hidden');
+}
+
+function closePackingModal() {
+  document.getElementById('pickerPackingModal').classList.add('hidden');
+  activePackingOrderId = null;
+}
+
+async function markOrderAsPacked() {
+  if (!activePackingOrderId) return;
+  try {
+    await db.collection("orders").doc(activePackingOrderId).update({
+      status: "Packing",
+      packed_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closePackingModal();
+  } catch(e) {
+    alert("Update failed: " + e.message);
+  }
+}
+
+// --- TAB 2: FINANCIAL & SETTLEMENT ANALYTICS ---
+function calculateAndRenderAnalytics() {
+  let totalRevenue = 0;
+  let onlineSum = 0;
+  let codSum = 0;
+
+  allFetchedOrders.forEach(o => {
+    const amt = Number(o.total_amount || o.total || 0);
+    totalRevenue += amt;
+
+    if (o.payment_mode === 'COD') {
+      codSum += amt;
+    } else {
+      onlineSum += amt;
+    }
+  });
+
+  document.getElementById('statTodayRevenue').innerText = `₹${totalRevenue}`;
+  document.getElementById('statOnlinePaid').innerText = `₹${onlineSum}`;
+  document.getElementById('statCodPaid').innerText = `₹${codSum}`;
+  document.getElementById('statTotalOrders').innerText = allFetchedOrders.length;
+
+  const tbody = document.getElementById('settlementTableBody');
+  tbody.innerHTML = '';
+
+  if (allFetchedOrders.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No orders logged today.</td></tr>`;
+    return;
+  }
+
+  allFetchedOrders.forEach(o => {
+    const tr = document.createElement('tr');
+    tr.className = "hover:bg-slate-50 transition";
+    tr.innerHTML = `
+      <td class="py-3 px-3 font-extrabold text-brand-navy">${o.id}</td>
+      <td class="py-3 px-3 font-medium text-slate-700">${o.customer_phone || 'N/A'}</td>
+      <td class="py-3 px-3 text-slate-600 line-clamp-1 max-w-xs">${o.delivery_address}</td>
+      <td class="py-3 px-3 font-black text-slate-900">₹${o.total_amount || o.total}</td>
+      <td class="py-3 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${o.payment_mode || 'UPI'}</td>
+      <td class="py-3 px-3 font-bold text-xs">${o.status}</td>
+      <td class="py-3 px-3 font-bold text-slate-700">${o.assigned_rider || 'Suresh'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// --- CSV SETTLEMENT REPORT GENERATOR ---
+function exportDailyOrdersCSV() {
+  if (allFetchedOrders.length === 0) {
+    alert("No orders available to export!");
+    return;
+  }
+
+  const headers = ["Order ID", "Customer Phone", "Delivery Address", "Total Amount (INR)", "Payment Mode", "Payment Status", "Order Status", "Assigned Rider", "OTP"];
+  const rows = allFetchedOrders.map(o => [
+    `"${o.id}"`,
+    `"${o.customer_phone || ''}"`,
+    `"${(o.delivery_address || '').replace(/"/g, '""')}"`,
+    `"${o.total_amount || o.total || 0}"`,
+    `"${o.payment_mode || 'UPI'}"`,
+    `"${o.payment_status || 'COMPLETED'}"`,
+    `"${o.status || 'Delivered'}"`,
+    `"${o.assigned_rider || 'Suresh'}"`,
+    `"${o.delivery_otp || ''}"`
+  ]);
+
+  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Ravulapalem_Store_Settlement_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // --- INVENTORY MANAGEMENT ---

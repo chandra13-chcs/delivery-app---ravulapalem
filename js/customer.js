@@ -2,7 +2,7 @@
 // 🛒 CUSTOMER STOREFRONT ENGINE (customer.js)
 // ==========================================
 
-// --- GPS & LEAFLET ENGINE ---
+// --- GPS & LEAFLET ENGINE (STORE & PICKER) ---
 const DARK_STORE_COORDS = { lat: 16.7483, lng: 81.8488, name: "Ravulapalem RTC Dark Store" };
 let currentCustomerCoords = { lat: 16.7483, lng: 81.8488, address: "RTC Complex, Ravulapalem" };
 let leafletMap = null;
@@ -114,7 +114,23 @@ function closeAllModals() {
 }
 
 function closeCheckout() { document.getElementById('checkoutModal').classList.add('hidden'); }
-function closeTrackingModal() { document.getElementById('trackingModal').classList.add('hidden'); }
+
+function closeTrackingModal() { 
+  document.getElementById('trackingModal').classList.add('hidden'); 
+  if (trackingMapInstance) {
+    trackingMapInstance.remove();
+    trackingMapInstance = null;
+  }
+  if (riderGpsFirestoreUnsub) {
+    riderGpsFirestoreUnsub();
+    riderGpsFirestoreUnsub = null;
+  }
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+}
+
 function closeOrdersView() { document.getElementById('ordersModal').classList.add('hidden'); }
 
 // --- CATALOG DATA & FILTERING ---
@@ -446,10 +462,20 @@ function renderPaymentQR() {
 }
 
 async function processPaymentFlow() {
-  const phone = document.getElementById('inputPhone').value.trim();
+  const phoneInput = document.getElementById('inputPhone');
+  const phone = phoneInput.value.trim();
   const addr = document.getElementById('inputAddress').value.trim();
+
   if (!phone || !addr) {
-    alert("Please enter mobile number & address in Ravulapalem!");
+    alert("Please enter both mobile number and address in Ravulapalem!");
+    return;
+  }
+
+  // Strict 10-Digit Mobile Validation
+  const indianPhoneRegex = /^[6-9]\d{9}$/;
+  if (!indianPhoneRegex.test(phone)) {
+    alert("⚠️ Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.");
+    phoneInput.focus();
     return;
   }
 
@@ -514,6 +540,106 @@ function reopenActiveOrderModal() {
   }
 }
 
+// --- BLINKIT-STYLE LIVE TRACKING MAP & BIKE MOVEMENT ---
+let trackingMapInstance = null;
+let liveBikeMarker = null;
+let destinationMarker = null;
+let riderGpsFirestoreUnsub = null;
+let countdownInterval = null;
+
+function initLiveTrackingMap(customerCoords) {
+  if (trackingMapInstance) {
+    trackingMapInstance.remove();
+    trackingMapInstance = null;
+  }
+
+  setTimeout(() => {
+    const mapEl = document.getElementById('liveTrackingMap');
+    if (!mapEl) return;
+
+    try {
+      const startLat = DARK_STORE_COORDS.lat;
+      const startLng = DARK_STORE_COORDS.lng;
+
+      trackingMapInstance = L.map('liveTrackingMap', { zoomControl: false }).setView([startLat, startLng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(trackingMapInstance);
+
+      // Dark Store Hub Pin
+      L.marker([startLat, startLng]).addTo(trackingMapInstance).bindPopup("<b>Ravulapalem RTC Hub</b>");
+
+      // Customer Destination Pin
+      const custLat = customerCoords?.lat || 16.7490;
+      const custLng = customerCoords?.lng || 81.8500;
+      destinationMarker = L.marker([custLat, custLng]).addTo(trackingMapInstance).bindPopup("<b>Your Delivery Point</b>");
+
+      // Custom Bike Marker
+      const bikeIcon = L.divIcon({
+        className: 'bike-moving-marker',
+        html: `<div style="background:#0B132B; border:2px solid #F59E0B; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 8px rgba(0,0,0,0.3); font-size:16px;">🛵</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      liveBikeMarker = L.marker([startLat, startLng], { icon: bikeIcon }).addTo(trackingMapInstance);
+      trackingMapInstance.fitBounds([[startLat, startLng], [custLat, custLng]], { padding: [30, 30] });
+    } catch(err) {
+      console.warn("Live map init:", err);
+    }
+  }, 250);
+}
+
+// Listen to Rider's Real-time Coordinates from Firestore
+function listenToRiderLiveMovement(riderName) {
+  if (riderGpsFirestoreUnsub) riderGpsFirestoreUnsub();
+
+  riderGpsFirestoreUnsub = db.collection("riders_location").doc(riderName || 'Suresh').onSnapshot((doc) => {
+    if (doc.exists && liveBikeMarker && trackingMapInstance) {
+      const data = doc.data();
+      if (data.lat && data.lng) {
+        liveBikeMarker.setLatLng([data.lat, data.lng]);
+      }
+    }
+  });
+}
+
+// 10-MINUTE DYNAMIC COUNTDOWN SLA TIMER
+function startDynamicSlaTimer(createdAt) {
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  const timerEl = document.getElementById('slaCountdownTimer');
+  const stageBadge = document.getElementById('slaStageBadge');
+  if (!timerEl) return;
+
+  const orderTime = createdAt?.toDate ? createdAt.toDate().getTime() : Date.now();
+  const tenMinutesMs = 10 * 60 * 1000;
+  const targetTime = orderTime + tenMinutesMs;
+
+  function tick() {
+    const now = Date.now();
+    const remainingMs = targetTime - now;
+
+    if (remainingMs <= 0) {
+      timerEl.innerText = "00:00";
+      if (stageBadge) stageBadge.innerText = "Arriving Any Second!";
+      clearInterval(countdownInterval);
+      return;
+    }
+
+    const minutes = Math.floor(remainingMs / 60000);
+    const seconds = Math.floor((remainingMs % 60000) / 1000);
+    timerEl.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+    if (stageBadge) {
+      if (minutes >= 8) stageBadge.innerText = "Packing at Hub";
+      else if (minutes >= 2) stageBadge.innerText = "Rider in Transit";
+      else stageBadge.innerText = "Nearby (1-2 Mins)";
+    }
+  }
+
+  tick();
+  countdownInterval = setInterval(tick, 1000);
+}
+
 // --- DISPATCH & REALTIME TRACKING ---
 let trackingListenerUnsub = null;
 
@@ -573,7 +699,7 @@ function listenToLiveOrderUpdates(orderId) {
     if (doc.exists) {
       const data = doc.data();
       updateTrackingStages(data.status);
-      document.getElementById('trackRiderName').innerText = `${data.assigned_rider || 'Suresh'} (Ravulapalem Express)`;
+      document.getElementById('trackRiderName').innerText = data.assigned_rider || 'Suresh';
       
       if (currentActiveLiveOrder && currentActiveLiveOrder.id === orderId) {
         currentActiveLiveOrder.status = data.status;
@@ -589,9 +715,13 @@ function openTrackingScreen(order) {
   document.getElementById('trackingModal').classList.remove('hidden');
   document.getElementById('trackOrderId').innerText = order.id;
   document.getElementById('trackTotal').innerText = `Total: ₹${order.total_amount || order.total} • ${order.payment_mode || 'PAID'}`;
-  document.getElementById('trackRiderName').innerText = `${order.assigned_rider || 'Suresh'} (Ravulapalem Express)`;
+  document.getElementById('trackRiderName').innerText = order.assigned_rider || 'Suresh';
   document.getElementById('trackDeliveryOtp').innerText = order.delivery_otp || "4821";
+  
   updateTrackingStages(order.status);
+  initLiveTrackingMap(currentCustomerCoords);
+  listenToRiderLiveMovement(order.assigned_rider || 'Suresh');
+  startDynamicSlaTimer(order.created_at);
 }
 
 function updateTrackingStages(status) {
@@ -602,42 +732,43 @@ function updateTrackingStages(status) {
   const line1 = document.getElementById('stepLine1');
   const line2 = document.getElementById('stepLine2');
   const line3 = document.getElementById('stepLine3');
-  const eta = document.getElementById('trackEta');
+  const stageBadge = document.getElementById('slaStageBadge');
 
   if (!dot1) return;
 
-  [dot1, dot2, dot3, dot4].forEach(d => d.className = "w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold");
-  [line1, line2, line3].forEach(l => l.className = "w-0.5 h-10 bg-slate-200 my-1");
+  [dot1, dot2, dot3, dot4].forEach(d => d.className = "w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold");
+  [line1, line2, line3].forEach(l => l.className = "w-0.5 h-7 bg-slate-200 my-0.5");
 
   if (status === "Order Confirmed" || (status && status.includes("Placed"))) {
-    dot1.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md";
+    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow";
     dot1.innerHTML = "✓";
-    eta.innerText = "Estimated Arriving in 9 mins";
+    if (stageBadge) stageBadge.innerText = "Order Confirmed";
   } 
   else if (status === "Packing") {
-    dot1.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md";
-    line1.className = "w-0.5 h-10 bg-emerald-500 my-1";
-    dot2.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-md animate-pulse";
+    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow";
+    line1.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
+    dot2.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow animate-pulse";
     dot2.innerHTML = "✓";
-    eta.innerText = "Packed at Hub! Rider arriving in 6 mins";
+    if (stageBadge) stageBadge.innerText = "Packing at Hub";
   } 
   else if (status === "Out for Delivery") {
-    dot1.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
-    line1.className = "w-0.5 h-10 bg-emerald-500 my-1";
-    dot2.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
-    line2.className = "w-0.5 h-10 bg-emerald-500 my-1";
-    dot3.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold animate-bounce";
+    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
+    line1.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
+    dot2.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
+    line2.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
+    dot3.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold animate-bounce";
     dot3.innerHTML = "✓";
-    eta.innerText = "Rider Nearby in Ravulapalem! Arriving in 2 mins";
+    if (stageBadge) stageBadge.innerText = "Rider in Transit";
   } 
   else if (status === "Delivered") {
     [dot1, dot2, dot3, dot4].forEach(d => {
-      d.className = "w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
+      d.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
       d.innerHTML = "✓";
     });
-    [line1, line2, line3].forEach(l => l.className = "w-0.5 h-10 bg-emerald-500 my-1");
-    eta.innerText = "Order Delivered to Doorstep! Enjoy your items.";
+    [line1, line2, line3].forEach(l => l.className = "w-0.5 h-7 bg-emerald-500 my-0.5");
+    if (stageBadge) stageBadge.innerText = "Delivered Safely";
     updateActiveMiniBanner(null);
+    if (countdownInterval) clearInterval(countdownInterval);
   }
 }
 
