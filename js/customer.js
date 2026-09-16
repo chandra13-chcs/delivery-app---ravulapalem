@@ -136,38 +136,117 @@ function closeOrdersView() { document.getElementById('ordersModal').classList.ad
 // --- CATALOG DATA & FILTERING ---
 const categories = [
   { id: "all", name: "All Products", icon: "layout-grid" },
+  { id: "staples", name: "Atta, Rice & Oils", icon: "shopping-bag" },
   { id: "snacks", name: "Snacks & Munchies", icon: "cookie" },
   { id: "dairy", name: "Dairy & Milk", icon: "milk" },
   { id: "veggies", name: "Fresh Veggies", icon: "carrot" },
-  { id: "staples", name: "Atta, Rice & Oils", icon: "shopping-bag" },
   { id: "instant", name: "Instant Foods", icon: "flame" },
   { id: "personal", name: "Personal Care", icon: "heart" }
 ];
 
+// Fallback with Flipkart Multi-Weight Variants
 const fallbackCatalog = [
-  { id: "1", name: "Amul Dark Chocolate 125g", unit: "125 g", price: 190, old_price: 200, category: "snacks", image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80" },
-  { id: "2", name: "Cadbury 5 Star Bar 33g", unit: "33 g", price: 19, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1582293041079-7814c2f12063?auto=format&fit=crop&w=400&q=80" },
-  { id: "3", name: "Cadbury Bournville Rich Cocoa", unit: "80 g", price: 132, old_price: 140, category: "snacks", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=400&q=80" },
-  { id: "4", name: "Cadbury Dairy Milk Fruit & Nut", unit: "36 g", price: 52, old_price: 55, category: "snacks", image_url: "https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80" },
-  { id: "5", name: "Lay's India's Magic Masala Chips", unit: "50 g", price: 20, old_price: 20, category: "snacks", image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80" },
-  { id: "6", name: "Amul Taaza Homogenised Milk", unit: "500 ml", price: 27, old_price: 30, category: "dairy", image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" },
-  { id: "7", name: "Mother Dairy Fresh Paneer Block", unit: "200 g", price: 86, old_price: 95, category: "dairy", image_url: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=400&q=80" },
-  { id: "8", name: "Britannia Daily Fresh Sandwich Bread", unit: "400 g", price: 35, old_price: 40, category: "dairy", image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80" },
-  { id: "9", name: "Fresh Country Farm Tomatoes", unit: "1 kg", price: 32, old_price: 40, category: "veggies", image_url: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80" },
-  { id: "10", name: "Fresh Red Onions (Premium)", unit: "1 kg", price: 35, old_price: 45, category: "veggies", image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80" },
-  { id: "11", name: "Freedom Refined Sunflower Oil Pouch", unit: "1 L", price: 118, old_price: 135, category: "staples", image_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80" },
-  { id: "12", name: "Maggi 2-Minute Special Masala Noodles", unit: "70 g", price: 14, old_price: 15, category: "instant", image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80" }
+  { 
+    id: "p1", 
+    name: "Surf Excel Easy Wash Detergent Powder", 
+    category: "staples", 
+    image_url: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "500 g", price: 65, old_price: 75 },
+      { unit: "1 kg", price: 125, old_price: 145 },
+      { unit: "2 kg", price: 240, old_price: 280 }
+    ]
+  },
+  { 
+    id: "p2", 
+    name: "Aashirvaad Shudh Chakki Atta", 
+    category: "staples", 
+    image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "1 kg", price: 58, old_price: 65 },
+      { unit: "5 kg", price: 275, old_price: 310 },
+      { unit: "10 kg", price: 530, old_price: 590 }
+    ]
+  },
+  { 
+    id: "p3", 
+    name: "Freedom Refined Sunflower Oil", 
+    category: "staples", 
+    image_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "1 L Pouch", price: 118, old_price: 135 },
+      { unit: "5 L Jar", price: 590, old_price: 660 }
+    ]
+  },
+  { 
+    id: "p4", 
+    name: "Amul Taaza Homogenised Milk", 
+    category: "dairy", 
+    image_url: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "500 ml", price: 27, old_price: 30 },
+      { unit: "1 L", price: 54, old_price: 60 }
+    ]
+  },
+  { 
+    id: "p5", 
+    name: "Amul Dark Chocolate", 
+    category: "snacks", 
+    image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "55 g", price: 60, old_price: 65 },
+      { unit: "125 g", price: 190, old_price: 200 }
+    ]
+  },
+  { 
+    id: "p6", 
+    name: "Lay's India's Magic Masala Chips", 
+    category: "snacks", 
+    image_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "50 g", price: 20, old_price: 20 },
+      { unit: "115 g", price: 50, old_price: 50 }
+    ]
+  },
+  { 
+    id: "p7", 
+    name: "Fresh Farm Red Onions", 
+    category: "veggies", 
+    image_url: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "1 kg", price: 35, old_price: 45 },
+      { unit: "2 kg", price: 68, old_price: 90 }
+    ]
+  },
+  { 
+    id: "p8", 
+    name: "Maggi 2-Minute Masala Noodles", 
+    category: "instant", 
+    image_url: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=400&q=80",
+    variants: [
+      { unit: "70 g", price: 14, old_price: 15 },
+      { unit: "4-Pack (280g)", price: 54, old_price: 60 }
+    ]
+  }
 ];
 
 let liveCatalog = [...fallbackCatalog];
-let cartState = {};
+let cartState = {}; // Key: "productId_variantIdx"
 let activeCategory = "all";
 let currentSearch = "";
+let selectedVariantIndex = {}; // Track active weight index per product
 
 async function fetchProducts() {
   db.collection("products").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let cloudProducts = [];
-    snapshot.forEach(doc => cloudProducts.push({ id: doc.id, ...doc.data() }));
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      // Ensure variants array exists
+      if (!Array.isArray(d.variants) || d.variants.length === 0) {
+        d.variants = [{ unit: d.unit || "1 pc", price: d.price || 0, old_price: d.old_price || d.price || 0 }];
+      }
+      cloudProducts.push({ id: doc.id, ...d });
+    });
 
     const combined = [...cloudProducts, ...fallbackCatalog];
     const seen = new Set();
@@ -215,6 +294,12 @@ function selectCategory(catId) {
   filterAndRender();
 }
 
+// Switch Active Variant (Weight Size) on Card
+function selectVariant(productId, variantIdx) {
+  selectedVariantIndex[productId] = variantIdx;
+  filterAndRender();
+}
+
 function filterAndRender() {
   let filtered = liveCatalog;
   if (activeCategory !== "all") filtered = filtered.filter(item => item.category === activeCategory);
@@ -225,9 +310,37 @@ function filterAndRender() {
   grid.innerHTML = '';
 
   filtered.forEach(p => {
-    const qty = cartState[p.id] || 0;
+    // Normalise variants
+    const variants = Array.isArray(p.variants) && p.variants.length > 0 
+      ? p.variants 
+      : [{ unit: p.unit || "1 pc", price: p.price, old_price: p.old_price || p.price }];
+
+    const currentVIdx = selectedVariantIndex[p.id] !== undefined ? selectedVariantIndex[p.id] : 0;
+    const activeVar = variants[currentVIdx] || variants[0];
+    const cartKey = `${p.id}_${currentVIdx}`;
+    const qty = cartState[cartKey] || 0;
+
     const card = document.createElement('div');
     card.className = "bg-white p-3 rounded-2xl border border-brand-border shadow-sm flex flex-col justify-between hover:shadow-md transition";
+    
+    // Generate Weight Chips (Flipkart Style)
+    let variantChipsHtml = "";
+    if (variants.length > 1) {
+      variantChipsHtml = `
+        <div class="flex flex-wrap gap-1 mt-2">
+          ${variants.map((v, idx) => `
+            <button 
+              type="button" 
+              onclick="event.stopPropagation(); selectVariant('${p.id}', ${idx})" 
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold border transition ${idx === currentVIdx ? 'bg-brand-navy text-white border-brand-navy' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'}"
+            >
+              ${v.unit}
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
     card.innerHTML = `
       <div onclick="openProductDetailModal('${p.id}')" class="cursor-pointer">
         <div class="h-32 sm:h-36 w-full rounded-xl overflow-hidden bg-slate-100 relative mb-2.5">
@@ -237,25 +350,28 @@ function filterAndRender() {
           </span>
         </div>
         <h4 class="text-xs font-bold text-slate-900 line-clamp-2 leading-snug hover:text-brand-accent transition">${p.name}</h4>
-        <span class="text-[11px] text-slate-500 font-medium mt-1 block">${p.unit}</span>
+        <span class="text-[11px] text-slate-500 font-semibold mt-0.5 block">${activeVar.unit}</span>
       </div>
 
-      <div class="mt-3.5 flex items-center justify-between pt-2.5 border-t border-slate-100">
+      <!-- FLIPKART STYLE WEIGHT SELECTOR PILLS -->
+      ${variantChipsHtml}
+
+      <div class="mt-3 flex items-center justify-between pt-2.5 border-t border-slate-100">
         <div>
-          <span class="text-xs sm:text-sm font-extrabold text-slate-900">₹${p.price}</span>
-          ${p.old_price > p.price ? `<span class="text-[10px] text-slate-400 line-through ml-1">₹${p.old_price}</span>` : ''}
+          <span class="text-xs sm:text-sm font-extrabold text-slate-900">₹${activeVar.price}</span>
+          ${activeVar.old_price > activeVar.price ? `<span class="text-[10px] text-slate-400 line-through ml-1">₹${activeVar.old_price}</span>` : ''}
         </div>
 
-        <div id="btn-wrap-${p.id}">
+        <div>
           ${qty === 0 ? `
-            <button onclick="modifyCart('${p.id}', 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white text-xs font-black uppercase transition">
+            <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white text-xs font-black uppercase transition">
               ADD
             </button>
           ` : `
             <div class="flex items-center bg-brand-navy text-white rounded-lg px-2 py-1 text-xs font-bold gap-2 shadow-sm">
-              <button onclick="modifyCart('${p.id}', -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+              <button onclick="modifyCart('${p.id}', ${currentVIdx}, -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
               <span class="text-xs font-black w-3 text-center">${qty}</span>
-              <button onclick="modifyCart('${p.id}', 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+              <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
             </div>
           `}
         </div>
@@ -269,24 +385,42 @@ function filterAndRender() {
 }
 
 // --- PRODUCT DETAIL QUICK VIEW ---
+let detailActiveVariantIndex = 0;
+let currentDetailProductId = null;
+
 function openProductDetailModal(id) {
   const product = liveCatalog.find(p => p.id == id);
   if (!product) return;
+  currentDetailProductId = id;
 
-  const qty = cartState[id] || 0;
+  const variants = Array.isArray(product.variants) && product.variants.length > 0 
+    ? product.variants 
+    : [{ unit: product.unit || "1 pc", price: product.price, old_price: product.old_price || product.price }];
+
+  detailActiveVariantIndex = selectedVariantIndex[id] !== undefined ? selectedVariantIndex[id] : 0;
+  renderDetailModalContent(product, variants);
+  document.getElementById('productDetailModal').classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderDetailModalContent(product, variants) {
+  const activeVar = variants[detailActiveVariantIndex] || variants[0];
+  const cartKey = `${product.id}_${detailActiveVariantIndex}`;
+  const qty = cartState[cartKey] || 0;
+
   document.getElementById('detailImg').src = product.image_url;
   document.getElementById('detailName').innerText = product.name;
-  document.getElementById('detailUnit').innerText = product.unit;
+  document.getElementById('detailUnit').innerText = activeVar.unit;
   document.getElementById('detailCategory').innerText = (product.category || 'GROCERY').toUpperCase();
-  document.getElementById('detailPrice').innerText = `₹${product.price}`;
+  document.getElementById('detailPrice').innerText = `₹${activeVar.price}`;
 
   const oldPriceEl = document.getElementById('detailOldPrice');
   const discountEl = document.getElementById('detailDiscount');
 
-  if (product.old_price && product.old_price > product.price) {
-    oldPriceEl.innerText = `₹${product.old_price}`;
+  if (activeVar.old_price && activeVar.old_price > activeVar.price) {
+    oldPriceEl.innerText = `₹${activeVar.old_price}`;
     oldPriceEl.classList.remove('hidden');
-    const discount = Math.round(((product.old_price - product.price) / product.old_price) * 100);
+    const discount = Math.round(((activeVar.old_price - activeVar.price) / activeVar.old_price) * 100);
     discountEl.innerText = `${discount}% OFF`;
     discountEl.classList.remove('hidden');
   } else {
@@ -294,25 +428,23 @@ function openProductDetailModal(id) {
     discountEl.classList.add('hidden');
   }
 
-  renderDetailActionBtn(id, qty);
-  document.getElementById('productDetailModal').classList.remove('hidden');
-  if (window.lucide) lucide.createIcons();
+  renderDetailActionBtn(product.id, detailActiveVariantIndex, qty);
 }
 
-function renderDetailActionBtn(id, qty) {
+function renderDetailActionBtn(prodId, vIdx, qty) {
   const btnWrap = document.getElementById('detailActionBtn');
   if (qty === 0) {
     btnWrap.innerHTML = `
-      <button onclick="modifyCart('${id}', 1); renderDetailActionBtn('${id}', 1);" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
+      <button onclick="modifyCart('${prodId}', ${vIdx}, 1); renderDetailActionBtn('${prodId}', ${vIdx}, 1);" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
         Add to Cart
       </button>
     `;
   } else {
     btnWrap.innerHTML = `
       <div class="flex items-center bg-brand-navy text-white rounded-xl px-3 py-1.5 text-xs font-bold gap-3 shadow-md">
-        <button onclick="modifyCart('${id}', -1); renderDetailActionBtn('${id}', cartState['${id}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+        <button onclick="modifyCart('${prodId}', ${vIdx}, -1); renderDetailActionBtn('${prodId}', ${vIdx}, cartState['${prodId}_${vIdx}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
         <span class="text-sm font-black w-4 text-center">${qty}</span>
-        <button onclick="modifyCart('${id}', 1); renderDetailActionBtn('${id}', cartState['${id}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+        <button onclick="modifyCart('${prodId}', ${vIdx}, 1); renderDetailActionBtn('${prodId}', ${vIdx}, cartState['${prodId}_${vIdx}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
       </div>
     `;
   }
@@ -323,11 +455,13 @@ function closeProductDetailModal() {
 }
 
 // --- CART LOGIC ---
-function modifyCart(id, delta) {
-  const current = cartState[id] || 0;
+function modifyCart(prodId, variantIdx, delta) {
+  const key = `${prodId}_${variantIdx}`;
+  const current = cartState[key] || 0;
   const next = current + delta;
-  if (next <= 0) delete cartState[id];
-  else cartState[id] = next;
+  if (next <= 0) delete cartState[key];
+  else cartState[key] = next;
+  
   filterAndRender();
   syncCartBar();
 }
@@ -337,12 +471,15 @@ function syncCartBar() {
   let count = 0;
   let sum = 0;
 
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
+  Object.keys(cartState).forEach(key => {
+    const [prodId, vIdx] = key.split('_');
+    const item = liveCatalog.find(p => p.id == prodId);
     if (item) {
-      const qty = cartState[id];
+      const variants = Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : [{ price: item.price }];
+      const variant = variants[Number(vIdx)] || variants[0];
+      const qty = cartState[key];
       count += qty;
-      sum += item.price * qty;
+      sum += variant.price * qty;
     }
   });
 
@@ -370,11 +507,14 @@ function openCheckout() {
   container.innerHTML = '';
   let sub = 0;
 
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
+  Object.keys(cartState).forEach(key => {
+    const [prodId, vIdx] = key.split('_');
+    const item = liveCatalog.find(p => p.id == prodId);
     if (item) {
-      const qty = cartState[id];
-      const rowPrice = item.price * qty;
+      const variants = Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : [{ unit: item.unit, price: item.price }];
+      const variant = variants[Number(vIdx)] || variants[0];
+      const qty = cartState[key];
+      const rowPrice = variant.price * qty;
       sub += rowPrice;
 
       const row = document.createElement('div');
@@ -384,14 +524,14 @@ function openCheckout() {
           <img src="${item.image_url}" class="w-10 h-10 rounded-lg object-cover">
           <div>
             <p class="text-xs font-bold text-slate-800 line-clamp-1 max-w-[170px]">${item.name}</p>
-            <span class="text-[10px] text-slate-500">₹${item.price} each</span>
+            <span class="text-[10px] text-slate-500 font-bold">${variant.unit} • ₹${variant.price}</span>
           </div>
         </div>
         <div class="flex items-center gap-3">
           <div class="flex items-center bg-brand-navy text-white rounded-md px-2 py-0.5 text-xs font-bold gap-2">
-            <button onclick="modifyCart('${item.id}', -1); openCheckout();">-</button>
+            <button onclick="modifyCart('${prodId}', ${vIdx}, -1); openCheckout();">-</button>
             <span>${qty}</span>
-            <button onclick="modifyCart('${item.id}', 1); openCheckout();">+</button>
+            <button onclick="modifyCart('${prodId}', ${vIdx}, 1); openCheckout();">+</button>
           </div>
           <span class="text-xs font-black text-slate-900 w-12 text-right">₹${rowPrice}</span>
         </div>
@@ -440,9 +580,14 @@ function setPaymentMethod(mode) {
 
 function renderPaymentQR() {
   let sub = 0;
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    if (item) sub += item.price * cartState[id];
+  Object.keys(cartState).forEach(key => {
+    const [prodId, vIdx] = key.split('_');
+    const item = liveCatalog.find(p => p.id == prodId);
+    if (item) {
+      const variants = Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : [{ price: item.price }];
+      const variant = variants[Number(vIdx)] || variants[0];
+      sub += variant.price * cartState[key];
+    }
   });
   const total = sub > 0 ? sub + 4 : 31;
   const upiUrl = `upi://pay?pa=ravulapalemhub@okaxis&pn=QuickDashRavulapalem&am=${total}&cu=INR&tn=QuickDash Order`;
@@ -472,7 +617,6 @@ async function processPaymentFlow() {
     return;
   }
 
-  // Strict 10-Digit Mobile Validation
   const indianPhoneRegex = /^[6-9]\d{9}$/;
   if (!indianPhoneRegex.test(phone)) {
     alert("⚠️ Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.");
@@ -541,7 +685,7 @@ function reopenActiveOrderModal() {
   }
 }
 
-// --- BLINKIT-STYLE LIVE TRACKING MAP & BIKE MOVEMENT ---
+// --- LIVE TRACKING MAP & BIKE MOVEMENT ---
 let trackingMapInstance = null;
 let liveBikeMarker = null;
 let destinationMarker = null;
@@ -565,15 +709,12 @@ function initLiveTrackingMap(customerCoords) {
       trackingMapInstance = L.map('liveTrackingMap', { zoomControl: false }).setView([startLat, startLng], 14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(trackingMapInstance);
 
-      // Dark Store Hub Pin
       L.marker([startLat, startLng]).addTo(trackingMapInstance).bindPopup("<b>Ravulapalem RTC Hub</b>");
 
-      // Customer Destination Pin
       const custLat = customerCoords?.lat || 16.7490;
       const custLng = customerCoords?.lng || 81.8500;
       destinationMarker = L.marker([custLat, custLng]).addTo(trackingMapInstance).bindPopup("<b>Your Delivery Point</b>");
 
-      // Custom Bike Marker
       const bikeIcon = L.divIcon({
         className: 'bike-moving-marker',
         html: `<div style="background:#0B132B; border:2px solid #F59E0B; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 8px rgba(0,0,0,0.3); font-size:16px;">🛵</div>`,
@@ -589,7 +730,6 @@ function initLiveTrackingMap(customerCoords) {
   }, 250);
 }
 
-// Listen to Rider's Real-time Coordinates from Firestore
 function listenToRiderLiveMovement(riderName) {
   if (riderGpsFirestoreUnsub) riderGpsFirestoreUnsub();
 
@@ -603,7 +743,6 @@ function listenToRiderLiveMovement(riderName) {
   });
 }
 
-// 10-MINUTE DYNAMIC COUNTDOWN SLA TIMER
 function startDynamicSlaTimer(createdAt) {
   if (countdownInterval) clearInterval(countdownInterval);
 
@@ -650,11 +789,14 @@ async function finalizeOrderAndLaunch(paymentStatus) {
   document.getElementById('payStatusAnim').innerHTML = `<div class="w-8 h-8 border-4 border-brand-accent border-t-transparent rounded-full animate-spin"></div>`;
 
   let sub = 0;
-  const orderItems = Object.keys(cartState).map(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    const qty = cartState[id];
-    sub += item.price * qty;
-    return { id: item.id, name: item.name, quantity: qty, price: item.price };
+  const orderItems = Object.keys(cartState).map(key => {
+    const [prodId, vIdx] = key.split('_');
+    const item = liveCatalog.find(p => p.id == prodId);
+    const variants = Array.isArray(item.variants) && item.variants.length > 0 ? item.variants : [{ unit: item.unit, price: item.price }];
+    const variant = variants[Number(vIdx)] || variants[0];
+    const qty = cartState[key];
+    sub += variant.price * qty;
+    return { id: item.id, name: item.name, unit: variant.unit, quantity: qty, price: variant.price };
   });
 
   const orderId = "QD-" + Math.floor(100000 + Math.random() * 900000);
@@ -887,14 +1029,12 @@ function sendCustomerLoginOtp() {
     return;
   }
 
-  // 4-digit code generation
   currentGeneratedOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
   document.getElementById('loginStepPhone').classList.add('hidden');
   document.getElementById('loginStepOtp').classList.remove('hidden');
   document.getElementById('otpPhoneTarget').innerText = `+91 ${phone}`;
 
-  // Front toast alert
   const toast = document.getElementById('smsNotificationToast');
   document.getElementById('smsToastMessage').innerText = `Your Login OTP is ${currentGeneratedOtp}`;
   toast.classList.remove('hidden');

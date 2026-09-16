@@ -11,6 +11,17 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="css/style.css">
   
+  <!-- PWA MANIFEST & SERVICE WORKER -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0B132B">
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg failed: ', err));
+      });
+    }
+  </script>
+
   <!-- FIREBASE SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -31,16 +42,6 @@
           }
         }
       }
-    }
-  </script>
-  <!-- PWA MANIFEST & SERVICE WORKER -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0B132B">
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg failed: ', err));
-      });
     }
   </script>
 </head>
@@ -138,7 +139,7 @@
       <div class="flex items-center justify-between pb-4 border-b border-brand-border mb-4">
         <div>
           <h2 class="text-base font-extrabold text-slate-900">Dark Store Dispatch Pipeline</h2>
-          <p class="text-xs text-slate-500">Real-time incoming orders & picker verification</p>
+          <p class="text-xs text-slate-500">Tap colorful buttons for instant status change</p>
         </div>
         <span class="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1.5 border border-emerald-200">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Realtime Active
@@ -162,7 +163,6 @@
       </button>
     </div>
 
-    <!-- Analytics Metric Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="p-5 bg-white rounded-2xl border border-brand-border shadow-sm">
         <div class="flex items-center justify-between text-slate-400">
@@ -201,7 +201,6 @@
       </div>
     </div>
 
-    <!-- Settlement Breakdown Table -->
     <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
       <h3 class="text-sm font-extrabold text-slate-900 mb-4">Detailed Financial Log (Today's Transactions)</h3>
       <div class="overflow-x-auto">
@@ -223,49 +222,66 @@
     </div>
   </main>
 
-  <!-- TAB 3: PRODUCT MANAGEMENT -->
+  <!-- TAB 3: PRODUCT MANAGEMENT (WITH FLIPKART STYLE WEIGHT SIZES) -->
   <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
     <div class="bg-white rounded-3xl border border-brand-border shadow-sm p-6">
       <h2 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
-        <i data-lucide="plus-circle" class="w-5 h-5 text-brand-accent"></i> Add New Product to Store
+        <i data-lucide="plus-circle" class="w-5 h-5 text-brand-accent"></i> Add Product (With Multiple Weights & Sizes)
       </h2>
-      <p class="text-xs text-slate-500 mb-4">Instant live update on Customer App via Firestore.</p>
+      <p class="text-xs text-slate-500 mb-4">Create single product with multiple variants (e.g. 500g, 1kg, 2kg).</p>
 
-      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
-          <input id="pName" type="text" required placeholder="e.g. Cadbury Silk 60g" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
-        </div>
-
-        <div>
-          <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
-          <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-white">
-            <option value="snacks">Snacks & Munchies</option>
-            <option value="dairy">Dairy & Milk</option>
-            <option value="veggies">Fresh Veggies</option>
-            <option value="staples">Atta, Rice & Oils</option>
-            <option value="instant">Instant Food & Drinks</option>
-            <option value="personal">Personal Care</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="text-[11px] font-bold text-slate-500 uppercase">Unit / Weight *</label>
-          <input id="pUnit" type="text" required placeholder="e.g. 500 ml, 1 kg, 1 pc" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
+      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="space-y-4">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">Sale Price (₹) *</label>
-            <input id="pPrice" type="number" required placeholder="190" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
+            <input id="pName" type="text" required placeholder="e.g. Surf Excel Easy Wash Detergent" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
           </div>
+
           <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">MRP (₹)</label>
-            <input id="pOldPrice" type="number" placeholder="200" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
+            <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent bg-white">
+              <option value="staples">Atta, Rice & Oils</option>
+              <option value="snacks">Snacks & Munchies</option>
+              <option value="dairy">Dairy & Milk</option>
+              <option value="veggies">Fresh Veggies</option>
+              <option value="instant">Instant Food & Drinks</option>
+              <option value="personal">Personal Care</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Default Weight / Unit *</label>
+            <input id="pUnit" type="text" placeholder="e.g. 500 g" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[11px] font-bold text-slate-500 uppercase">Default Price (₹) *</label>
+              <input id="pPrice" type="number" placeholder="65" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+            </div>
+            <div>
+              <label class="text-[11px] font-bold text-slate-500 uppercase">Default MRP (₹)</label>
+              <input id="pOldPrice" type="number" placeholder="75" class="w-full mt-1 px-3 py-2 text-xs border border-brand-border rounded-xl outline-none focus:ring-2 focus:ring-brand-accent">
+            </div>
           </div>
         </div>
 
-        <div class="sm:col-span-2 lg:col-span-3">
+        <!-- FLIPKART STYLE WEIGHT/SIZE VARIANT GENERATOR -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+          <p class="text-[11px] font-extrabold text-slate-700 uppercase">Add Multiple Weights / Packs (Flipkart Style)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input id="varUnit" type="text" placeholder="Size (e.g. 1 kg, 2 kg)" class="px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white outline-none">
+            <input id="varPrice" type="number" placeholder="Price (₹)" class="px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white outline-none">
+            <input id="varOldPrice" type="number" placeholder="MRP (₹)" class="px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white outline-none">
+            <button type="button" onclick="addVariantRowToDraft()" class="py-2 px-3 bg-brand-accent hover:bg-brand-accentHover text-white text-xs font-bold rounded-xl transition">
+              + Add Size Option
+            </button>
+          </div>
+          <div id="variantChipsPreview" class="flex flex-wrap gap-2 pt-1"></div>
+        </div>
+
+        <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Product Image (File Upload or URL)</label>
           <div class="flex items-center gap-3 mt-1 flex-wrap sm:flex-nowrap">
             <input 
@@ -289,11 +305,9 @@
           </div>
         </div>
 
-        <div class="flex items-end">
-          <button type="submit" id="saveProdBtn" class="w-full py-2.5 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition shadow-md flex items-center justify-center gap-1.5">
-            <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add to Catalog
-          </button>
-        </div>
+        <button type="submit" id="saveProdBtn" class="w-full py-3 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md flex items-center justify-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Add Product to Catalog
+        </button>
       </form>
     </div>
 
@@ -312,7 +326,7 @@
             <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
               <th class="py-3 px-3">Item</th>
               <th class="py-3 px-3">Category</th>
-              <th class="py-3 px-3">Unit</th>
+              <th class="py-3 px-3">Available Variants</th>
               <th class="py-3 px-3">Selling Price</th>
               <th class="py-3 px-3">MRP</th>
               <th class="py-3 px-3 text-right">Actions</th>
@@ -349,7 +363,6 @@
     </div>
   </div>
 
-  <!-- MODULAR JAVASCRIPT CALLS -->
   <script src="js/firebase-config.js"></script>
   <script src="js/admin.js"></script>
 </body>

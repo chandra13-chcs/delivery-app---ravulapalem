@@ -52,22 +52,22 @@
 
   <!-- TOP NAV BAR -->
   <header class="sticky top-0 z-40 bg-brand-navy text-white shadow-lg border-b border-slate-800">
-    <div class="max-w-7xl mx-auto px-4 lg:px-8 py-3.5">
-      <div class="flex items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3.5">
+      <div class="flex items-center justify-between gap-2">
         
         <!-- Brand + Location -->
-        <div onclick="openLocationModal()" class="flex items-center gap-3 cursor-pointer group">
-          <div class="w-10 h-10 rounded-xl bg-brand-accent flex items-center justify-center font-extrabold text-white text-lg shadow-md shadow-brand-accent/30 group-hover:scale-105 transition">
+        <div onclick="openLocationModal()" class="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0 flex-1">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-brand-accent flex items-center justify-center font-extrabold text-white text-base sm:text-lg shadow-md shrink-0">
             ⚡
           </div>
-          <div>
+          <div class="min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="text-xs font-black tracking-wider uppercase text-cyan-400">10 MINS DELIVERY</span>
-              <span id="serviceabilityDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="text-[10px] sm:text-xs font-black tracking-wider uppercase text-cyan-400 truncate">10 MINS</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
             </div>
-            <div class="flex items-center gap-1 text-slate-300 group-hover:text-white transition">
-              <p id="currentAddressHeader" class="text-xs font-medium truncate max-w-[140px] sm:max-w-xs">RTC Complex, Ravulapalem</p>
-              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+            <div class="flex items-center gap-1 text-slate-300">
+              <p id="currentAddressHeader" class="text-[11px] sm:text-xs font-medium truncate max-w-[110px] sm:max-w-xs">RTC Complex, Ravulapalem</p>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400 shrink-0"></i>
             </div>
           </div>
         </div>
@@ -84,25 +84,22 @@
           >
         </div>
 
-        <!-- Actions: My Orders + Dynamic Customer Auth Profile -->
-        <div class="flex items-center gap-2">
-          <button onclick="toggleOrdersView()" class="px-3 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
+        <!-- Actions: My Orders + Compact Auth Profile -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button onclick="toggleOrdersView()" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
             <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
-            <span class="hidden sm:inline">My Orders</span>
+            <span class="hidden md:inline">My Orders</span>
           </button>
 
-          <!-- Dynamic Auth Button / User Chip -->
           <div id="authContainer">
-            <button onclick="openLoginModal()" id="loginBtn" class="px-3.5 py-2 rounded-xl bg-brand-accent hover:bg-brand-accentHover text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm">
-              <i data-lucide="user" class="w-4 h-4"></i>
+            <button onclick="openLoginModal()" id="loginBtn" class="px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-brand-accent hover:bg-brand-accentHover text-white text-xs font-bold flex items-center gap-1 transition shadow-sm">
+              <i data-lucide="user" class="w-3.5 h-3.5"></i>
               <span>Login</span>
             </button>
-            <div id="userChip" class="hidden flex items-center gap-2 bg-brand-navyLight border border-slate-700 px-3 py-1.5 rounded-xl">
-              <div class="w-6 h-6 rounded-full bg-brand-accent text-white flex items-center justify-center text-[11px] font-black">
-                👤
-              </div>
-              <span id="userPhoneDisplay" class="text-xs font-bold text-slate-200"></span>
-              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-1">✕</button>
+            <div id="userChip" class="hidden flex items-center gap-1.5 bg-brand-navyLight border border-slate-700 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl">
+              <span class="text-xs">👤</span>
+              <span id="userPhoneDisplay" class="text-[11px] sm:text-xs font-bold text-slate-200"></span>
+              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-0.5 font-bold">✕</button>
             </div>
           </div>
         </div>
@@ -110,8 +107,8 @@
       </div>
 
       <!-- Mobile Search Bar -->
-      <div class="mt-3 relative md:hidden">
-        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+      <div class="mt-2.5 relative md:hidden">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
         <input 
           id="searchInputMobile" 
           oninput="handleSearch(this.value)" 
@@ -123,7 +120,6 @@
 
     </div>
   </header>
-
   <!-- SIMULATED SMS TOAST NOTIFICATION (Z-INDEX 60 FOR FRONT DISPLAY) -->
   <div id="smsNotificationToast" class="hidden fixed top-5 right-5 left-5 sm:left-auto sm:max-w-sm z-[60] bg-slate-900 text-white rounded-2xl p-4 shadow-2xl border-2 border-emerald-400 flex items-center justify-between gap-3 animate-bounce">
     <div class="flex items-center gap-3">

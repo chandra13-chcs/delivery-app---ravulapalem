@@ -94,6 +94,45 @@ function toggleAudioState() {
   btn.className = audioAlertsEnabled ? "px-3 py-1.5 rounded-xl bg-slate-700 text-slate-200 text-xs font-bold" : "px-3 py-1.5 rounded-xl bg-rose-900 text-rose-200 text-xs font-bold";
 }
 
+// --- AKKA KOSAM: 1-TAP COLORFUL STATUS PILLS RENDERER ---
+function renderStatusPills(orderId, currentStatus) {
+  const statuses = [
+    { key: "Order Confirmed", label: "Confirmed", active: "bg-amber-500 text-white border-amber-600 shadow-md scale-105 font-black", inactive: "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100" },
+    { key: "Packing", label: "Packing", active: "bg-orange-500 text-white border-orange-600 shadow-md scale-105 font-black", inactive: "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100" },
+    { key: "Out for Delivery", label: "Dispatched", active: "bg-blue-600 text-white border-blue-700 shadow-md scale-105 font-black", inactive: "bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100" },
+    { key: "Delivered", label: "Delivered", active: "bg-emerald-600 text-white border-emerald-700 shadow-md scale-105 font-black", inactive: "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100" }
+  ];
+
+  return `
+    <div class="flex items-center gap-1.5 p-1 bg-white rounded-2xl border border-slate-200 shadow-inner">
+      ${statuses.map(s => {
+        const isCurrent = currentStatus === s.key;
+        return `
+          <button 
+            type="button"
+            onclick="quickSetStatus('${orderId}', '${s.key}')" 
+            class="px-2.5 py-1.5 rounded-xl text-xs border transition-all duration-150 flex items-center gap-1 ${isCurrent ? s.active : s.inactive + ' opacity-75'}"
+          >
+            ${isCurrent ? '● ' : ''}${s.label}
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Direct 1-Tap Status Update to Firebase
+async function quickSetStatus(orderId, newStatus) {
+  try {
+    await db.collection("orders").doc(orderId).update({
+      status: newStatus,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch(e) {
+    console.error("Status update error:", e);
+  }
+}
+
 // --- LIVE ORDERS DISPATCH QUEUE ---
 let previousOrderCount = 0;
 let isInitialRun = true;
@@ -125,46 +164,44 @@ function startLiveOrderQueue() {
     container.innerHTML = '';
     orders.forEach(o => {
       const row = document.createElement('div');
-      row.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4";
+      row.className = "p-4 rounded-2xl bg-slate-50 border border-brand-border flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-sm";
       
       let itemsSummary = "";
-      if (Array.isArray(o.items)) itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+      if (Array.isArray(o.items)) {
+        itemsSummary = o.items.map(i => `${i.quantity}x ${i.name} ${i.unit ? '('+i.unit+')' : ''}`).join(", ");
+      }
 
       const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
 
       row.innerHTML = `
-        <div class="space-y-1">
+        <div class="space-y-1.5 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-extrabold text-brand-navy">${o.id}</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
+            <span class="font-extrabold text-brand-navy text-sm">${o.id}</span>
+            <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
             <span class="text-[10px] font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">${o.payment_mode || 'UPI'}</span>
-            <span class="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
+            <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
           </div>
-          <p class="text-xs text-slate-700 font-semibold">${o.delivery_address} • Phone: ${o.customer_phone}</p>
-          ${itemsSummary ? `<p class="text-[11px] text-slate-500">📦 ${itemsSummary}</p>` : ''}
+          <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
+          ${itemsSummary ? `<p class="text-[11px] text-slate-600 font-semibold bg-white p-2 rounded-xl border border-slate-200 inline-block">📦 ${itemsSummary}</p>` : ''}
         </div>
 
-        <div class="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
-          <span class="text-sm font-black text-brand-accent">₹${o.total_amount || o.total}</span>
+        <div class="flex items-center gap-3 shrink-0 flex-wrap lg:flex-nowrap">
+          <span class="text-base font-black text-brand-accent">₹${o.total_amount || o.total}</span>
 
           <!-- BLINKIT PACK CHECKLIST BUTTON -->
           ${o.status !== 'Delivered' ? `
-            <button onclick="openPackingChecklist(${orderDataEscaped})" class="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-extrabold flex items-center gap-1 transition">
+            <button onclick="openPackingChecklist(${orderDataEscaped})" class="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-extrabold flex items-center gap-1 transition">
               <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Pack Items
             </button>
           ` : ''}
           
-          <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2 py-1.5 outline-none">
+          <select onchange="updateRider('${o.id}', this.value)" class="text-xs font-bold bg-white border border-slate-300 rounded-xl px-2.5 py-2 outline-none">
             <option value="Suresh" ${o.assigned_rider === 'Suresh' ? 'selected' : ''}>Rider: Suresh</option>
             <option value="Ramesh" ${o.assigned_rider === 'Ramesh' ? 'selected' : ''}>Rider: Ramesh</option>
           </select>
 
-          <select onchange="updateStatus('${o.id}', this.value)" class="text-xs font-bold bg-brand-navy text-white rounded-xl px-2.5 py-1.5 outline-none">
-            <option value="Order Confirmed" ${o.status === 'Order Confirmed' ? 'selected' : ''}>Confirmed</option>
-            <option value="Packing" ${o.status === 'Packing' ? 'selected' : ''}>Packing</option>
-            <option value="Out for Delivery" ${o.status === 'Out for Delivery' ? 'selected' : ''}>Dispatch</option>
-            <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
-          </select>
+          <!-- AKKA KOSAM FAST TAP PILLS -->
+          ${renderStatusPills(o.id, o.status)}
         </div>
       `;
       container.appendChild(row);
@@ -175,14 +212,6 @@ function startLiveOrderQueue() {
       calculateAndRenderAnalytics();
     }
   });
-}
-
-async function updateStatus(orderId, status) {
-  try {
-    await db.collection("orders").doc(orderId).update({ status: status });
-  } catch(e) {
-    console.error("Status update error:", e);
-  }
 }
 
 async function updateRider(orderId, assigned_rider) {
@@ -212,7 +241,7 @@ function openPackingChecklist(order) {
       itemRow.innerHTML = `
         <input type="checkbox" id="checkItem_${idx}" class="w-4 h-4 text-brand-accent rounded focus:ring-0 cursor-pointer">
         <div class="flex-1">
-          <p class="text-xs font-bold text-slate-900">${it.quantity}x ${it.name}</p>
+          <p class="text-xs font-bold text-slate-900">${it.quantity}x ${it.name} ${it.unit ? '('+it.unit+')' : ''}</p>
           <span class="text-[10px] text-slate-400">₹${it.price} each</span>
         </div>
         <span class="text-xs font-black text-slate-800">₹${it.price * it.quantity}</span>
@@ -242,7 +271,7 @@ async function markOrderAsPacked() {
   }
 }
 
-// --- TAB 2: FINANCIAL & SETTLEMENT ANALYTICS ---
+// --- FINANCIAL & SETTLEMENT ANALYTICS ---
 function calculateAndRenderAnalytics() {
   let totalRevenue = 0;
   let onlineSum = 0;
@@ -288,7 +317,6 @@ function calculateAndRenderAnalytics() {
   });
 }
 
-// --- CSV SETTLEMENT REPORT GENERATOR ---
 function exportDailyOrdersCSV() {
   if (allFetchedOrders.length === 0) {
     alert("No orders available to export!");
@@ -318,8 +346,47 @@ function exportDailyOrdersCSV() {
   document.body.removeChild(link);
 }
 
-// --- INVENTORY MANAGEMENT ---
+// --- INVENTORY MANAGEMENT (WITH FLIPKART MULTI-VARIANT SUPPORT) ---
 let selectedBase64Image = "";
+let currentVariantDrafts = [];
+
+function addVariantRowToDraft() {
+  const unit = document.getElementById('varUnit').value.trim();
+  const price = Number(document.getElementById('varPrice').value);
+  const oldPrice = Number(document.getElementById('varOldPrice').value) || price;
+
+  if (!unit || !price) {
+    alert("Please enter Weight/Unit and Selling Price!");
+    return;
+  }
+
+  currentVariantDrafts.push({ unit, price, old_price: oldPrice });
+  document.getElementById('varUnit').value = '';
+  document.getElementById('varPrice').value = '';
+  document.getElementById('varOldPrice').value = '';
+  renderVariantDraftsUI();
+}
+
+function removeVariantRow(idx) {
+  currentVariantDrafts.splice(idx, 1);
+  renderVariantDraftsUI();
+}
+
+function renderVariantDraftsUI() {
+  const container = document.getElementById('variantChipsPreview');
+  if (!container) return;
+  container.innerHTML = '';
+
+  currentVariantDrafts.forEach((v, idx) => {
+    const chip = document.createElement('span');
+    chip.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-900";
+    chip.innerHTML = `
+      <span>${v.unit}: ₹${v.price}</span>
+      <button type="button" onclick="removeVariantRow(${idx})" class="text-rose-500 hover:text-rose-700 ml-1">✕</button>
+    `;
+    container.appendChild(chip);
+  });
+}
 
 function handleImageFileSelect(input) {
   const file = input.files[0];
@@ -354,6 +421,14 @@ function loadAdminInventory() {
     prods.forEach(p => {
       const tr = document.createElement('tr');
       tr.className = "hover:bg-slate-50 transition";
+      
+      let variantsSummary = "";
+      if (Array.isArray(p.variants) && p.variants.length > 0) {
+        variantsSummary = p.variants.map(v => `${v.unit}: ₹${v.price}`).join(" | ");
+      } else {
+        variantsSummary = `${p.unit || '1 pc'}: ₹${p.price}`;
+      }
+
       tr.innerHTML = `
         <td class="py-3 px-3 flex items-center gap-2.5">
           <img src="${p.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=100&q=80'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200">
@@ -363,7 +438,7 @@ function loadAdminInventory() {
           </div>
         </td>
         <td class="py-3 px-3 uppercase text-[10px] font-bold text-slate-500">${p.category}</td>
-        <td class="py-3 px-3 font-semibold text-slate-700">${p.unit}</td>
+        <td class="py-3 px-3 font-semibold text-slate-700 text-xs">${variantsSummary}</td>
         <td class="py-3 px-3 font-black text-brand-navy">₹${p.price}</td>
         <td class="py-3 px-3 text-slate-400 line-through">₹${p.old_price || p.price}</td>
         <td class="py-3 px-3 text-right">
@@ -388,12 +463,26 @@ async function handleAddNewProduct(e) {
                      document.getElementById('pImage').value.trim() || 
                      "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
 
+  let finalVariants = [...currentVariantDrafts];
+  const singleUnit = document.getElementById('pUnit').value.trim();
+  const singlePrice = Number(document.getElementById('pPrice').value);
+  const singleOldPrice = Number(document.getElementById('pOldPrice').value) || singlePrice;
+
+  if (finalVariants.length === 0 && singleUnit && singlePrice) {
+    finalVariants.push({ unit: singleUnit, price: singlePrice, old_price: singleOldPrice });
+  }
+
+  const basePrice = finalVariants.length > 0 ? finalVariants[0].price : singlePrice;
+  const baseOldPrice = finalVariants.length > 0 ? finalVariants[0].old_price : singleOldPrice;
+  const baseUnit = finalVariants.length > 0 ? finalVariants[0].unit : singleUnit;
+
   const newProd = {
     name: document.getElementById('pName').value.trim(),
     category: document.getElementById('pCategory').value,
-    unit: document.getElementById('pUnit').value.trim(),
-    price: Number(document.getElementById('pPrice').value),
-    old_price: Number(document.getElementById('pOldPrice').value) || Number(document.getElementById('pPrice').value),
+    unit: baseUnit,
+    price: basePrice,
+    old_price: baseOldPrice,
+    variants: finalVariants,
     image_url: finalImage,
     created_at: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -402,6 +491,8 @@ async function handleAddNewProduct(e) {
     await db.collection("products").add(newProd);
     document.getElementById('addProductForm').reset();
     selectedBase64Image = "";
+    currentVariantDrafts = [];
+    renderVariantDraftsUI();
     document.getElementById('imagePreviewContainer').classList.add('hidden');
     saveBtn.innerText = "Added Successfully!";
   } catch(err) {
