@@ -107,7 +107,7 @@ function confirmLocationSelection() {
 }
 
 function closeAllModals() {
-  ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal'].forEach(id => {
+  ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal', 'customerLoginModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -403,6 +403,7 @@ function openCheckout() {
   document.getElementById('billSubtotal').innerText = `₹${sub}`;
   document.getElementById('billFinal').innerText = `₹${sub + 4}`;
   setPaymentMethod(selectedPaymentMode);
+  syncCustomerAuthUI();
 }
 
 // --- PAYMENT & UPI ---
@@ -826,10 +827,138 @@ function toggleOrdersView() {
   }
 }
 
+// ==========================================
+// 🔐 CUSTOMER LOGIN & SESSION MANAGEMENT
+// ==========================================
+
+let activeCustomerSession = JSON.parse(localStorage.getItem('quickdash_customer') || 'null');
+let currentGeneratedOtp = null;
+
+function syncCustomerAuthUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const userChip = document.getElementById('userChip');
+  const phoneDisplay = document.getElementById('userPhoneDisplay');
+  const inputPhone = document.getElementById('inputPhone');
+
+  if (activeCustomerSession && activeCustomerSession.phone) {
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (userChip) userChip.classList.remove('hidden');
+    if (phoneDisplay) phoneDisplay.innerText = activeCustomerSession.phone.slice(-4) + ' (User)';
+    if (inputPhone) {
+      inputPhone.value = activeCustomerSession.phone;
+      inputPhone.readOnly = true;
+      inputPhone.classList.add('bg-slate-100', 'text-slate-600');
+    }
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (userChip) userChip.classList.add('hidden');
+    if (inputPhone) {
+      inputPhone.readOnly = false;
+      inputPhone.classList.remove('bg-slate-100', 'text-slate-600');
+    }
+  }
+}
+
+function openLoginModal() {
+  closeAllModals();
+  document.getElementById('loginStepPhone').classList.remove('hidden');
+  document.getElementById('loginStepOtp').classList.add('hidden');
+  document.getElementById('loginMobileInput').value = '';
+  document.getElementById('loginOtpInput').value = '';
+  document.getElementById('loginOtpError').classList.add('hidden');
+  document.getElementById('customerLoginModal').classList.remove('hidden');
+}
+
+function closeLoginModal() {
+  document.getElementById('customerLoginModal').classList.add('hidden');
+}
+
+function backToPhoneStep() {
+  document.getElementById('loginStepPhone').classList.remove('hidden');
+  document.getElementById('loginStepOtp').classList.add('hidden');
+}
+
+function sendCustomerLoginOtp() {
+  const phone = document.getElementById('loginMobileInput').value.trim();
+  const indianRegex = /^[6-9]\d{9}$/;
+
+  if (!indianRegex.test(phone)) {
+    alert("Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)!");
+    return;
+  }
+
+  // 4-digit code generation
+  currentGeneratedOtp = Math.floor(1000 + Math.random() * 9000).toString();
+
+  document.getElementById('loginStepPhone').classList.add('hidden');
+  document.getElementById('loginStepOtp').classList.remove('hidden');
+  document.getElementById('otpPhoneTarget').innerText = `+91 ${phone}`;
+
+  // Front toast alert
+  const toast = document.getElementById('smsNotificationToast');
+  document.getElementById('smsToastMessage').innerText = `Your Login OTP is ${currentGeneratedOtp}`;
+  toast.classList.remove('hidden');
+
+  const otpInput = document.getElementById('loginOtpInput');
+  if (otpInput) {
+    otpInput.value = '';
+    setTimeout(() => otpInput.focus(), 150);
+  }
+
+  setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 12000);
+}
+
+function autoFillReceivedOtp() {
+  if (currentGeneratedOtp) {
+    document.getElementById('loginOtpInput').value = currentGeneratedOtp;
+    document.getElementById('smsNotificationToast').classList.add('hidden');
+  }
+}
+
+async function verifyCustomerLoginOtp() {
+  const enteredOtp = document.getElementById('loginOtpInput').value.trim();
+  const phone = document.getElementById('loginMobileInput').value.trim();
+
+  if (enteredOtp === currentGeneratedOtp) {
+    const sessionData = {
+      phone: phone,
+      loggedInAt: new Date().toISOString()
+    };
+
+    localStorage.setItem('quickdash_customer', JSON.stringify(sessionData));
+    activeCustomerSession = sessionData;
+
+    try {
+      await db.collection("customers").doc(phone).set({
+        phone: phone,
+        last_active: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch(err) {
+      console.warn("User sync skipped:", err);
+    }
+
+    closeLoginModal();
+    syncCustomerAuthUI();
+    alert(`Logged in successfully with +91 ${phone}!`);
+  } else {
+    document.getElementById('loginOtpError').classList.remove('hidden');
+  }
+}
+
+function logoutCustomer() {
+  if (!confirm("Are you sure you want to log out?")) return;
+  localStorage.removeItem('quickdash_customer');
+  activeCustomerSession = null;
+  syncCustomerAuthUI();
+}
+
 // --- BOOTSTRAP ---
 document.addEventListener('DOMContentLoaded', () => {
   initCategories();
   fetchProducts();
+  syncCustomerAuthUI();
 
   if (currentActiveLiveOrder && currentActiveLiveOrder.status !== 'Delivered') {
     updateActiveMiniBanner(currentActiveLiveOrder);

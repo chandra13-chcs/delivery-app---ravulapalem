@@ -6,6 +6,7 @@ let currentActiveRider = localStorage.getItem('active_rider_name') || 'Suresh';
 let currentTab = 'pending';
 let allRiderOrders = [];
 let currentVerifyingOrderId = null;
+let gpsWatchId = null;
 
 function switchRider(name) {
   currentActiveRider = name;
@@ -37,6 +38,37 @@ function startRiderOrdersListener() {
     allRiderOrders = orders;
     renderRiderOrders();
   });
+}
+
+// --- REAL-TIME GPS STREAMING TO FIRESTORE ---
+function startRiderGpsBroadcast() {
+  if (!navigator.geolocation) return;
+  if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+
+  gpsWatchId = navigator.geolocation.watchPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      try {
+        await db.collection("riders_location").doc(currentActiveRider).set({
+          rider_name: currentActiveRider,
+          lat: latitude,
+          lng: longitude,
+          updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("GPS Broadcast Error:", err);
+      }
+    },
+    (err) => console.warn("GPS Warning:", err.message),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 5000 }
+  );
+}
+
+function stopRiderGpsBroadcast() {
+  if (gpsWatchId) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+  }
 }
 
 function renderRiderOrders() {
@@ -104,12 +136,16 @@ function renderRiderOrders() {
       ${o.status !== 'Delivered' ? `
         <div class="pt-1 flex gap-2">
           ${o.status !== 'Out for Delivery' ? `
-            <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition">
-              Start Delivery
+            <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
+              <span>Start Delivery (Broadcast GPS)</span>
             </button>
-          ` : ''}
+          ` : `
+            <div class="flex-1 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live GPS Streaming
+            </div>
+          `}
           <button onclick="openOtpModal('${o.id}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">
-            Enter Delivery OTP
+            Verify OTP
           </button>
         </div>
       ` : ''}
@@ -121,12 +157,17 @@ function renderRiderOrders() {
 
 async function setOutForDelivery(orderId) {
   try {
-    await db.collection("orders").doc(orderId).update({ status: "Out for Delivery" });
+    startRiderGpsBroadcast();
+    await db.collection("orders").doc(orderId).update({ 
+      status: "Out for Delivery",
+      dispatched_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
   } catch(e) {
     alert("Error: " + e.message);
   }
 }
 
+// DIRECT DATASET-BASED SAFE OTP MODAL
 function openOtpModal(orderId) {
   currentVerifyingOrderId = orderId;
   const foundOrder = allRiderOrders.find(o => o.id === orderId);
@@ -152,7 +193,7 @@ async function confirmOtpAndDeliver() {
   const expectedOtp = inputEl.dataset.expectedOtp;
 
   if (!currentVerifyingOrderId) {
-    alert("Session expired. Please click 'Enter Delivery OTP' again.");
+    alert("Session expired. Please click 'Verify OTP' again.");
     return;
   }
 
@@ -166,6 +207,7 @@ async function confirmOtpAndDeliver() {
       
       const deliveredId = currentVerifyingOrderId;
       closeOtpModal();
+      stopRiderGpsBroadcast();
       alert(`Order ${deliveredId} verified & Delivered successfully!`);
     } catch(e) {
       alert("Update failed: " + e.message);
@@ -183,5 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (titleEl) titleEl.innerText = currentActiveRider;
 
   startRiderOrdersListener();
+  startRiderGpsBroadcast();
   if (window.lucide) lucide.createIcons();
 });

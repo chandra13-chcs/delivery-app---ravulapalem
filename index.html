@@ -56,7 +56,7 @@
               <span id="serviceabilityDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             </div>
             <div class="flex items-center gap-1 text-slate-300 group-hover:text-white transition">
-              <p id="currentAddressHeader" class="text-xs font-medium truncate max-w-[150px] sm:max-w-xs">RTC Complex, Ravulapalem</p>
+              <p id="currentAddressHeader" class="text-xs font-medium truncate max-w-[140px] sm:max-w-xs">RTC Complex, Ravulapalem</p>
               <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
             </div>
           </div>
@@ -74,12 +74,27 @@
           >
         </div>
 
-        <!-- Customer My Orders Button -->
+        <!-- Actions: My Orders + Dynamic Customer Auth Profile -->
         <div class="flex items-center gap-2">
-          <button onclick="toggleOrdersView()" class="px-3.5 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
+          <button onclick="toggleOrdersView()" class="px-3 py-2 rounded-xl bg-brand-navyLight border border-slate-700 hover:border-slate-600 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
             <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
-            <span>My Orders</span>
+            <span class="hidden sm:inline">My Orders</span>
           </button>
+
+          <!-- Dynamic Auth Button / User Chip -->
+          <div id="authContainer">
+            <button onclick="openLoginModal()" id="loginBtn" class="px-3.5 py-2 rounded-xl bg-brand-accent hover:bg-brand-accentHover text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="user" class="w-4 h-4"></i>
+              <span>Login</span>
+            </button>
+            <div id="userChip" class="hidden flex items-center gap-2 bg-brand-navyLight border border-slate-700 px-3 py-1.5 rounded-xl">
+              <div class="w-6 h-6 rounded-full bg-brand-accent text-white flex items-center justify-center text-[11px] font-black">
+                👤
+              </div>
+              <span id="userPhoneDisplay" class="text-xs font-bold text-slate-200"></span>
+              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-1">✕</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -98,6 +113,22 @@
 
     </div>
   </header>
+
+  <!-- SIMULATED SMS TOAST NOTIFICATION (Z-INDEX 60 FOR FRONT DISPLAY) -->
+  <div id="smsNotificationToast" class="hidden fixed top-5 right-5 left-5 sm:left-auto sm:max-w-sm z-[60] bg-slate-900 text-white rounded-2xl p-4 shadow-2xl border-2 border-emerald-400 flex items-center justify-between gap-3 animate-bounce">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-md">
+        💬
+      </div>
+      <div>
+        <p class="text-[10px] uppercase font-black tracking-wider text-emerald-400">Ravulapalem SMS</p>
+        <p id="smsToastMessage" class="text-xs font-extrabold text-white">Your Login OTP is 4821</p>
+      </div>
+    </div>
+    <button type="button" onclick="autoFillReceivedOtp()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-xs font-black text-slate-950 uppercase tracking-wide shrink-0 transition shadow-sm">
+      Auto-fill
+    </button>
+  </div>
 
   <!-- PERSISTENT FLOATING ACTIVE ORDER / OTP BANNER -->
   <div id="activeOrderFloatingBanner" class="hidden fixed bottom-4 left-4 right-4 max-w-md mx-auto z-40">
@@ -396,7 +427,7 @@
     </div>
   </div>
 
- <!-- LIVE ORDER TRACKING MODAL (BLINKIT-STYLE WITH LIVE BIKE & 10-MIN TIMER) -->
+  <!-- LIVE ORDER TRACKING MODAL (BLINKIT-STYLE WITH LIVE BIKE & 10-MIN TIMER) -->
   <div id="trackingModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-brand-border">
       
@@ -525,6 +556,70 @@
         <button onclick="closeOrdersView()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-base transition">✕</button>
       </div>
       <div id="ordersFeed" class="overflow-y-auto space-y-3 py-3 flex-1 text-xs"></div>
+    </div>
+  </div>
+
+  <!-- BLINKIT-STYLE MOBILE OTP LOGIN MODAL -->
+  <div id="customerLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-brand-border space-y-4">
+      
+      <div class="flex justify-between items-center pb-2">
+        <div class="text-left">
+          <span class="text-[10px] font-black uppercase tracking-wider text-cyan-500">10-Minute Grocery</span>
+          <h3 class="text-base font-extrabold text-slate-900">Welcome to MyShopzy</h3>
+        </div>
+        <button onclick="closeLoginModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-sm">✕</button>
+      </div>
+
+      <!-- STEP 1: PHONE NUMBER INPUT -->
+      <div id="loginStepPhone" class="space-y-3">
+        <p class="text-xs text-slate-500 text-left">Enter mobile number to login or register instantly:</p>
+        
+        <div class="flex items-center border-2 border-slate-200 focus-within:border-brand-accent rounded-2xl px-3 py-2.5 bg-slate-50">
+          <span class="text-xs font-extrabold text-slate-500 mr-2 border-r border-slate-300 pr-2">+91</span>
+          <input 
+            id="loginMobileInput" 
+            type="tel" 
+            maxlength="10" 
+            placeholder="9876543210" 
+            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)"
+            class="flex-1 bg-transparent text-sm font-bold tracking-wider outline-none text-slate-900"
+          >
+        </div>
+
+        <button onclick="sendCustomerLoginOtp()" class="w-full py-3 bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md">
+          Continue with OTP
+        </button>
+        <p class="text-[10px] text-slate-400">By continuing, you agree to 10-minute delivery terms in Ravulapalem.</p>
+      </div>
+
+      <!-- STEP 2: 4-DIGIT OTP INPUT -->
+      <div id="loginStepOtp" class="hidden space-y-3">
+        <div>
+          <p class="text-xs text-slate-500">Enter 4-digit code sent to:</p>
+          <p id="otpPhoneTarget" class="text-xs font-extrabold text-slate-900 mt-0.5">+91 XXXXXXXXXX</p>
+        </div>
+
+        <input 
+          id="loginOtpInput" 
+          type="tel" 
+          maxlength="4" 
+          placeholder="••••" 
+          class="w-full text-center tracking-[1em] text-2xl font-black py-3 border-2 border-slate-200 rounded-2xl focus:border-brand-accent outline-none bg-slate-50"
+        >
+
+        <p id="loginOtpError" class="hidden text-xs font-bold text-rose-500">Invalid OTP. Check SMS and try again!</p>
+
+        <button onclick="verifyCustomerLoginOtp()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md">
+          Verify & Access Store
+        </button>
+
+        <div class="flex items-center justify-between text-xs pt-1">
+          <button onclick="backToPhoneStep()" class="text-slate-400 font-bold hover:text-slate-600">Change Number</button>
+          <button onclick="sendCustomerLoginOtp()" class="text-brand-accent font-bold hover:underline">Resend Code</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
