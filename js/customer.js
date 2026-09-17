@@ -81,12 +81,39 @@ function selectPresetLoc(name, lat, lng) {
 }
 
 function detectDeviceLocation() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => selectPresetLoc("GPS Detected Location", pos.coords.latitude, pos.coords.longitude),
-      () => alert("Location permission denied. Please pick a locality!")
-    );
+  const statusBox = document.getElementById('serviceStatusText');
+  if (statusBox) statusBox.innerText = "Detecting device GPS...";
+
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your mobile browser.");
+    return;
   }
+
+  const geoOptions = {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0
+  };
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      selectPresetLoc("Current GPS Location", lat, lng);
+    },
+    (err) => {
+      navigator.geolocation.getCurrentPosition(
+        (fallbackPos) => {
+          selectPresetLoc("Estimated Location", fallbackPos.coords.latitude, fallbackPos.coords.longitude);
+        },
+        (finalErr) => {
+          alert("Location access denied or GPS weak. Please pick an area below or allow location in browser settings!");
+        },
+        { enableHighAccuracy: false, timeout: 10000 }
+      );
+    },
+    geoOptions
+  );
 }
 
 function openLocationModal() {
@@ -107,7 +134,7 @@ function confirmLocationSelection() {
 }
 
 function closeAllModals() {
-  ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal', 'customerLoginModal'].forEach(id => {
+  ['checkoutModal', 'trackingModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal', 'customerLoginModal', 'orderDetailReceiptModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -144,7 +171,6 @@ const categories = [
   { id: "personal", name: "Personal Care", icon: "heart" }
 ];
 
-// Fallback with Flipkart Multi-Weight Variants
 const fallbackCatalog = [
   { 
     id: "p1", 
@@ -195,7 +221,7 @@ const fallbackCatalog = [
     image_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?auto=format&fit=crop&w=400&q=80",
     variants: [
       { unit: "55 g", price: 60, old_price: 65 },
-      { unit: "125 g", price: 190, old_price: 200 }
+      { unit: "125 g", price: 119, old_price: 200 }
     ]
   },
   { 
@@ -231,17 +257,16 @@ const fallbackCatalog = [
 ];
 
 let liveCatalog = [...fallbackCatalog];
-let cartState = {}; // Key: "productId_variantIdx"
+let cartState = {};
 let activeCategory = "all";
 let currentSearch = "";
-let selectedVariantIndex = {}; // Track active weight index per product
+let selectedVariantIndex = {};
 
 async function fetchProducts() {
   db.collection("products").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let cloudProducts = [];
     snapshot.forEach(doc => {
       const d = doc.data();
-      // Ensure variants array exists
       if (!Array.isArray(d.variants) || d.variants.length === 0) {
         d.variants = [{ unit: d.unit || "1 pc", price: d.price || 0, old_price: d.old_price || d.price || 0 }];
       }
@@ -264,37 +289,13 @@ async function fetchProducts() {
   });
 }
 
-function initCategories() {
-  const desktopList = document.getElementById('desktopCategoryList');
-  const mobileList = document.getElementById('mobileCategoryList');
-  if (!desktopList || !mobileList) return;
-  desktopList.innerHTML = '';
-  mobileList.innerHTML = '';
-
-  categories.forEach(c => {
-    const dBtn = document.createElement('button');
-    dBtn.onclick = () => selectCategory(c.id);
-    dBtn.className = `w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition ${c.id === activeCategory ? 'bg-brand-navy text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`;
-    dBtn.innerHTML = `<i data-lucide="${c.icon}" class="w-4 h-4"></i> ${c.name}`;
-    desktopList.appendChild(dBtn);
-
-    const mBtn = document.createElement('button');
-    mBtn.onclick = () => selectCategory(c.id);
-    mBtn.className = `px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition border ${c.id === activeCategory ? 'bg-brand-navy text-white border-brand-navy' : 'bg-white text-slate-700 border-brand-border'}`;
-    mBtn.innerText = c.name;
-    mobileList.appendChild(mBtn);
-  });
-}
-
 function selectCategory(catId) {
   activeCategory = catId;
-  initCategories();
   const currentCatObj = categories.find(c => c.id === catId);
   document.getElementById('categoryHeading').innerText = currentCatObj ? currentCatObj.name : "All Products";
   filterAndRender();
 }
 
-// Switch Active Variant (Weight Size) on Card
 function selectVariant(productId, variantIdx) {
   selectedVariantIndex[productId] = variantIdx;
   filterAndRender();
@@ -310,7 +311,6 @@ function filterAndRender() {
   grid.innerHTML = '';
 
   filtered.forEach(p => {
-    // Normalise variants
     const variants = Array.isArray(p.variants) && p.variants.length > 0 
       ? p.variants 
       : [{ unit: p.unit || "1 pc", price: p.price, old_price: p.old_price || p.price }];
@@ -321,9 +321,8 @@ function filterAndRender() {
     const qty = cartState[cartKey] || 0;
 
     const card = document.createElement('div');
-    card.className = "bg-white p-3 rounded-2xl border border-brand-border shadow-sm flex flex-col justify-between hover:shadow-md transition";
+    card.className = "bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition";
     
-    // Generate Weight Chips (Flipkart Style)
     let variantChipsHtml = "";
     if (variants.length > 1) {
       variantChipsHtml = `
@@ -332,7 +331,7 @@ function filterAndRender() {
             <button 
               type="button" 
               onclick="event.stopPropagation(); selectVariant('${p.id}', ${idx})" 
-              class="px-2 py-0.5 rounded-lg text-[10px] font-bold border transition ${idx === currentVIdx ? 'bg-brand-navy text-white border-brand-navy' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'}"
+              class="px-2 py-0.5 rounded-lg text-[10px] font-bold border transition ${idx === currentVIdx ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'}"
             >
               ${v.unit}
             </button>
@@ -343,17 +342,16 @@ function filterAndRender() {
 
     card.innerHTML = `
       <div onclick="openProductDetailModal('${p.id}')" class="cursor-pointer">
-        <div class="h-32 sm:h-36 w-full rounded-xl overflow-hidden bg-slate-100 relative mb-2.5">
+        <div class="h-32 sm:h-36 w-full rounded-xl overflow-hidden bg-slate-50 relative mb-2.5 flex items-center justify-center">
           <img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover">
-          <span class="absolute bottom-1.5 left-1.5 bg-brand-navy/90 backdrop-blur-sm text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+          <span class="absolute bottom-1.5 left-1.5 bg-slate-900/90 text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
             ⚡ 10 MINS
           </span>
         </div>
-        <h4 class="text-xs font-bold text-slate-900 line-clamp-2 leading-snug hover:text-brand-accent transition">${p.name}</h4>
+        <h4 class="text-xs font-bold text-slate-900 line-clamp-2 leading-snug hover:text-emerald-600 transition">${p.name}</h4>
         <span class="text-[11px] text-slate-500 font-semibold mt-0.5 block">${activeVar.unit}</span>
       </div>
 
-      <!-- FLIPKART STYLE WEIGHT SELECTOR PILLS -->
       ${variantChipsHtml}
 
       <div class="mt-3 flex items-center justify-between pt-2.5 border-t border-slate-100">
@@ -364,14 +362,14 @@ function filterAndRender() {
 
         <div>
           ${qty === 0 ? `
-            <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white text-xs font-black uppercase transition">
+            <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="px-3.5 py-1.5 rounded-lg border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-600 hover:text-white text-xs font-black uppercase transition">
               ADD
             </button>
           ` : `
-            <div class="flex items-center bg-brand-navy text-white rounded-lg px-2 py-1 text-xs font-bold gap-2 shadow-sm">
-              <button onclick="modifyCart('${p.id}', ${currentVIdx}, -1)" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
+            <div class="flex items-center bg-emerald-700 text-white rounded-lg px-2 py-1 text-xs font-bold gap-2 shadow-sm">
+              <button onclick="modifyCart('${p.id}', ${currentVIdx}, -1)" class="hover:text-amber-200 font-extrabold text-sm">-</button>
               <span class="text-xs font-black w-3 text-center">${qty}</span>
-              <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
+              <button onclick="modifyCart('${p.id}', ${currentVIdx}, 1)" class="hover:text-amber-200 font-extrabold text-sm">+</button>
             </div>
           `}
         </div>
@@ -382,76 +380,6 @@ function filterAndRender() {
 
   document.getElementById('itemCountBadge').innerText = `${filtered.length} Items`;
   if (window.lucide) lucide.createIcons();
-}
-
-// --- PRODUCT DETAIL QUICK VIEW ---
-let detailActiveVariantIndex = 0;
-let currentDetailProductId = null;
-
-function openProductDetailModal(id) {
-  const product = liveCatalog.find(p => p.id == id);
-  if (!product) return;
-  currentDetailProductId = id;
-
-  const variants = Array.isArray(product.variants) && product.variants.length > 0 
-    ? product.variants 
-    : [{ unit: product.unit || "1 pc", price: product.price, old_price: product.old_price || product.price }];
-
-  detailActiveVariantIndex = selectedVariantIndex[id] !== undefined ? selectedVariantIndex[id] : 0;
-  renderDetailModalContent(product, variants);
-  document.getElementById('productDetailModal').classList.remove('hidden');
-  if (window.lucide) lucide.createIcons();
-}
-
-function renderDetailModalContent(product, variants) {
-  const activeVar = variants[detailActiveVariantIndex] || variants[0];
-  const cartKey = `${product.id}_${detailActiveVariantIndex}`;
-  const qty = cartState[cartKey] || 0;
-
-  document.getElementById('detailImg').src = product.image_url;
-  document.getElementById('detailName').innerText = product.name;
-  document.getElementById('detailUnit').innerText = activeVar.unit;
-  document.getElementById('detailCategory').innerText = (product.category || 'GROCERY').toUpperCase();
-  document.getElementById('detailPrice').innerText = `₹${activeVar.price}`;
-
-  const oldPriceEl = document.getElementById('detailOldPrice');
-  const discountEl = document.getElementById('detailDiscount');
-
-  if (activeVar.old_price && activeVar.old_price > activeVar.price) {
-    oldPriceEl.innerText = `₹${activeVar.old_price}`;
-    oldPriceEl.classList.remove('hidden');
-    const discount = Math.round(((activeVar.old_price - activeVar.price) / activeVar.old_price) * 100);
-    discountEl.innerText = `${discount}% OFF`;
-    discountEl.classList.remove('hidden');
-  } else {
-    oldPriceEl.classList.add('hidden');
-    discountEl.classList.add('hidden');
-  }
-
-  renderDetailActionBtn(product.id, detailActiveVariantIndex, qty);
-}
-
-function renderDetailActionBtn(prodId, vIdx, qty) {
-  const btnWrap = document.getElementById('detailActionBtn');
-  if (qty === 0) {
-    btnWrap.innerHTML = `
-      <button onclick="modifyCart('${prodId}', ${vIdx}, 1); renderDetailActionBtn('${prodId}', ${vIdx}, 1);" class="px-6 py-2.5 rounded-xl bg-brand-navy hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider transition shadow-md">
-        Add to Cart
-      </button>
-    `;
-  } else {
-    btnWrap.innerHTML = `
-      <div class="flex items-center bg-brand-navy text-white rounded-xl px-3 py-1.5 text-xs font-bold gap-3 shadow-md">
-        <button onclick="modifyCart('${prodId}', ${vIdx}, -1); renderDetailActionBtn('${prodId}', ${vIdx}, cartState['${prodId}_${vIdx}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">-</button>
-        <span class="text-sm font-black w-4 text-center">${qty}</span>
-        <button onclick="modifyCart('${prodId}', ${vIdx}, 1); renderDetailActionBtn('${prodId}', ${vIdx}, cartState['${prodId}_${vIdx}'] || 0);" class="hover:text-cyan-300 font-extrabold text-sm">+</button>
-      </div>
-    `;
-  }
-}
-
-function closeProductDetailModal() {
-  document.getElementById('productDetailModal').classList.add('hidden');
 }
 
 // --- CART LOGIC ---
@@ -468,6 +396,7 @@ function modifyCart(prodId, variantIdx, delta) {
 
 function syncCartBar() {
   const bar = document.getElementById('bottomCartBar');
+  const trackingBanner = document.getElementById('activeOrderFloatingBanner');
   let count = 0;
   let sum = 0;
 
@@ -485,10 +414,14 @@ function syncCartBar() {
 
   if (count > 0) {
     bar.classList.remove('hidden');
+    if (trackingBanner) trackingBanner.classList.add('hidden');
     document.getElementById('barItemCount').innerText = `${count} item${count > 1 ? 's' : ''} added`;
     document.getElementById('barGrandPrice').innerText = `₹${sum}`;
   } else {
     bar.classList.add('hidden');
+    if (trackingBanner && currentActiveLiveOrder && currentActiveLiveOrder.status !== 'Delivered') {
+      trackingBanner.classList.remove('hidden');
+    }
     closeCheckout();
   }
 }
@@ -518,7 +451,7 @@ function openCheckout() {
       sub += rowPrice;
 
       const row = document.createElement('div');
-      row.className = "flex items-center justify-between p-2.5 rounded-xl bg-white border border-brand-border";
+      row.className = "flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200";
       row.innerHTML = `
         <div class="flex items-center gap-2.5">
           <img src="${item.image_url}" class="w-10 h-10 rounded-lg object-cover">
@@ -528,7 +461,7 @@ function openCheckout() {
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <div class="flex items-center bg-brand-navy text-white rounded-md px-2 py-0.5 text-xs font-bold gap-2">
+          <div class="flex items-center bg-slate-900 text-white rounded-md px-2 py-0.5 text-xs font-bold gap-2">
             <button onclick="modifyCart('${prodId}', ${vIdx}, -1); openCheckout();">-</button>
             <span>${qty}</span>
             <button onclick="modifyCart('${prodId}', ${vIdx}, 1); openCheckout();">+</button>
@@ -563,16 +496,16 @@ function setPaymentMethod(mode) {
   [boxQR, boxApps, boxCOD].forEach(box => box.classList.add('hidden'));
 
   if (mode === 'UPI_QR') {
-    btnQR.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+    btnQR.className = "p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50/50 text-center transition flex flex-col items-center gap-1";
     boxQR.classList.remove('hidden');
     payLabel.innerText = "Paid via QR? Confirm Order";
     renderPaymentQR();
   } else if (mode === 'UPI_APPS') {
-    btnApps.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+    btnApps.className = "p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50/50 text-center transition flex flex-col items-center gap-1";
     boxApps.classList.remove('hidden');
     payLabel.innerText = "Pay via UPI App & Confirm";
   } else if (mode === 'COD') {
-    btnCOD.className = "p-2.5 rounded-xl border-2 border-brand-accent bg-blue-50/50 text-center transition flex flex-col items-center gap-1";
+    btnCOD.className = "p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50/50 text-center transition flex flex-col items-center gap-1";
     boxCOD.classList.remove('hidden');
     payLabel.innerText = "Place Order (Pay on Delivery)";
   }
@@ -743,16 +676,24 @@ function listenToRiderLiveMovement(riderName) {
   });
 }
 
-function startDynamicSlaTimer(createdAt) {
+function startDynamicSlaTimer(orderData) {
   if (countdownInterval) clearInterval(countdownInterval);
 
   const timerEl = document.getElementById('slaCountdownTimer');
   const stageBadge = document.getElementById('slaStageBadge');
   if (!timerEl) return;
 
-  const orderTime = createdAt?.toDate ? createdAt.toDate().getTime() : Date.now();
+  let orderTimeMs = Date.now();
+  if (orderData && orderData.created_at_ms) {
+    orderTimeMs = Number(orderData.created_at_ms);
+  } else if (orderData && orderData.created_at && orderData.created_at.toDate) {
+    orderTimeMs = orderData.created_at.toDate().getTime();
+  } else if (orderData && orderData.created_at && orderData.created_at.seconds) {
+    orderTimeMs = orderData.created_at.seconds * 1000;
+  }
+
   const tenMinutesMs = 10 * 60 * 1000;
-  const targetTime = orderTime + tenMinutesMs;
+  const targetTime = orderTimeMs + tenMinutesMs;
 
   function tick() {
     const now = Date.now();
@@ -760,7 +701,10 @@ function startDynamicSlaTimer(createdAt) {
 
     if (remainingMs <= 0) {
       timerEl.innerText = "00:00";
-      if (stageBadge) stageBadge.innerText = "Arriving Any Second!";
+      if (stageBadge) {
+        stageBadge.innerText = "Arriving Any Second!";
+        stageBadge.className = "text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-lg animate-pulse";
+      }
       clearInterval(countdownInterval);
       return;
     }
@@ -801,6 +745,7 @@ async function finalizeOrderAndLaunch(paymentStatus) {
 
   const orderId = "QD-" + Math.floor(100000 + Math.random() * 900000);
   const deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+  const currentTimestampMs = Date.now();
 
   const orderPayload = {
     id: orderId,
@@ -813,6 +758,7 @@ async function finalizeOrderAndLaunch(paymentStatus) {
     payment_status: paymentStatus,
     assigned_rider: "Suresh",
     delivery_otp: deliveryOtp,
+    created_at_ms: currentTimestampMs,
     created_at: firebase.firestore.FieldValue.serverTimestamp()
   };
 
@@ -841,7 +787,6 @@ function listenToLiveOrderUpdates(orderId) {
   trackingListenerUnsub = db.collection("orders").doc(orderId).onSnapshot((doc) => {
     if (doc.exists) {
       const data = doc.data();
-      updateTrackingStages(data.status);
       document.getElementById('trackRiderName').innerText = data.assigned_rider || 'Suresh';
       
       if (currentActiveLiveOrder && currentActiveLiveOrder.id === orderId) {
@@ -861,58 +806,133 @@ function openTrackingScreen(order) {
   document.getElementById('trackRiderName').innerText = order.assigned_rider || 'Suresh';
   document.getElementById('trackDeliveryOtp').innerText = order.delivery_otp || "4821";
   
-  updateTrackingStages(order.status);
   initLiveTrackingMap(currentCustomerCoords);
   listenToRiderLiveMovement(order.assigned_rider || 'Suresh');
-  startDynamicSlaTimer(order.created_at);
+  startDynamicSlaTimer(order);
 }
 
-function updateTrackingStages(status) {
-  const dot1 = document.getElementById('stepDot1');
-  const dot2 = document.getElementById('stepDot2');
-  const dot3 = document.getElementById('stepDot3');
-  const dot4 = document.getElementById('stepDot4');
-  const line1 = document.getElementById('stepLine1');
-  const line2 = document.getElementById('stepLine2');
-  const line3 = document.getElementById('stepLine3');
-  const stageBadge = document.getElementById('slaStageBadge');
+// ==========================================
+// 📄 ORDER RECEIPT BREAKDOWN & PDF INVOICE
+// ==========================================
 
-  if (!dot1) return;
+function openOrderDetailReceipt(order) {
+  const modal = document.getElementById('orderDetailReceiptModal');
+  if (!modal) return;
 
-  [dot1, dot2, dot3, dot4].forEach(d => d.className = "w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold");
-  [line1, line2, line3].forEach(l => l.className = "w-0.5 h-7 bg-slate-200 my-0.5");
+  document.getElementById('receiptOrderId').innerText = order.id;
+  document.getElementById('receiptStatus').innerText = order.status || 'Delivered';
+  document.getElementById('receiptAddress').innerText = order.delivery_address || 'Ravulapalem';
+  document.getElementById('receiptPayment').innerText = `${order.payment_mode || 'UPI'} (${order.payment_status || 'PAID'})`;
+  document.getElementById('receiptRider').innerText = order.assigned_rider || 'Suresh';
 
-  if (status === "Order Confirmed" || (status && status.includes("Placed"))) {
-    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow";
-    dot1.innerHTML = "✓";
-    if (stageBadge) stageBadge.innerText = "Order Confirmed";
-  } 
-  else if (status === "Packing") {
-    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow";
-    line1.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
-    dot2.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow animate-pulse";
-    dot2.innerHTML = "✓";
-    if (stageBadge) stageBadge.innerText = "Packing at Hub";
-  } 
-  else if (status === "Out for Delivery") {
-    dot1.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
-    line1.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
-    dot2.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
-    line2.className = "w-0.5 h-7 bg-emerald-500 my-0.5";
-    dot3.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold animate-bounce";
-    dot3.innerHTML = "✓";
-    if (stageBadge) stageBadge.innerText = "Rider in Transit";
-  } 
-  else if (status === "Delivered") {
-    [dot1, dot2, dot3, dot4].forEach(d => {
-      d.className = "w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold";
-      d.innerHTML = "✓";
+  const container = document.getElementById('receiptItemsContainer');
+  container.innerHTML = '';
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  let subtotal = 0;
+
+  if (items.length === 0) {
+    container.innerHTML = `<p class="text-slate-400 py-2">No itemized products found.</p>`;
+  } else {
+    items.forEach(it => {
+      const itemRow = document.createElement('div');
+      itemRow.className = "flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200";
+      const totalItemPrice = it.price * it.quantity;
+      subtotal += totalItemPrice;
+
+      itemRow.innerHTML = `
+        <div>
+          <p class="font-bold text-slate-800">${it.name}</p>
+          <span class="text-[10px] text-slate-500 font-semibold">${it.unit ? it.unit + ' • ' : ''}₹${it.price} × ${it.quantity}</span>
+        </div>
+        <span class="font-black text-slate-900">₹${totalItemPrice}</span>
+      `;
+      container.appendChild(itemRow);
     });
-    [line1, line2, line3].forEach(l => l.className = "w-0.5 h-7 bg-emerald-500 my-0.5");
-    if (stageBadge) stageBadge.innerText = "Delivered Safely";
-    updateActiveMiniBanner(null);
-    if (countdownInterval) clearInterval(countdownInterval);
   }
+
+  const finalTotal = order.total_amount || order.total || (subtotal + 4);
+  document.getElementById('receiptSubtotal').innerText = `₹${subtotal > 0 ? subtotal : finalTotal - 4}`;
+  document.getElementById('receiptGrandTotal').innerText = `₹${finalTotal}`;
+
+  const printBtn = document.getElementById('receiptPrintPdfBtn');
+  if (printBtn) {
+    printBtn.onclick = () => generateOrderInvoice(order);
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeOrderDetailReceipt() {
+  document.getElementById('orderDetailReceiptModal').classList.add('hidden');
+}
+
+function generateOrderInvoice(order) {
+  const invoiceWindow = window.open('', '_blank');
+  const items = Array.isArray(order.items) ? order.items : [];
+  const itemsHtml = items.map(item => `
+    <tr>
+      <td style="padding:8px; border-bottom:1px solid #eee;">${item.name} ${item.unit ? '('+item.unit+')' : ''}</td>
+      <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">${item.quantity}</td>
+      <td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">₹${item.price}</td>
+      <td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">₹${item.price * item.quantity}</td>
+    </tr>
+  `).join('');
+
+  invoiceWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Tax Invoice - ${order.id}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #1e293b; }
+        .invoice-card { max-width: 600px; margin: auto; border: 1px solid #e2e8f0; padding: 24px; border-radius: 12px; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0b132b; padding-bottom: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+        th { text-align: left; padding: 8px; background: #f8fafc; border-bottom: 2px solid #cbd5e1; }
+        .btn { background: #059669; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 16px; }
+        @media print { .btn { display: none; } }
+      </style>
+    </head>
+    <body>
+      <div class="invoice-card">
+        <div class="header">
+          <div>
+            <h2 style="margin:0; color:#0b132b;">⚡ MyShopzy Express</h2>
+            <p style="margin:2px 0 0; font-size:12px; color:#64748b;">RTC Complex, Ravulapalem, AP</p>
+          </div>
+          <div style="text-align:right;">
+            <h3 style="margin:0; font-size:15px;">TAX INVOICE</h3>
+            <p style="margin:2px 0 0; font-size:12px; color:#64748b;">${order.id}</p>
+          </div>
+        </div>
+
+        <p style="font-size:12px; line-height: 1.6;">
+          <strong>Customer Mobile:</strong> +91 ${order.customer_phone || 'N/A'}<br>
+          <strong>Delivery Address:</strong> ${order.delivery_address}<br>
+          <strong>Payment Mode:</strong> ${order.payment_mode || 'UPI'} (${order.payment_status || 'PAID'})
+        </p>
+
+        <table>
+          <thead>
+            <tr><th>Item Description</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amount</th></tr>
+          </thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+
+        <div style="text-align:right; font-size:13px; border-top:1px solid #cbd5e1; padding-top:8px;">
+          <p style="margin:4px 0;">Subtotal: <strong>₹${(order.total_amount || order.total) - 4}</strong></p>
+          <p style="margin:4px 0;">Handling & Bag Fee: <strong>₹4</strong></p>
+          <p style="margin:4px 0;">Express Delivery (6 KM): <strong style="color:green;">FREE</strong></p>
+          <h3 style="margin:8px 0 0; font-size:16px;">Total Paid: ₹${order.total_amount || order.total}</h3>
+        </div>
+
+        <button class="btn" onclick="window.print()">Download / Print PDF</button>
+      </div>
+    </body>
+    </html>
+  `);
+  invoiceWindow.document.close();
 }
 
 async function fetchCloudOrders() {
@@ -933,24 +953,29 @@ async function fetchCloudOrders() {
     feed.innerHTML = '';
     orders.forEach(o => {
       const item = document.createElement('div');
-      item.className = "p-3.5 rounded-xl bg-brand-slateBg border border-brand-border space-y-1.5 cursor-pointer hover:border-brand-accent transition";
+      item.className = "p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2 cursor-pointer hover:border-emerald-500 hover:shadow-md transition";
       const orderDataEscaped = JSON.stringify(o).replace(/"/g, '&quot;');
-      item.setAttribute('onclick', `openTrackingScreen(${orderDataEscaped}); listenToLiveOrderUpdates('${o.id}');`);
+      
+      item.setAttribute('onclick', `openOrderDetailReceipt(${orderDataEscaped})`);
+
+      let itemsSummary = "";
+      if (Array.isArray(o.items)) {
+        itemsSummary = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+      }
+
       item.innerHTML = `
-        <div class="flex justify-between items-center font-bold text-slate-900">
-          <span class="text-brand-navy font-extrabold">${o.id}</span>
-          <span class="text-brand-accent font-extrabold">₹${o.total_amount || o.total}</span>
+        <div class="flex justify-between items-center font-black text-slate-900">
+          <span class="text-slate-900 text-sm">${o.id}</span>
+          <span class="text-emerald-600 text-sm">₹${o.total_amount || o.total}</span>
         </div>
-        <p class="text-[11px] text-slate-600">${o.delivery_address}</p>
-        <div class="flex justify-between items-center text-[10px] pt-1.5 border-t border-slate-200">
-          <span>Rider: <strong>${o.assigned_rider || 'Suresh'}</strong></span>
-          ${o.status !== 'Delivered' ? `
-            <span class="font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
-              OTP: ${o.delivery_otp}
-            </span>
-          ` : `
-            <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Delivered</span>
-          `}
+        <p class="text-[11px] text-slate-500 truncate">${o.delivery_address}</p>
+        ${itemsSummary ? `<p class="text-[10px] text-slate-700 font-semibold bg-slate-50 p-1.5 rounded-lg border border-slate-100 truncate">📦 ${itemsSummary}</p>` : ''}
+        
+        <div class="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100">
+          <span class="text-slate-400">Rider: <strong class="text-slate-700">${o.assigned_rider || 'Suresh'}</strong></span>
+          <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            ${o.status || 'Delivered'} • Tap for Bill
+          </span>
         </div>
       `;
       feed.appendChild(item);
@@ -985,7 +1010,7 @@ function syncCustomerAuthUI() {
   if (activeCustomerSession && activeCustomerSession.phone) {
     if (loginBtn) loginBtn.classList.add('hidden');
     if (userChip) userChip.classList.remove('hidden');
-    if (phoneDisplay) phoneDisplay.innerText = activeCustomerSession.phone.slice(-4) + ' (User)';
+    if (phoneDisplay) phoneDisplay.innerText = activeCustomerSession.phone.slice(-4);
     if (inputPhone) {
       inputPhone.value = activeCustomerSession.phone;
       inputPhone.readOnly = true;
@@ -1007,17 +1032,11 @@ function openLoginModal() {
   document.getElementById('loginStepOtp').classList.add('hidden');
   document.getElementById('loginMobileInput').value = '';
   document.getElementById('loginOtpInput').value = '';
-  document.getElementById('loginOtpError').classList.add('hidden');
   document.getElementById('customerLoginModal').classList.remove('hidden');
 }
 
 function closeLoginModal() {
   document.getElementById('customerLoginModal').classList.add('hidden');
-}
-
-function backToPhoneStep() {
-  document.getElementById('loginStepPhone').classList.remove('hidden');
-  document.getElementById('loginStepOtp').classList.add('hidden');
 }
 
 function sendCustomerLoginOtp() {
@@ -1033,27 +1052,13 @@ function sendCustomerLoginOtp() {
 
   document.getElementById('loginStepPhone').classList.add('hidden');
   document.getElementById('loginStepOtp').classList.remove('hidden');
-  document.getElementById('otpPhoneTarget').innerText = `+91 ${phone}`;
 
-  const toast = document.getElementById('smsNotificationToast');
-  document.getElementById('smsToastMessage').innerText = `Your Login OTP is ${currentGeneratedOtp}`;
-  toast.classList.remove('hidden');
+  alert(`Your MyShopzy Login OTP is: ${currentGeneratedOtp}`);
 
   const otpInput = document.getElementById('loginOtpInput');
   if (otpInput) {
-    otpInput.value = '';
+    otpInput.value = currentGeneratedOtp; // Auto-populate for frictionless dev testing
     setTimeout(() => otpInput.focus(), 150);
-  }
-
-  setTimeout(() => {
-    toast.classList.add('hidden');
-  }, 12000);
-}
-
-function autoFillReceivedOtp() {
-  if (currentGeneratedOtp) {
-    document.getElementById('loginOtpInput').value = currentGeneratedOtp;
-    document.getElementById('smsNotificationToast').classList.add('hidden');
   }
 }
 
@@ -1083,7 +1088,7 @@ async function verifyCustomerLoginOtp() {
     syncCustomerAuthUI();
     alert(`Logged in successfully with +91 ${phone}!`);
   } else {
-    document.getElementById('loginOtpError').classList.remove('hidden');
+    alert("Invalid OTP! Try again.");
   }
 }
 
@@ -1096,7 +1101,6 @@ function logoutCustomer() {
 
 // --- BOOTSTRAP ---
 document.addEventListener('DOMContentLoaded', () => {
-  initCategories();
   fetchProducts();
   syncCustomerAuthUI();
 
