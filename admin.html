@@ -201,61 +201,56 @@
         + Add Custom Product with Multiple Pack Sizes & Direct Photo
       </h2>
 
-      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
-            <input id="pName" type="text" required placeholder="e.g. Amul Taaza Fresh Milk" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-          </div>
-          <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
-            <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
-              <option value="dairy">Dairy, Bread & Eggs</option>
-              <option value="staples">Atta, Rice & Dal</option>
-              <option value="veggies">Fruits & Vegetables</option>
-              <option value="drinks">Cold Drinks & Juices</option>
-              <option value="snacks">Snacks & Munchies</option>
-              <option value="breakfast">Breakfast & Instant Food</option>
-              <option value="sweets">Sweet Tooth & Chocolates</option>
-              <option value="bakery">Bakery & Biscuits</option>
-              <option value="tea">Tea, Coffee & Milk Drinks</option>
-              <option value="masala">Masala, Cooking Oil & Ghee</option>
-              <option value="sauces">Sauces & Spreads</option>
-              <option value="meat">Chicken, Meat & Fish</option>
-              <option value="organic">Organic & Healthy</option>
-              <option value="baby">Baby Care</option>
-              <option value="pharma">Pharma & Wellness</option>
-              <option value="cleaning">Cleaning Essentials</option>
-              <option value="home">Home & Office</option>
-              <option value="personal">Personal Care</option>
-              <option value="pet">Pet Care</option>
-              <option value="paan">Paan Corner</option>
-            </select>
-          </div>
-        </div>
+     <!-- ADMIN PRODUCT FORM SECTION -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  <div>
+    <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
+    <input id="pName" type="text" required placeholder="e.g. Tomato or Milk" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+  </div>
+  <div>
+    <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
+   <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+  <option value="paan">Paan Corner & Refreshers</option>
+  <option value="dairy">Dairy, Bread & Eggs</option>
+  <option value="veggies">Fruits & Fresh Vegetables</option>
+  <option value="drinks">Cold Drinks & Juices</option>
+  <option value="snacks">Snacks & Munchies</option>
+  <option value="breakfast">Breakfast & Instant Food</option>
+  <option value="sweets">Sweet Tooth & Chocolates</option>
+  <option value="bakery">Bakery & Biscuits</option>
+  <option value="tea">Tea, Coffee & Milk Drinks</option>
+  <option value="staples">Atta, Rice & Dal</option>
+  <option value="masala">Masala, Cooking Oil & Ghee</option>
+  <option value="sauces">Sauces & Spreads</option>
+  <option value="meat">Chicken, Meat & Fresh Fish</option>
+  <option value="organic">Organic & Healthy Living</option>
+  <option value="baby">Baby Care Essentials</option>
+  <option value="pharma">Pharma & Wellness</option>
+  <option value="cleaning">Cleaning Essentials</option>
+  <option value="home">Home & Office Needs</option>
+  <option value="personal">Personal Care & Hygiene</option>
+  <option value="pet">Pet Care Supplies</option>
+</select>
+  </div>
+</div>
 
-        <!-- MULTI-VARIANTS (500ml, 1L, 2L) -->
-        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-          <div class="flex items-center justify-between">
-            <label class="text-[11px] font-black text-slate-800 uppercase">Pack Sizes & Rates (Variants) *</label>
-            <button type="button" onclick="addVariantRowInput()" class="text-[10px] font-bold text-brand-accent bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition">
-              + Add Another Pack Size
-            </button>
-          </div>
-          
-          <div id="variantsContainer" class="space-y-2">
-            <div class="variant-row grid grid-cols-3 gap-2">
-              <input type="text" placeholder="Pack (e.g. 500 ml)" value="500 ml" class="var-unit px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-              <input type="number" placeholder="Price (₹)" value="27" class="var-price px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-              <input type="number" placeholder="MRP (₹)" value="28" class="var-oldprice px-3 py-1.5 text-xs border rounded-xl bg-white outline-none">
-            </div>
-            <div class="variant-row grid grid-cols-3 gap-2">
-              <input type="text" placeholder="Pack (e.g. 1 L)" value="1 L" class="var-unit px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-              <input type="number" placeholder="Price (₹)" value="54" class="var-price px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-              <input type="number" placeholder="MRP (₹)" value="56" class="var-oldprice px-3 py-1.5 text-xs border rounded-xl bg-white outline-none">
-            </div>
-          </div>
-        </div>
+<!-- QUANTITY + UNIT SEPARATE FIELDS -->
+<div class="grid grid-cols-2 gap-3 mt-3">
+  <div>
+    <label class="text-[11px] font-bold text-slate-500 uppercase">Quantity Value *</label>
+    <input id="pQtyValue" type="number" step="0.1" required placeholder="e.g. 500 or 1" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+  </div>
+  <div>
+    <label class="text-[11px] font-bold text-slate-500 uppercase">Unit Type *</label>
+    <select id="pQtyUnit" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+      <option value="g">Grams (g)</option>
+      <option value="kg">Kilograms (kg)</option>
+      <option value="ml">Millilitres (ml)</option>
+      <option value="L">Litres (L)</option>
+      <option value="pcs">Pieces (pcs)</option>
+    </select>
+  </div>
+</div>
 
         <!-- DIRECT PHOTO PICKER -->
         <div>

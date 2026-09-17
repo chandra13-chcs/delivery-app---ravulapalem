@@ -93,6 +93,7 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
 
 function addVariantRowInput() {
   const container = document.getElementById('variantsContainer');
+  if (!container) return;
   const row = document.createElement('div');
   row.className = "variant-row grid grid-cols-3 gap-2";
   row.innerHTML = `
@@ -115,15 +116,15 @@ async function handleDirectFileSelect(event) {
     const previewImg = document.getElementById('addPreviewImg');
     const badge = document.getElementById('fileUploadStatusBadge');
 
-    previewImg.src = selectedProductBase64;
-    previewBox.classList.remove('hidden');
-    previewBox.classList.add('flex');
-    badge.classList.remove('hidden');
+    if (previewImg) previewImg.src = selectedProductBase64;
+    if (previewBox) { previewBox.classList.remove('hidden'); previewBox.classList.add('flex'); }
+    if (badge) badge.classList.remove('hidden');
   } catch(err) {
     alert("Image load failed: " + err.message);
   }
 }
 
+// --- ADD PRODUCT WITH QUANTITY + UNIT SYSTEM ---
 async function handleAddNewProduct(e) {
   e.preventDefault();
 
@@ -132,57 +133,50 @@ async function handleAddNewProduct(e) {
     return;
   }
 
-  const variantRows = document.querySelectorAll('.variant-row');
-  let variants = [];
-
-  variantRows.forEach(row => {
-    const unit = row.querySelector('.var-unit').value.trim();
-    const price = Number(row.querySelector('.var-price').value);
-    const old_price = Number(row.querySelector('.var-oldprice').value) || price;
-
-    if (unit && price > 0) {
-      variants.push({ unit, price, old_price });
-    }
-  });
-
-  if (variants.length === 0) {
-    alert("Please enter at least one pack size and price!");
-    return;
-  }
+  const name = document.getElementById('pName').value.trim();
+  const category = document.getElementById('pCategory').value;
+  const price = Number(document.getElementById('pPrice').value);
+  const old_price = Number(document.getElementById('pOldPrice')?.value) || price;
+  
+  const qtyValue = Number(document.getElementById('pQtyValue')?.value) || 1;
+  const qtyUnit = document.getElementById('pQtyUnit')?.value || 'pcs';
 
   const btn = document.getElementById('saveProdBtn');
-  btn.innerText = "Saving to Storefront...";
-  btn.disabled = true;
+  if (btn) { btn.innerText = "Saving to Storefront..."; btn.disabled = true; }
 
   const newProd = {
-    name: document.getElementById('pName').value.trim(),
-    category: document.getElementById('pCategory').value,
-    variants: variants,
-    price: variants[0].price,
-    unit: variants[0].unit,
+    name: name,
+    category: category,
+    qty_value: qtyValue,
+    qty_unit: qtyUnit,
+    price: price,
+    old_price: old_price,
     image_url: selectedProductBase64,
-    desc: document.getElementById('pDesc').value.trim() || '100% Genuine product directly fulfilled from Ravulapalem dark store.',
+    desc: document.getElementById('pDesc')?.value.trim() || '100% Genuine product directly fulfilled from Ravulapalem dark store.',
     created_at: firebase.firestore.FieldValue.serverTimestamp()
   };
 
   try {
     await db.collection("products").add(newProd);
     document.getElementById('addProductForm').reset();
-    document.getElementById('addPreviewBox').classList.add('hidden');
-    document.getElementById('fileUploadStatusBadge').classList.add('hidden');
+    const previewBox = document.getElementById('addPreviewBox');
+    if (previewBox) previewBox.classList.add('hidden');
+    const badge = document.getElementById('fileUploadStatusBadge');
+    if (badge) badge.classList.add('hidden');
     selectedProductBase64 = "";
 
-    btn.innerText = "+ Add Product to Storefront";
-    btn.disabled = false;
-    alert("Product added successfully with all pack sizes!");
+    if (btn) { btn.innerText = "+ Add Product to Storefront"; btn.disabled = false; }
+    alert("Product added successfully with Quantity + Unit system!");
   } catch(err) {
     alert("Upload failed: " + err.message);
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
 function loadAdminInventory() {
   const tbody = document.getElementById('inventoryTableBody');
+  if (!tbody) return;
+
   db.collection("products").onSnapshot((snapshot) => {
     let prods = [];
     snapshot.forEach(doc => prods.push({ id: doc.id, ...doc.data() }));
@@ -197,10 +191,7 @@ function loadAdminInventory() {
       const tr = document.createElement('tr');
       tr.className = "hover:bg-slate-50";
 
-      let variantsDisplay = p.unit || "1 pc";
-      if (Array.isArray(p.variants) && p.variants.length > 0) {
-        variantsDisplay = p.variants.map(v => `${v.unit} (₹${v.price})`).join(", ");
-      }
+      const displayQtyUnit = p.qty_unit ? `${p.qty_value || 1} ${p.qty_unit}` : (p.unit || "1 pc");
 
       tr.innerHTML = `
         <td class="py-2.5 px-3 flex items-center gap-2">
@@ -208,11 +199,11 @@ function loadAdminInventory() {
           <span class="font-bold text-slate-800">${p.name}</span>
         </td>
         <td class="py-2.5 px-3 uppercase text-[10px] font-bold text-slate-500">${p.category}</td>
-        <td class="py-2.5 px-3 font-semibold text-slate-700 text-xs">${variantsDisplay}</td>
+        <td class="py-2.5 px-3 font-semibold text-slate-700 text-xs">${displayQtyUnit}</td>
         <td class="py-2.5 px-3 font-black text-[#0B132B]">₹${p.price}</td>
         <td class="py-2.5 px-3 text-right space-x-1">
           <button onclick="openEditProductImageModal('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.image_url}')" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-lg text-xs transition">
-            Change Photo
+            Photo
           </button>
           <button onclick="deleteProductItem('${p.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-lg text-xs transition">
             Delete
@@ -240,14 +231,20 @@ let editModalNewBase64 = "";
 function openEditProductImageModal(prodId, currentName, currentImg) {
   editingProductId = prodId;
   editModalNewBase64 = currentImg;
-  document.getElementById('editProdName').innerText = currentName;
-  document.getElementById('editProdPreview').src = currentImg;
-  document.getElementById('editModalFileInput').value = '';
-  document.getElementById('editProductModal').classList.remove('hidden');
+  const nameEl = document.getElementById('editProdName');
+  const prevEl = document.getElementById('editProdPreview');
+  const fileEl = document.getElementById('editModalFileInput');
+  const modEl = document.getElementById('editProductModal');
+
+  if (nameEl) nameEl.innerText = currentName;
+  if (prevEl) prevEl.src = currentImg;
+  if (fileEl) fileEl.value = '';
+  if (modEl) modEl.classList.remove('hidden');
 }
 
 function closeEditProductModal() {
-  document.getElementById('editProductModal').classList.add('hidden');
+  const modEl = document.getElementById('editProductModal');
+  if (modEl) modEl.classList.add('hidden');
   editingProductId = null;
   editModalNewBase64 = "";
 }
@@ -258,7 +255,8 @@ async function handleEditModalFileSelect(event) {
 
   try {
     editModalNewBase64 = await compressImageFile(file);
-    document.getElementById('editProdPreview').src = editModalNewBase64;
+    const prevEl = document.getElementById('editProdPreview');
+    if (prevEl) prevEl.src = editModalNewBase64;
   } catch(err) {
     alert("Image load failed: " + err.message);
   }
@@ -268,7 +266,7 @@ async function submitProductImageUpdate() {
   if (!editModalNewBase64 || !editingProductId) return alert("Please select a new photo!");
 
   const btn = document.getElementById('btnSaveProdImg');
-  btn.innerText = "Updating...";
+  if (btn) btn.innerText = "Updating...";
 
   try {
     await db.collection("products").doc(editingProductId).update({
@@ -280,7 +278,7 @@ async function submitProductImageUpdate() {
   } catch(err) {
     alert("Update failed: " + err.message);
   } finally {
-    btn.innerText = "Save & Replace Image";
+    if (btn) btn.innerText = "Save & Replace Image";
   }
 }
 
@@ -291,7 +289,8 @@ async function handleBannerDirectFile(event) {
 
   try {
     const compressedBanner = await compressImageFile(file, 800, 500, 0.85);
-    document.getElementById('bannerImgInput').value = compressedBanner;
+    const inputEl = document.getElementById('bannerImgInput');
+    if (inputEl) inputEl.value = compressedBanner;
   } catch(err) {
     alert("Banner image load failed: " + err.message);
   }
@@ -300,7 +299,7 @@ async function handleBannerDirectFile(event) {
 async function handleSaveHeroBanner(e) {
   e.preventDefault();
   const btn = document.getElementById('btnSaveBanner');
-  btn.innerText = "Publishing...";
+  if (btn) btn.innerText = "Publishing...";
 
   const bannerData = {
     title: document.getElementById('bannerTitleInput').value.trim(),
@@ -312,10 +311,10 @@ async function handleSaveHeroBanner(e) {
   try {
     await db.collection("settings").doc("hero_banner").set(bannerData);
     alert("Homepage Banner Updated!");
-    btn.innerText = "Save & Publish Banner";
+    if (btn) btn.innerText = "Save & Publish Banner";
   } catch(err) {
     alert("Error: " + err.message);
-    btn.innerText = "Save & Publish Banner";
+    if (btn) btn.innerText = "Save & Publish Banner";
   }
 }
 
@@ -324,9 +323,12 @@ async function loadActiveHeroBanner() {
     const doc = await db.collection("settings").doc("hero_banner").get();
     if (doc.exists) {
       const d = doc.data();
-      document.getElementById('bannerTitleInput').value = d.title || '';
-      document.getElementById('bannerSubInput').value = d.subtitle || '';
-      document.getElementById('bannerImgInput').value = d.image_url || '';
+      const tIn = document.getElementById('bannerTitleInput');
+      const sIn = document.getElementById('bannerSubInput');
+      const iIn = document.getElementById('bannerImgInput');
+      if (tIn) tIn.value = d.title || '';
+      if (sIn) sIn.value = d.subtitle || '';
+      if (iIn) iIn.value = d.image_url || '';
     }
   } catch(e) {}
 }
@@ -342,28 +344,28 @@ async function handleResetDefaultBanner() {
   }
 }
 
-// 20 CATEGORY IMAGES REPLACER
+// --- ALL 20 BLINKIT CATEGORIES RESTORED ---
 const adminCategoryDefaults = [
-  { id: "paan", name: "Paan Corner", img: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "paan", name: "Paan Corner & Refreshers", img: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "dairy", name: "Dairy, Bread & Eggs", img: "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "veggies", name: "Fruits & Vegetables", img: "https://images.pexels.com/photos/144248/potatoes-vegetables-erdfrucht-bio-144248.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "veggies", name: "Fruits & Fresh Vegetables", img: "https://images.pexels.com/photos/144248/potatoes-vegetables-erdfrucht-bio-144248.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "drinks", name: "Cold Drinks & Juices", img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Coca-Cola_can_-_2020.jpg/220px-Coca-Cola_can_-_2020.jpg" },
   { id: "snacks", name: "Snacks & Munchies", img: "https://images.pexels.com/photos/568805/pexels-photo-568805.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "breakfast", name: "Breakfast & Instant Food", img: "https://images.pexels.com/photos/884600/pexels-photo-884600.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "sweets", name: "Sweet Tooth", img: "https://images.pexels.com/photos/65882/chocolate-dark-coffee-confiserie-65882.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "sweets", name: "Sweet Tooth & Chocolates", img: "https://images.pexels.com/photos/65882/chocolate-dark-coffee-confiserie-65882.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "bakery", name: "Bakery & Biscuits", img: "https://images.pexels.com/photos/1395319/pexels-photo-1395319.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "tea", name: "Tea, Coffee & Milk Drinks", img: "https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "staples", name: "Atta, Rice & Dal", img: "https://images.pexels.com/photos/6287295/pexels-photo-6287295.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "masala", name: "Masala, Oil & More", img: "https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "masala", name: "Masala, Cooking Oil & Ghee", img: "https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=150" },
   { id: "sauces", name: "Sauces & Spreads", img: "https://images.pexels.com/photos/1435735/pexels-photo-1435735.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "meat", name: "Chicken, Meat & Fish", img: "https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "organic", name: "Organic & Healthy", img: "https://images.pexels.com/photos/7421213/pexels-photo-7421213.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "baby", name: "Baby Care", img: "https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "meat", name: "Chicken, Meat & Fresh Fish", img: "https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "organic", name: "Organic & Healthy Living", img: "https://images.pexels.com/photos/7421213/pexels-photo-7421213.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "baby", name: "Baby Care Essentials", img: "https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "pharma", name: "Pharma & Wellness", img: "https://images.pexels.com/photos/593451/pexels-photo-593451.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "cleaning", name: "Cleaning Essentials", img: "https://images.pexels.com/photos/5202925/pexels-photo-5202925.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "home", name: "Home & Office", img: "https://images.pexels.com/photos/4198024/pexels-photo-4198024.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "personal", name: "Personal Care", img: "https://images.pexels.com/photos/6621376/pexels-photo-6621376.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "pet", name: "Pet Care", img: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" }
+  { id: "home", name: "Home & Office Needs", img: "https://images.pexels.com/photos/4198024/pexels-photo-4198024.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "personal", name: "Personal Care & Hygiene", img: "https://images.pexels.com/photos/6621376/pexels-photo-6621376.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "pet", name: "Pet Care Supplies", img: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" }
 ];
 
 async function loadCategoryManager() {
@@ -386,12 +388,7 @@ async function loadCategoryManager() {
       <div class="flex-1 min-w-0">
         <p class="text-xs font-bold text-slate-800 truncate">${cat.name}</p>
         <div class="mt-1 flex items-center gap-1">
-          <input 
-            type="file" 
-            accept="image/*" 
-            onchange="handleCategoryDirectFile(event, '${cat.id}')"
-            class="text-[9px] file:mr-1 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:bg-[#1C2541] file:text-white border border-slate-200 rounded p-0.5 bg-white cursor-pointer w-full"
-          >
+          <input type="file" accept="image/*" onchange="handleCategoryDirectFile(event, '${cat.id}')" class="text-[9px] file:mr-1 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:bg-[#1C2541] file:text-white border border-slate-200 rounded p-0.5 bg-white cursor-pointer w-full">
         </div>
       </div>
     `;
@@ -409,31 +406,32 @@ async function handleCategoryDirectFile(event, catId) {
       [catId]: compressedCatBase64
     }, { merge: true });
 
-    document.getElementById(`cat_preview_${catId}`).src = compressedCatBase64;
+    const prev = document.getElementById(`cat_preview_${catId}`);
+    if (prev) prev.src = compressedCatBase64;
     alert("Category photo updated!");
   } catch(err) {
     alert("Error: " + err.message);
   }
 }
 
-// 1-TAP COLOR STATUS BUTTONS
+// --- ORDER STATUS PIPELINE (PLACED → PACKED → DISPATCHED → DELIVERED) ---
 function renderStatusPills(orderId, currentStatus) {
   const statuses = [
-    { key: "Order Confirmed", label: "Confirmed", active: "bg-amber-500 text-white font-black scale-105 shadow", inactive: "bg-amber-50 text-amber-900 border-amber-200" },
-    { key: "Packing", label: "Packing", active: "bg-orange-500 text-white font-black scale-105 shadow", inactive: "bg-orange-50 text-orange-900 border-orange-200" },
-    { key: "Out for Delivery", label: "Dispatched", active: "bg-blue-600 text-white font-black scale-105 shadow", inactive: "bg-blue-50 text-blue-900 border-blue-200" },
-    { key: "Delivered", label: "Delivered", active: "bg-emerald-600 text-white font-black scale-105 shadow", inactive: "bg-emerald-50 text-emerald-900 border-emerald-200" }
+    { key: "PLACED", label: "Placed" },
+    { key: "PACKED", label: "Packed" },
+    { key: "DISPATCHED", label: "Dispatched" },
+    { key: "DELIVERED", label: "Delivered" }
   ];
 
   return `
     <div class="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200">
       ${statuses.map(s => {
-        const isCurrent = currentStatus === s.key;
+        const isCurrent = (currentStatus || "PLACED") === s.key;
         return `
           <button 
             type="button"
             onclick="quickSetStatus('${orderId}', '${s.key}')" 
-            class="px-2 py-1 rounded-lg text-xs font-bold border transition ${isCurrent ? s.active : s.inactive + ' opacity-70'}"
+            class="px-2 py-1 rounded-lg text-xs font-bold border transition ${isCurrent ? 'bg-[#0B132B] text-white font-black scale-105 shadow' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}"
           >
             ${isCurrent ? '✓ ' : ''}${s.label}
           </button>
@@ -456,19 +454,22 @@ async function quickSetStatus(orderId, newStatus) {
 
 function startLiveOrderQueue() {
   const container = document.getElementById('adminQueueContainer');
+  if (!container) return;
 
   db.collection("orders").onSnapshot((snapshot) => {
     let orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     
-    // Sort descending
     orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
     allFetchedOrders = orders;
 
-    const activeCount = orders.filter(o => o.status !== "Delivered").length;
-    const deliveredCount = orders.filter(o => o.status === "Delivered").length;
-    document.getElementById('metricActiveOrders').innerText = activeCount;
-    document.getElementById('metricDelivered').innerText = deliveredCount;
+    const activeCount = orders.filter(o => o.status !== "DELIVERED").length;
+    const deliveredCount = orders.filter(o => o.status === "DELIVERED").length;
+    
+    const mActive = document.getElementById('metricActiveOrders');
+    const mDel = document.getElementById('metricDelivered');
+    if (mActive) mActive.innerText = activeCount;
+    if (mDel) mDel.innerText = deliveredCount;
 
     if (orders.length === 0) {
       container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
@@ -489,7 +490,7 @@ function startLiveOrderQueue() {
         <div class="space-y-1 flex-1">
           <div class="flex items-center gap-2">
             <span class="font-extrabold text-[#0B132B] text-sm">${o.id}</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${o.status}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">${o.status || 'PLACED'}</span>
             <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
           </div>
           <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
@@ -504,7 +505,8 @@ function startLiveOrderQueue() {
       container.appendChild(row);
     });
 
-    if (!document.getElementById('analyticsViewSection').classList.contains('hidden')) {
+    const analyticsSec = document.getElementById('analyticsViewSection');
+    if (analyticsSec && !analyticsSec.classList.contains('hidden')) {
       calculateAndRenderAnalytics();
     }
   });
@@ -551,6 +553,7 @@ function calculateAndRenderAnalytics() {
 
   let revenue = 0, online = 0, cod = 0;
   const tbody = document.getElementById('settlementTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   if (filtered.length === 0) {
@@ -572,16 +575,21 @@ function calculateAndRenderAnalytics() {
         <td class="py-2.5 px-3 truncate max-w-[150px]">${o.delivery_address || 'Ravulapalem'}</td>
         <td class="py-2.5 px-3 font-black text-slate-900">₹${amt}</td>
         <td class="py-2.5 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${o.payment_mode || 'UPI'}</td>
-        <td class="py-2.5 px-3 font-bold text-emerald-600">${o.status || 'Delivered'}</td>
+        <td class="py-2.5 px-3 font-bold text-emerald-600">${o.status || 'PLACED'}</td>
       `;
       tbody.appendChild(tr);
     });
   }
 
-  document.getElementById('statTodayRevenue').innerText = `₹${revenue}`;
-  document.getElementById('statOnlinePaid').innerText = `₹${online}`;
-  document.getElementById('statCodPaid').innerText = `₹${cod}`;
-  document.getElementById('statTotalOrders').innerText = filtered.length;
+  const sRev = document.getElementById('statTodayRevenue');
+  const sOn = document.getElementById('statOnlinePaid');
+  const sCod = document.getElementById('statCodPaid');
+  const sTot = document.getElementById('statTotalOrders');
+
+  if (sRev) sRev.innerText = `₹${revenue}`;
+  if (sOn) sOn.innerText = `₹${online}`;
+  if (sCod) sCod.innerText = `₹${cod}`;
+  if (sTot) sTot.innerText = filtered.length;
 }
 
 function exportDailyOrdersCSV() {

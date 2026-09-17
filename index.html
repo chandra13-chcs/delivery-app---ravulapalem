@@ -47,87 +47,86 @@
 </head>
 <body class="bg-[#FCFCFC] text-slate-900 font-sans antialiased pb-32 overflow-x-hidden">
 
-  <!-- TOP NAV BAR (DARK NAVY / BLACK HEADER) -->
+  <!-- Closed Store Banner (Outside 7 AM - 10 PM IST) -->
+  <div id="storeStatusBanner" class="hidden bg-rose-600 text-white text-center text-xs font-bold py-2 px-4 z-50 sticky top-0">
+    ⚠️ Store is currently closed. Orders are available from 7:00 AM to 10:00 PM IST. You can still browse products!
+  </div>
+
+  <!-- TOP NAV BAR (RESPONSIVE CLEAN MOBILE HEADER) -->
   <header class="sticky top-0 z-40 bg-[#0B132B] text-white shadow-lg border-b border-slate-800">
     <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3">
       
-      <div class="flex items-center justify-between gap-2 sm:gap-4">
+      <!-- Top Row: Logo & Separate Controls -->
+      <div class="flex items-center justify-between gap-2">
         
-        <!-- Brand Logo & Location -->
-        <div class="flex items-center gap-2 sm:gap-3.5 min-w-0">
-          <a href="index.html" class="flex items-center gap-1.5 shrink-0">
-            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
-              ⚡
-            </div>
-            <div class="leading-tight">
-              <span class="text-base sm:text-xl font-black tracking-tight text-white block leading-none">
-                MyShopzy<span class="text-amber-400">.</span>
-              </span>
-              <span class="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-cyan-400 block mt-0.5">
-                Ravulapalem Hub
-              </span>
-            </div>
-          </a>
-
-          <!-- Location Picker Button -->
-          <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1.5 bg-[#1C2541] hover:bg-slate-800 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-700 min-w-0 transition">
-            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
-            <div>
-              <p class="text-[9px] font-bold text-slate-400 uppercase leading-none">10 Mins Delivery</p>
-              <p id="currentAddressHeader" class="text-[11px] sm:text-xs font-black text-slate-200 truncate max-w-[100px] sm:max-w-[160px] leading-tight mt-0.5">RTC Complex, Ravulapalem</p>
-            </div>
-            <span class="text-xs text-slate-400">▼</span>
+        <!-- Brand Logo -->
+        <a href="index.html" class="flex items-center gap-1.5 shrink-0">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
+            ⚡
           </div>
-        </div>
+          <div class="leading-tight">
+            <span class="text-base sm:text-xl font-black tracking-tight text-white block leading-none">
+              MyShopzy<span class="text-amber-400">.</span>
+            </span>
+            <span class="text-[8px] font-extrabold uppercase tracking-wider text-cyan-400 block mt-0.5">
+              Ravulapalem Hub
+            </span>
+          </div>
+        </a>
 
-        <!-- Search Bar Desktop -->
-        <div class="hidden md:flex flex-1 max-w-lg mx-2 relative">
-          <input 
-            id="searchInputDesktop" 
-            oninput="handleSearch(this.value)" 
-            type="text" 
-            placeholder='Search "milk", "chips", "oil", "atta"...' 
-            class="w-full px-4 py-2 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
-          >
-        </div>
-
-        <!-- Right Buttons -->
-        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <a href="admin.html" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition shadow-sm">
-            <span>📊</span>
-            <span>Hub</span>
+        <!-- Right Side: Separate Controls (Order & Login/Account) -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          
+          <!-- Hub Link (Desktop/Tablet) -->
+          <a href="admin.html" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition">
+            <span>📊</span><span>Hub</span>
           </a>
 
-          <button onclick="toggleOrdersView()" class="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
+          <!-- Separate Order Control -->
+          <button onclick="toggleOrdersView()" class="px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1 transition shadow-sm">
             <span>📦</span>
-            <span class="hidden sm:inline">My Orders</span>
+            <span class="text-[11px]">Orders</span>
           </button>
 
-          <!-- Auth Chip -->
+          <!-- Separate Login / Account Control -->
           <div id="authContainer">
-            <button onclick="openLoginModal()" id="loginBtn" class="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1 shadow-md transition">
+            <button onclick="openLoginModal()" id="loginBtn" class="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1 shadow-md transition">
               <span>👤</span>
-              <span>Login</span>
+              <span class="text-[11px]">Login</span>
             </button>
-            <div id="userChip" class="hidden flex items-center gap-1.5 bg-[#1C2541] border border-slate-700 px-2.5 py-1 rounded-xl">
+            <div id="userChip" class="hidden flex items-center gap-1 bg-[#1C2541] border border-slate-700 px-2 py-1 rounded-xl">
               <span class="text-xs">👤</span>
               <span id="userPhoneDisplay" class="text-xs font-black text-white"></span>
               <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-1 font-black">✕</button>
             </div>
           </div>
+
         </div>
 
       </div>
 
-      <!-- Mobile Search Bar -->
-      <div class="mt-2 relative md:hidden">
-        <input 
-          id="searchInputMobile" 
-          oninput="handleSearch(this.value)" 
-          type="text" 
-          placeholder='Search for groceries & essentials...' 
-          class="w-full px-3 py-2 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
-        >
+      <!-- Second Row on Mobile: Location & Search Bar for clean spacing -->
+      <div class="mt-2.5 flex items-center gap-2">
+        <!-- Location Picker Button -->
+        <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1.5 bg-[#1C2541] hover:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shrink-0 transition">
+          <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
+          <div class="text-left">
+            <p class="text-[8px] font-bold text-slate-400 uppercase leading-none">Delivery Location</p>
+            <p id="currentAddressHeader" class="text-[11px] font-black text-slate-200 truncate max-w-[120px] leading-tight mt-0.5">RTC Complex</p>
+          </div>
+          <span class="text-[10px] text-slate-400">▼</span>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative flex-1">
+          <input 
+            id="searchInputMobile" 
+            oninput="handleSearch(this.value)" 
+            type="text" 
+            placeholder='Search groceries & essentials...' 
+            class="w-full px-3 py-1.5 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+          >
+        </div>
       </div>
 
     </div>
@@ -514,9 +513,17 @@
       <div class="p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50">
         <div id="cartItemsContainer" class="space-y-1.5"></div>
 
+        <!-- Multi-Address Selector (For family / other locations) -->
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
-          <input id="inputPhone" type="tel" maxlength="10" placeholder="10-Digit Mobile Number" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none font-bold bg-slate-50 tracking-wider">
-          <input id="inputAddress" type="text" placeholder="House / Street Landmark in Ravulapalem" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none bg-slate-50 font-medium">
+          <div class="flex items-center justify-between">
+            <label class="text-[11px] font-black text-slate-800 uppercase">Delivery Address</label>
+            <button type="button" onclick="openAddressManager()" class="text-[10px] font-bold text-blue-600 underline hover:text-blue-800">
+              + Add / Manage Addresses
+            </button>
+          </div>
+          <select id="checkoutAddressSelect" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none font-bold bg-slate-50">
+            <option value="">-- Select Saved Address --</option>
+          </select>
         </div>
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2.5 shadow-sm">
@@ -557,9 +564,13 @@
           </div>
         </div>
 
+        <div id="freeDeliveryBanner" class="p-2 bg-amber-50 text-amber-800 rounded-xl font-black text-center text-[11px]">
+          Add items worth ₹199 to unlock FREE DELIVERY
+        </div>
+
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-600"><span>Items Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
-          <div class="flex justify-between text-slate-600"><span>10-Min Fast Delivery</span><span class="font-bold text-emerald-600">FREE</span></div>
+          <div class="flex justify-between text-slate-600"><span>10-Min Fast Delivery</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
           <div class="flex justify-between text-slate-600"><span>Handling & Bag Fee</span><span class="font-bold text-slate-900">₹4</span></div>
           <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
             <span>To Pay</span><span id="billFinal" class="text-emerald-600">₹0</span>
@@ -573,6 +584,50 @@
           <span>⚡</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- ADDRESS MANAGER MODAL -->
+  <div id="addressManagerModal" class="hidden fixed inset-0 z-[75] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-black text-slate-900">Manage Delivery Addresses</h3>
+        <button onclick="closeAddressManager()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center">✕</button>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-black uppercase text-slate-500 mb-2">Your Saved Addresses</h4>
+        <div id="savedAddressesContainer" class="space-y-2 max-h-40 overflow-y-auto"></div>
+      </div>
+
+      <form id="manualAddressForm" onsubmit="saveNewManualAddress(event)" class="space-y-3 pt-3 border-t">
+        <h4 class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input id="manualFullName" type="text" placeholder="Full Name *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualMobile" type="tel" placeholder="10-Digit Mobile Number *" required maxlength="10" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input id="manualHouse" type="text" placeholder="House / Flat / Door No *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualStreet" type="text" placeholder="Street / Area / Colony *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <input id="manualCity" type="text" placeholder="Village / City *" required value="Ravulapalem" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualDistrict" type="text" placeholder="District *" required value="East Godavari" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualState" type="text" placeholder="State *" required value="Andhra Pradesh" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input id="manualPincode" type="text" placeholder="PIN Code *" required maxlength="6" value="533238" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualLandmark" type="text" placeholder="Landmark (Optional)" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        </div>
+
+        <button type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
+          Save Address & Use for Delivery
+        </button>
+      </form>
     </div>
   </div>
 
@@ -647,6 +702,12 @@
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Suresh</span></div>
         </div>
 
+        <!-- Live Status Timeline -->
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2">
+          <p class="font-black text-slate-800 uppercase text-[10px]">Live Order Pipeline</p>
+          <div id="orderTimelineBox" class="space-y-1.5"></div>
+        </div>
+
         <div>
           <h4 class="font-extrabold text-slate-800 mb-1.5 uppercase text-[10px] tracking-wider">Ordered Items</h4>
           <div id="receiptItemsContainer" class="space-y-1.5"></div>
@@ -654,7 +715,7 @@
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1">
           <div class="flex justify-between text-slate-600"><span>Items Total</span><span id="receiptSubtotal" class="font-bold">₹0</span></div>
-          <div class="flex justify-between text-slate-600"><span>Delivery Charge</span><span class="text-emerald-600 font-bold">FREE</span></div>
+          <div class="flex justify-between text-slate-600"><span>Delivery Charge</span><span id="receiptDeliveryFee" class="font-bold text-emerald-600">₹0</span></div>
           <div class="flex justify-between text-slate-600"><span>Bag Fee</span><span class="font-bold">₹4</span></div>
           <div class="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
             <span>Final Paid</span><span id="receiptGrandTotal" class="text-emerald-600">₹0</span>
