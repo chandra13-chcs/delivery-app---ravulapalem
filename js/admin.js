@@ -44,6 +44,7 @@ function switchView(tab) {
   } else if (tab === 'inventory') {
     if (invSec) invSec.classList.remove('hidden');
     if (btnInv) btnInv.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
+    loadAdminInventory();
   } else if (tab === 'banners') {
     if (banSec) banSec.classList.remove('hidden');
     if (btnBan) btnBan.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
@@ -89,19 +90,6 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
     };
     reader.onerror = (err) => reject(err);
   });
-}
-
-function addVariantRowInput() {
-  const container = document.getElementById('variantsContainer');
-  if (!container) return;
-  const row = document.createElement('div');
-  row.className = "variant-row grid grid-cols-3 gap-2";
-  row.innerHTML = `
-    <input type="text" placeholder="Pack (e.g. 2 L)" class="var-unit px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-    <input type="number" placeholder="Price (₹)" class="var-price px-3 py-1.5 text-xs border rounded-xl font-bold bg-white outline-none">
-    <input type="number" placeholder="MRP (₹)" class="var-oldprice px-3 py-1.5 text-xs border rounded-xl bg-white outline-none">
-  `;
-  container.appendChild(row);
 }
 
 let selectedProductBase64 = "";
@@ -167,6 +155,7 @@ async function handleAddNewProduct(e) {
 
     if (btn) { btn.innerText = "+ Add Product to Storefront"; btn.disabled = false; }
     alert("Product added successfully with Quantity + Unit system!");
+    loadAdminInventory();
   } catch(err) {
     alert("Upload failed: " + err.message);
     if (btn) btn.disabled = false;
@@ -414,7 +403,7 @@ async function handleCategoryDirectFile(event, catId) {
   }
 }
 
-// --- ORDER STATUS PIPELINE (PLACED → PACKED → DISPATCHED → DELIVERED) ---
+// --- ORDER STATUS PIPELINE ---
 function renderStatusPills(orderId, currentStatus) {
   const statuses = [
     { key: "PLACED", label: "Placed" },
@@ -424,14 +413,14 @@ function renderStatusPills(orderId, currentStatus) {
   ];
 
   return `
-    <div class="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200">
+    <div class="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200 overflow-x-auto">
       ${statuses.map(s => {
         const isCurrent = (currentStatus || "PLACED") === s.key;
         return `
           <button 
             type="button"
             onclick="quickSetStatus('${orderId}', '${s.key}')" 
-            class="px-2 py-1 rounded-lg text-xs font-bold border transition ${isCurrent ? 'bg-[#0B132B] text-white font-black scale-105 shadow' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}"
+            class="px-2 py-1 rounded-lg text-xs font-bold border transition shrink-0 ${isCurrent ? 'bg-[#0B132B] text-white font-black scale-105 shadow' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}"
           >
             ${isCurrent ? '✓ ' : ''}${s.label}
           </button>
@@ -488,7 +477,7 @@ function startLiveOrderQueue() {
 
       row.innerHTML = `
         <div class="space-y-1 flex-1">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <span class="font-extrabold text-[#0B132B] text-sm">${o.id}</span>
             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">${o.status || 'PLACED'}</span>
             <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
@@ -497,7 +486,7 @@ function startLiveOrderQueue() {
           ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
         </div>
 
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="flex items-center justify-between xl:justify-end gap-3 shrink-0">
           <span class="text-sm font-black text-emerald-600">₹${o.total_amount || o.total}</span>
           ${renderStatusPills(o.id, o.status)}
         </div>
@@ -512,7 +501,7 @@ function startLiveOrderQueue() {
   });
 }
 
-// --- DATE-WISE SALES & REPORTS ENGINE ---
+// --- SALES & REPORTS ENGINE ---
 function initSalesDatePicker() {
   const dateInput = document.getElementById('salesFilterDate');
   if (dateInput && !dateInput.value) {

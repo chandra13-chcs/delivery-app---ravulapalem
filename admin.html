@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MyShopzy Operations & Store Hub | Ravulapalem</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
     }
   </script>
 </head>
-<body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-16">
+<body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-20">
 
   <!-- TERMINAL PIN SECURITY OVERLAY -->
   <div id="adminAuthLock" class="fixed inset-0 z-50 bg-[#0B132B] flex items-center justify-center p-4">
@@ -59,40 +59,47 @@
     </div>
   </div>
 
-  <!-- HEADER -->
-  <header class="bg-[#0B132B] text-white px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+  <!-- HEADER (Responsive Scrollable Tabs for Mobile) -->
+  <header class="bg-[#0B132B] text-white px-3 sm:px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
       
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg shadow">
-          ⚡
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-sm font-extrabold uppercase tracking-wider text-cyan-400">MyShopzy Store Hub</h1>
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <div class="flex items-center justify-between w-full sm:w-auto">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg shadow">
+            ⚡
           </div>
-          <p class="text-xs text-slate-300">Ravulapalem RTC Operations Console</p>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-sm font-extrabold uppercase tracking-wider text-cyan-400">MyShopzy Store Hub</h1>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            </div>
+            <p class="text-[10px] sm:text-xs text-slate-300">Ravulapalem RTC Operations Console</p>
+          </div>
+        </div>
+        <a href="index.html" target="_blank" class="sm:hidden px-2.5 py-1 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 text-[10px] font-bold">
+          Storefront ↗
+        </a>
+      </div>
+
+      <!-- 4-Tab Switcher (Scrollable on mobile) -->
+      <div class="w-full sm:w-auto overflow-x-auto no-scrollbar py-1">
+        <div class="flex items-center gap-1.5 bg-[#1C2541] p-1 rounded-2xl border border-slate-700 whitespace-nowrap">
+          <button id="tabBtnOrders" onclick="switchView('orders')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition">
+            <span>🔔</span> Orders
+          </button>
+          <button id="tabBtnAnalytics" onclick="switchView('analytics')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>📈</span> Sales & Reports
+          </button>
+          <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>📦</span> Inventory
+          </button>
+          <button id="tabBtnBanners" onclick="switchView('banners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>🖼️</span> Banners & Categories
+          </button>
         </div>
       </div>
 
-      <!-- 4-Tab Switcher -->
-      <div class="flex items-center gap-1.5 bg-[#1C2541] p-1 rounded-2xl border border-slate-700">
-        <button id="tabBtnOrders" onclick="switchView('orders')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition">
-          <span>🔔</span> Orders
-        </button>
-        <button id="tabBtnAnalytics" onclick="switchView('analytics')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-          <span>📈</span> Sales & Reports
-        </button>
-        <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-          <span>📦</span> Inventory
-        </button>
-        <button id="tabBtnBanners" onclick="switchView('banners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-          <span>🖼️</span> Banners & Categories
-        </button>
-      </div>
-
-      <div class="flex items-center gap-2">
+      <div class="hidden sm:flex items-center gap-2">
         <a href="index.html" target="_blank" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1">
           <span>Storefront ↗</span>
         </a>
@@ -102,7 +109,7 @@
   </header>
 
   <!-- TAB 1: LIVE ORDERS DISPATCH QUEUE -->
-  <main id="ordersViewSection" class="max-w-7xl mx-auto px-6 py-6">
+  <main id="ordersViewSection" class="max-w-7xl mx-auto px-3 sm:px-6 py-6">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <p class="text-[11px] font-bold text-slate-400 uppercase">Active Orders in Hub</p>
@@ -121,7 +128,7 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
         <div>
           <h2 class="text-base font-extrabold text-slate-900">Dark Store Dispatch Pipeline</h2>
@@ -132,16 +139,15 @@
     </div>
   </main>
 
-  <!-- TAB 2: SALES & DAILY REPORTS (WITH DATE PICKER) -->
-  <main id="analyticsViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
+  <!-- TAB 2: SALES & DAILY REPORTS -->
+  <main id="analyticsViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
       <div>
         <h2 class="text-lg font-black text-slate-900">Daily Sales & Operational Settlement</h2>
         <p class="text-xs text-slate-500">Select any specific date to view sales, collections and order history</p>
       </div>
       
-      <!-- Date Picker and Filter -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <input 
           id="salesFilterDate" 
           type="date" 
@@ -157,27 +163,27 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <span class="text-[10px] font-black uppercase text-slate-400">Total Revenue (<span id="activeDateLabel">Today</span>)</span>
-        <h3 id="statTodayRevenue" class="text-2xl font-black text-slate-900 mt-1">₹0</h3>
+        <h3 id="statTodayRevenue" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">₹0</h3>
       </div>
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <span class="text-[10px] font-black uppercase text-slate-400">UPI Online Paid</span>
-        <h3 id="statOnlinePaid" class="text-2xl font-black text-blue-600 mt-1">₹0</h3>
+        <h3 id="statOnlinePaid" class="text-xl sm:text-2xl font-black text-blue-600 mt-1">₹0</h3>
       </div>
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <span class="text-[10px] font-black uppercase text-slate-400">COD Cash Collected</span>
-        <h3 id="statCodPaid" class="text-2xl font-black text-amber-600 mt-1">₹0</h3>
+        <h3 id="statCodPaid" class="text-xl sm:text-2xl font-black text-amber-600 mt-1">₹0</h3>
       </div>
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <span class="text-[10px] font-black uppercase text-slate-400">Total Orders</span>
-        <h3 id="statTotalOrders" class="text-2xl font-black text-purple-600 mt-1">0</h3>
+        <h3 id="statTotalOrders" class="text-xl sm:text-2xl font-black text-purple-600 mt-1">0</h3>
       </div>
     </div>
 
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 overflow-x-auto">
-      <table class="w-full text-left text-xs">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 overflow-x-auto">
+      <table class="w-full text-left text-xs min-w-[600px]">
         <thead>
           <tr class="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
             <th class="py-2.5 px-3">Order ID</th>
@@ -194,63 +200,67 @@
     </div>
   </main>
 
-  <!-- TAB 3: INVENTORY (VARIANTS + GALLERY/FILE UPLOAD) -->
-  <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+  <!-- TAB 3: INVENTORY (FIXED WITH ONSUBMIT FORM) -->
+  <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <h2 class="text-base font-extrabold text-slate-900 mb-4">
         + Add Custom Product with Multiple Pack Sizes & Direct Photo
       </h2>
 
-     <!-- ADMIN PRODUCT FORM SECTION -->
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-  <div>
-    <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
-    <input id="pName" type="text" required placeholder="e.g. Tomato or Milk" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-  </div>
-  <div>
-    <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
-   <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
-  <option value="paan">Paan Corner & Refreshers</option>
-  <option value="dairy">Dairy, Bread & Eggs</option>
-  <option value="veggies">Fruits & Fresh Vegetables</option>
-  <option value="drinks">Cold Drinks & Juices</option>
-  <option value="snacks">Snacks & Munchies</option>
-  <option value="breakfast">Breakfast & Instant Food</option>
-  <option value="sweets">Sweet Tooth & Chocolates</option>
-  <option value="bakery">Bakery & Biscuits</option>
-  <option value="tea">Tea, Coffee & Milk Drinks</option>
-  <option value="staples">Atta, Rice & Dal</option>
-  <option value="masala">Masala, Cooking Oil & Ghee</option>
-  <option value="sauces">Sauces & Spreads</option>
-  <option value="meat">Chicken, Meat & Fresh Fish</option>
-  <option value="organic">Organic & Healthy Living</option>
-  <option value="baby">Baby Care Essentials</option>
-  <option value="pharma">Pharma & Wellness</option>
-  <option value="cleaning">Cleaning Essentials</option>
-  <option value="home">Home & Office Needs</option>
-  <option value="personal">Personal Care & Hygiene</option>
-  <option value="pet">Pet Care Supplies</option>
-</select>
-  </div>
-</div>
+      <form id="addProductForm" onsubmit="handleAddNewProduct(event)" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
+            <input id="pName" type="text" required placeholder="e.g. Tomato or Milk" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
+            <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+              <option value="paan">Paan Corner & Refreshers</option>
+              <option value="dairy">Dairy, Bread & Eggs</option>
+              <option value="veggies">Fruits & Fresh Vegetables</option>
+              <option value="drinks">Cold Drinks & Juices</option>
+              <option value="snacks">Snacks & Munchies</option>
+              <option value="breakfast">Breakfast & Instant Food</option>
+              <option value="sweets">Sweet Tooth & Chocolates</option>
+              <option value="bakery">Bakery & Biscuits</option>
+              <option value="tea">Tea, Coffee & Milk Drinks</option>
+              <option value="staples">Atta, Rice & Dal</option>
+              <option value="masala">Masala, Cooking Oil & Ghee</option>
+              <option value="sauces">Sauces & Spreads</option>
+              <option value="meat">Chicken, Meat & Fresh Fish</option>
+              <option value="organic">Organic & Healthy Living</option>
+              <option value="baby">Baby Care Essentials</option>
+              <option value="pharma">Pharma & Wellness</option>
+              <option value="cleaning">Cleaning Essentials</option>
+              <option value="home">Home & Office Needs</option>
+              <option value="personal">Personal Care & Hygiene</option>
+              <option value="pet">Pet Care Supplies</option>
+            </select>
+          </div>
+        </div>
 
-<!-- QUANTITY + UNIT SEPARATE FIELDS -->
-<div class="grid grid-cols-2 gap-3 mt-3">
-  <div>
-    <label class="text-[11px] font-bold text-slate-500 uppercase">Quantity Value *</label>
-    <input id="pQtyValue" type="number" step="0.1" required placeholder="e.g. 500 or 1" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-  </div>
-  <div>
-    <label class="text-[11px] font-bold text-slate-500 uppercase">Unit Type *</label>
-    <select id="pQtyUnit" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
-      <option value="g">Grams (g)</option>
-      <option value="kg">Kilograms (kg)</option>
-      <option value="ml">Millilitres (ml)</option>
-      <option value="L">Litres (L)</option>
-      <option value="pcs">Pieces (pcs)</option>
-    </select>
-  </div>
-</div>
+        <!-- PRICING & QUANTITY FIELDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Price (₹) *</label>
+            <input id="pPrice" type="number" required placeholder="Selling Price" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Quantity Value *</label>
+            <input id="pQtyValue" type="number" step="0.1" required placeholder="e.g. 500 or 1" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Unit Type *</label>
+            <select id="pQtyUnit" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+              <option value="g">Grams (g)</option>
+              <option value="kg">Kilograms (kg)</option>
+              <option value="ml">Millilitres (ml)</option>
+              <option value="L">Litres (L)</option>
+              <option value="pcs">Pieces (pcs)</option>
+            </select>
+          </div>
+        </div>
 
         <!-- DIRECT PHOTO PICKER -->
         <div>
@@ -284,9 +294,9 @@
     </div>
 
     <!-- Inventory Table -->
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 overflow-x-auto">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 overflow-x-auto">
       <h3 class="text-sm font-extrabold text-slate-900 mb-3">Current Products in Database</h3>
-      <table class="w-full text-left text-xs">
+      <table class="w-full text-left text-xs min-w-[500px]">
         <thead>
           <tr class="text-[10px] font-bold text-slate-400 uppercase border-b">
             <th class="py-2.5 px-3">Item</th>
@@ -302,8 +312,8 @@
   </main>
 
   <!-- TAB 4: BANNER & CATEGORY MANAGER -->
-  <main id="bannersViewSection" class="hidden max-w-7xl mx-auto px-6 py-6 space-y-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+  <main id="bannersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <h2 class="text-base font-extrabold text-slate-900 mb-2">Homepage Hero Banner Manager</h2>
       <p class="text-xs text-slate-500 mb-4">Update headline and vegetable shelf picture in real-time.</p>
 
@@ -315,7 +325,7 @@
           </div>
           <div>
             <label class="text-[11px] font-bold text-slate-500 uppercase">Banner Subtitle</label>
-            <input id="bannerSubInput" type="text" required placeholder="Get farm-fresh goodness & a range of exotic fruits..." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+            <input id="bannerSubInput" type="text" required placeholder="Get farm-fresh goodness..." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
           </div>
         </div>
 
@@ -326,7 +336,7 @@
               type="file" 
               accept="image/*" 
               onchange="handleBannerDirectFile(event)" 
-              class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer"
+              class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer w-full sm:w-auto"
             >
             <input id="bannerImgInput" type="text" placeholder="Or paste image link..." class="flex-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
           </div>
@@ -337,14 +347,14 @@
             Save & Publish Banner
           </button>
           <button type="button" onclick="handleResetDefaultBanner()" class="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl border border-rose-200 transition">
-            Delete / Reset to Default
+            Reset to Default
           </button>
         </div>
       </form>
     </div>
 
     <!-- Category Image Replacer (20 Categories) -->
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
         <h3 class="text-base font-extrabold text-slate-900">Category Images Replacer (20 Categories)</h3>
         <p class="text-xs text-slate-500">Pick any image directly from gallery/files for instant update.</p>
