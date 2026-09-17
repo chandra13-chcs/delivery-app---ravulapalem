@@ -177,40 +177,36 @@
     </div>
   </section>
 
-  <!-- 4. INSTAMART-STYLE VISUAL CATEGORY CIRCLES/TILES (SCREENSHOT 462 INSPIRATION) -->
-  <section class="max-w-7xl mx-auto px-4 lg:px-8 pt-8">
+  <!-- INSTAMART-STYLE VISUAL CATEGORIES (ALL ITEMS REMOVED) -->
+  <section class="max-w-7xl mx-auto px-4 lg:px-8 pt-6">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-base font-extrabold text-slate-900">Explore by Category</h3>
-      <span class="text-xs text-emerald-600 font-bold">10-Min Delivery</span>
+      <span class="text-xs text-emerald-600 font-bold">⚡ 10-Min Fast Delivery</span>
     </div>
-    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
-      <div onclick="selectCategory('all')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🛒</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">All Items</p>
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      <div onclick="selectCategory('staples')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-amber-50 flex items-center justify-center text-2xl mb-1.5">🌾</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Atta & Rice</p>
       </div>
-      <div onclick="selectCategory('staples')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🌾</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Atta & Rice</p>
+      <div onclick="selectCategory('dairy')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-cyan-50 flex items-center justify-center text-2xl mb-1.5">🥛</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Milk & Dairy</p>
       </div>
-      <div onclick="selectCategory('dairy')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🥛</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Milk & Dairy</p>
+      <div onclick="selectCategory('snacks')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-rose-50 flex items-center justify-center text-2xl mb-1.5">🍫</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Munchies</p>
       </div>
-      <div onclick="selectCategory('snacks')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🍫</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Chocolates</p>
+      <div onclick="selectCategory('veggies')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-emerald-50 flex items-center justify-center text-2xl mb-1.5">🥕</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Fresh Veggies</p>
       </div>
-      <div onclick="selectCategory('veggies')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🥕</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Fresh Veggies</p>
+      <div onclick="selectCategory('instant')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-yellow-50 flex items-center justify-center text-2xl mb-1.5">🍜</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Instant Foods</p>
       </div>
-      <div onclick="selectCategory('instant')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🍜</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Instant Foods</p>
-      </div>
-      <div onclick="selectCategory('personal')" class="p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-sm transition">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-xl mb-1.5">🧼</div>
-        <p class="text-[11px] font-bold text-slate-800 truncate">Personal Care</p>
+      <div onclick="selectCategory('personal')" class="cat-pill p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-emerald-500 hover:shadow-md transition">
+        <div class="w-12 h-12 mx-auto rounded-xl bg-purple-50 flex items-center justify-center text-2xl mb-1.5">🧼</div>
+        <p class="text-xs font-bold text-slate-800 truncate">Personal Care</p>
       </div>
     </div>
   </section>
@@ -308,67 +304,47 @@
     </div>
   </footer>
 
-  <!-- 1. ORDER DETAILS & INVOICE BREAKDOWN MODAL (SCREENSHOT 457 CLICK LOGIC) -->
-  <div id="orderDetailReceiptModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+ <!-- ORDER DETAIL RECEIPT MODAL (Z-INDEX 90 TO ALWAYS STAY IN FRONT) -->
+  <div id="orderDetailReceiptModal" class="hidden fixed inset-0 z-[90] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-150">
       
-      <div class="p-4 bg-brand-navy text-white flex items-center justify-between">
+      <div class="p-4 bg-slate-950 text-white flex items-center justify-between">
         <div>
-          <span class="text-[10px] uppercase font-black tracking-wider text-cyan-300">Order Receipt & Breakdown</span>
+          <span class="text-[10px] uppercase font-black tracking-wider text-amber-400">Order Tax Receipt</span>
           <h3 id="receiptOrderId" class="text-sm font-extrabold text-white">QD-XXXXXX</h3>
         </div>
         <button onclick="closeOrderDetailReceipt()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:text-white transition">✕</button>
       </div>
 
-      <div class="p-4 overflow-y-auto space-y-4 flex-1 text-xs">
-        <!-- Order Meta Card -->
-        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
-          <div class="flex justify-between">
-            <span class="text-slate-500 font-medium">Status</span>
-            <span id="receiptStatus" class="font-extrabold text-emerald-600">Delivered</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-500 font-medium">Delivery Address</span>
-            <span id="receiptAddress" class="font-bold text-slate-800 text-right max-w-[200px] truncate">RTC Complex, Ravulapalem</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-500 font-medium">Payment Mode</span>
-            <span id="receiptPayment" class="font-bold text-slate-800">UPI (Paid)</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-500 font-medium">Delivery Rider</span>
-            <span id="receiptRider" class="font-bold text-slate-800">Suresh</span>
-          </div>
+      <div class="p-4 overflow-y-auto space-y-3 flex-1 text-xs bg-slate-50">
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1 shadow-sm">
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Status</span><span id="receiptStatus" class="font-extrabold text-emerald-600">Delivered</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Address</span><span id="receiptAddress" class="font-bold text-slate-800 truncate max-w-[200px]">RTC Complex</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Payment</span><span id="receiptPayment" class="font-bold text-slate-800">UPI (Paid)</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Suresh</span></div>
         </div>
 
-        <!-- Items Ordered Table -->
         <div>
-          <h4 class="font-extrabold text-slate-800 mb-2 uppercase text-[10px] tracking-wider">Items in this Order:</h4>
-          <div id="receiptItemsContainer" class="space-y-2"></div>
+          <h4 class="font-extrabold text-slate-800 mb-1.5 uppercase text-[10px] tracking-wider">Ordered Items</h4>
+          <div id="receiptItemsContainer" class="space-y-1.5"></div>
         </div>
 
-        <!-- Bill Details -->
-        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-          <h4 class="font-extrabold text-slate-800 uppercase text-[10px] tracking-wider">Bill Summary</h4>
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1 shadow-sm">
           <div class="flex justify-between text-slate-600"><span>Items Total</span><span id="receiptSubtotal" class="font-bold">₹0</span></div>
-          <div class="flex justify-between text-slate-600"><span>Delivery Fee</span><span class="text-emerald-600 font-bold">FREE</span></div>
-          <div class="flex justify-between text-slate-600"><span>Handling & Bag</span><span class="font-bold">₹4</span></div>
-          <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-200">
-            <span>Total Paid</span>
-            <span id="receiptGrandTotal" class="text-brand-accent">₹0</span>
+          <div class="flex justify-between text-slate-600"><span>Delivery Charge</span><span class="text-emerald-600 font-bold">FREE</span></div>
+          <div class="flex justify-between text-slate-600"><span>Bag Fee</span><span class="font-bold">₹4</span></div>
+          <div class="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
+            <span>Final Paid</span><span id="receiptGrandTotal" class="text-emerald-600">₹0</span>
           </div>
         </div>
       </div>
 
-      <div class="p-4 bg-white border-t border-slate-100 flex gap-2">
-        <button id="receiptPrintPdfBtn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-sm flex items-center justify-center gap-1.5">
-          <i data-lucide="download" class="w-4 h-4"></i> Download Tax Invoice
+      <div class="p-3 bg-white border-t border-slate-100 flex gap-2">
+        <button id="receiptPrintPdfBtn" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-1.5">
+          Print / Save PDF
         </button>
-        <button onclick="closeOrderDetailReceipt()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition">
-          Close
-        </button>
+        <button onclick="closeOrderDetailReceipt()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">Close</button>
       </div>
-
     </div>
   </div>
 
@@ -622,5 +598,48 @@
 
   <script src="js/firebase-config.js"></script>
   <script src="js/customer.js"></script>
+  <!-- ORDER BILL BREAKDOWN MODAL -->
+  <div id="orderDetailReceiptModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+      
+      <div class="p-4 bg-slate-950 text-white flex items-center justify-between">
+        <div>
+          <span class="text-[10px] uppercase font-black tracking-wider text-amber-400">Order Tax Receipt</span>
+          <h3 id="receiptOrderId" class="text-sm font-extrabold text-white">QD-XXXXXX</h3>
+        </div>
+        <button onclick="closeOrderDetailReceipt()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center hover:text-white transition">✕</button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3 flex-1 text-xs bg-slate-50">
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1 shadow-sm">
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Status</span><span id="receiptStatus" class="font-extrabold text-emerald-600">Delivered</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Address</span><span id="receiptAddress" class="font-bold text-slate-800 truncate max-w-[200px]">RTC Complex</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Payment</span><span id="receiptPayment" class="font-bold text-slate-800">UPI (Paid)</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Suresh</span></div>
+        </div>
+
+        <div>
+          <h4 class="font-extrabold text-slate-800 mb-1.5 uppercase text-[10px] tracking-wider">Ordered Items</h4>
+          <div id="receiptItemsContainer" class="space-y-1.5"></div>
+        </div>
+
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1 shadow-sm">
+          <div class="flex justify-between text-slate-600"><span>Items Total</span><span id="receiptSubtotal" class="font-bold">₹0</span></div>
+          <div class="flex justify-between text-slate-600"><span>Delivery Charge</span><span class="text-emerald-600 font-bold">FREE</span></div>
+          <div class="flex justify-between text-slate-600"><span>Bag Fee</span><span class="font-bold">₹4</span></div>
+          <div class="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
+            <span>Final Paid</span><span id="receiptGrandTotal" class="text-emerald-600">₹0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 bg-white border-t border-slate-100 flex gap-2">
+        <button id="receiptPrintPdfBtn" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-1.5">
+          Print / Save PDF
+        </button>
+        <button onclick="closeOrderDetailReceipt()" class="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Close</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
