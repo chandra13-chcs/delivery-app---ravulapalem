@@ -455,7 +455,7 @@
     </div>
   </footer>
 
-  <!-- LOCATION PICKER MODAL (HIDDEN) -->
+  <!-- LOCATION PICKER MODAL -->
   <div id="locationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-200">
       <div class="p-3.5 bg-[#0B132B] text-white flex items-center justify-between">
@@ -499,7 +499,7 @@
     </div>
   </div>
 
-  <!-- CHECKOUT MODAL (HIDDEN) -->
+  <!-- CHECKOUT MODAL -->
   <div id="checkoutModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
       <div class="p-4 bg-[#0B132B] text-white flex items-center justify-between shrink-0">
@@ -513,8 +513,20 @@
       <div class="p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50">
         <div id="cartItemsContainer" class="space-y-1.5"></div>
 
-        <!-- Multi-Address Selector (For family / other locations) -->
+        <!-- 🌟 Multi-Address Selector (Added to your original checkout) -->
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+          <!-- 🌟 Multi-Address Selector -->
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <label class="text-[11px] font-black text-slate-800 uppercase">Delivery Address</label>
+            <button type="button" onclick="openAddressManager()" class="text-[10px] font-bold text-blue-600 underline hover:text-blue-800">
+              + Add / Manage Addresses
+            </button>
+          </div>
+          <select id="checkoutAddressSelect" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none font-bold bg-slate-50">
+            <option value="">-- Select Saved Address --</option>
+          </select>
+        </div>
           <div class="flex items-center justify-between">
             <label class="text-[11px] font-black text-slate-800 uppercase">Delivery Address</label>
             <button type="button" onclick="openAddressManager()" class="text-[10px] font-bold text-blue-600 underline hover:text-blue-800">
@@ -564,6 +576,7 @@
           </div>
         </div>
 
+        <!-- 🌟 FREE DELIVERY BANNER -->
         <div id="freeDeliveryBanner" class="p-2 bg-amber-50 text-amber-800 rounded-xl font-black text-center text-[11px]">
           Add items worth ₹199 to unlock FREE DELIVERY
         </div>
@@ -587,7 +600,7 @@
     </div>
   </div>
 
-  <!-- ADDRESS MANAGER MODAL -->
+  <!-- 🌟 ADDRESS MANAGER MODAL -->
   <div id="addressManagerModal" class="hidden fixed inset-0 z-[75] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
       <div class="flex items-center justify-between border-b pb-3">
@@ -631,7 +644,62 @@
     </div>
   </div>
 
-  <!-- MY ORDERS MODAL (HIDDEN) -->
+  <!-- 🌟 MOBILE BOTTOM NAVIGATION (Ref: ss5_2.jpeg) -->
+  <nav class="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg px-4 py-2 flex items-center justify-around text-center">
+    <a href="index.html" class="flex flex-col items-center text-emerald-600 font-extrabold text-[10px]">
+      <span class="text-lg">🏠</span><span>Home</span>
+    </a>
+    <button onclick="scrollToCategories()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+      <span class="text-lg">📂</span><span>Categories</span>
+    </button>
+    <button onclick="toggleOrdersView()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+      <span class="text-lg">📦</span><span>Cart/Orders</span>
+    </button>
+    <button onclick="openAccountModal()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+      <span class="text-lg">👤</span><span>My Account</span>
+    </button>
+  </nav>
+
+  <!-- 🌟 MY ACCOUNT MODAL (Ref: ss3_2.jpeg) -->
+  <div id="accountModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-base font-black text-slate-900">My Account</h3>
+        <button onclick="closeAccountModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold flex items-center justify-center">✕</button>
+      </div>
+
+      <div class="p-3 bg-slate-50 rounded-2xl border space-y-1 text-xs">
+        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">Chelluri Chandu</h4>
+        <p class="text-slate-500">+91 <span id="accPhoneDisplay">8897798251</span></p>
+        <p class="text-slate-400 text-[11px]">chellurichandu13@gmail.com</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="openAddressManager()" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
+          <span class="text-base">📍</span>
+          <p class="text-xs font-black text-slate-800">Saved Address</p>
+          <p class="text-[10px] text-slate-400">Manage family / other locations</p>
+        </button>
+        <button onclick="alert('Payment modes managed securely at checkout.')" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
+          <span class="text-base">💳</span>
+          <p class="text-xs font-black text-slate-800">Payment Modes</p>
+          <p class="text-[10px] text-slate-400">UPI, QR & Cash on Delivery</p>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <h4 class="text-xs font-black uppercase text-slate-700">Past Orders & Tracking</h4>
+        <div id="accountOrdersFeed" class="space-y-2 max-h-40 overflow-y-auto text-xs"></div>
+      </div>
+
+      <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+        <h4 class="font-black uppercase">Account Security</h4>
+        <p class="text-[11px]">Secure OTP-based passwordless authentication active.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MY ORDERS MODAL -->
   <div id="ordersModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full p-4 max-h-[85vh] flex flex-col shadow-2xl border border-slate-200">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -647,9 +715,9 @@
     </div>
   </div>
 
-  <!-- PRODUCT DETAIL MODAL (HIDDEN) -->
+  <!-- PRODUCT DETAIL MODAL -->
   <div id="productDetailModal" class="hidden fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-200">
       <div class="relative h-52 sm:h-56 bg-slate-50 flex items-center justify-center p-4 border-b border-slate-100">
         <img id="detailImg" src="" alt="Product" class="max-h-full max-w-full object-contain">
         <button onclick="closeProductDetailModal()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-950 text-white flex items-center justify-center font-bold text-sm transition">✕</button>
@@ -683,7 +751,7 @@
     </div>
   </div>
 
-  <!-- RECEIPT MODAL (HIDDEN) -->
+  <!-- RECEIPT MODAL -->
   <div id="orderDetailReceiptModal" class="hidden fixed inset-0 z-[90] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
       <div class="p-4 bg-slate-950 text-white flex items-center justify-between">
@@ -702,7 +770,6 @@
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Suresh</span></div>
         </div>
 
-        <!-- Live Status Timeline -->
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2">
           <p class="font-black text-slate-800 uppercase text-[10px]">Live Order Pipeline</p>
           <div id="orderTimelineBox" class="space-y-1.5"></div>
@@ -732,8 +799,8 @@
     </div>
   </div>
 
-  <!-- FLOATING BOTTOM CART BAR (HIDDEN) -->
-  <div id="bottomCartBar" class="hidden fixed bottom-3 left-0 right-0 max-w-md mx-auto px-3 z-[60]">
+  <!-- FLOATING BOTTOM CART BAR -->
+  <div id="bottomCartBar" class="hidden fixed bottom-16 sm:bottom-3 left-0 right-0 max-w-md mx-auto px-3 z-[60]">
     <div onclick="openCheckout()" class="bg-[#0B132B] hover:bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between cursor-pointer border border-amber-400/40 backdrop-blur-md">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm">
@@ -751,9 +818,9 @@
     </div>
   </div>
 
-  <!-- LOGIN MODAL (HIDDEN) -->
+  <!-- LOGIN MODAL -->
   <div id="customerLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200 space-y-4">
       <div class="flex items-center justify-between pb-2 border-b border-slate-100">
         <div class="text-left flex items-center gap-2">
           <div class="w-8 h-8 rounded-xl bg-amber-400 flex items-center justify-center font-black text-sm">⚡</div>
@@ -786,7 +853,7 @@
     </div>
   </div>
 
-  <!-- ORDER OVERLAY (HIDDEN) -->
+  <!-- PAYMENT OVERLAY -->
   <div id="paymentOverlay" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 text-center text-xs font-bold shadow-2xl">
       Placing order with Ravulapalem Dark Store...
@@ -795,5 +862,48 @@
 
   <script src="js/firebase-config.js"></script>
   <script src="js/customer.js"></script>
+  <!-- 🌟 ADDRESS MANAGER MODAL -->
+<div id="addressManagerModal" class="hidden fixed inset-0 z-[75] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
+    <div class="flex items-center justify-between border-b pb-3">
+      <h3 class="text-base font-black text-slate-900">Manage Delivery Addresses</h3>
+      <button onclick="closeAddressManager()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center">✕</button>
+    </div>
+
+    <div>
+      <h4 class="text-xs font-black uppercase text-slate-500 mb-2">Your Saved Addresses</h4>
+      <div id="savedAddressesContainer" class="space-y-2 max-h-40 overflow-y-auto"></div>
+    </div>
+
+    <form id="manualAddressForm" onsubmit="saveNewManualAddress(event)" class="space-y-3 pt-3 border-t">
+      <h4 class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input id="manualFullName" type="text" placeholder="Full Name *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualMobile" type="tel" placeholder="10-Digit Mobile Number *" required maxlength="10" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input id="manualHouse" type="text" placeholder="House / Flat / Door No *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualStreet" type="text" placeholder="Street / Area / Colony *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <input id="manualCity" type="text" placeholder="Village / City *" required value="Ravulapalem" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualDistrict" type="text" placeholder="District *" required value="East Godavari" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualState" type="text" placeholder="State *" required value="Andhra Pradesh" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input id="manualPincode" type="text" placeholder="PIN Code *" required maxlength="6" value="533238" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualLandmark" type="text" placeholder="Landmark (Optional)" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+      </div>
+
+      <button type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
+        Save Address & Use for Delivery
+      </button>
+    </form>
+  </div>
+</div>
 </body>
 </html>
