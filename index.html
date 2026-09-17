@@ -4,17 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>MyShopzy | 10-Min Fast Delivery Ravulapalem</title>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- TAILWIND CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- LEAFLET & QR CODE CDN -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="css/style.css">
   
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0B132B">
 
   <!-- FIREBASE SDK -->
@@ -34,209 +36,565 @@
               slateBg: '#F8FAFC',
               border: '#E2E8F0'
             }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif']
           }
         }
       }
     }
   </script>
 </head>
-<body class="bg-brand-slateBg text-slate-900 font-sans antialiased pb-32 overflow-x-hidden">
+<body class="bg-[#FCFCFC] text-slate-900 font-sans antialiased pb-32 overflow-x-hidden">
 
-  <!-- 1. MOBILE RESPONSIVE ULTRA-CLEAN HEADER -->
-  <header class="sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-slate-200">
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3">
+  <!-- TOP NAV BAR (DARK NAVY / BLACK HEADER) -->
+  <header class="sticky top-0 z-40 bg-[#0B132B] text-white shadow-lg border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3">
       
-      <!-- Top Row -->
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center justify-between gap-2 sm:gap-4">
         
-        <!-- Left: Brand Logo & Location -->
-        <div class="flex items-center gap-2 min-w-0">
+        <!-- Brand Logo & Location -->
+        <div class="flex items-center gap-2 sm:gap-3.5 min-w-0">
           <a href="index.html" class="flex items-center gap-1.5 shrink-0">
             <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
               ⚡
             </div>
             <div class="leading-tight">
-              <span class="text-base sm:text-lg font-black tracking-tight text-slate-900 block">
-                MyShopzy<span class="text-amber-500">.</span>
+              <span class="text-base sm:text-xl font-black tracking-tight text-white block leading-none">
+                MyShopzy<span class="text-amber-400">.</span>
               </span>
-              <span class="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-emerald-600 block">
-                Ravulapalem
+              <span class="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-cyan-400 block mt-0.5">
+                Ravulapalem Hub
               </span>
             </div>
           </a>
 
           <!-- Location Picker Button -->
-          <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1 bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded-xl border border-slate-200 min-w-0">
-            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-            <p id="currentAddressHeader" class="text-[11px] font-bold text-slate-700 truncate max-w-[90px] sm:max-w-[140px]">RTC Complex</p>
-            <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400 shrink-0"></i>
+          <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1.5 bg-[#1C2541] hover:bg-slate-800 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-700 min-w-0 transition">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase leading-none">10 Mins Delivery</p>
+              <p id="currentAddressHeader" class="text-[11px] sm:text-xs font-black text-slate-200 truncate max-w-[100px] sm:max-w-[160px] leading-tight mt-0.5">RTC Complex, Ravulapalem</p>
+            </div>
+            <span class="text-xs text-slate-400">▼</span>
           </div>
         </div>
 
-        <!-- Middle: Search Desktop -->
-        <div class="hidden md:flex flex-1 max-w-md mx-4 relative">
-          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5"></i>
+        <!-- Search Bar Desktop -->
+        <div class="hidden md:flex flex-1 max-w-lg mx-2 relative">
           <input 
             id="searchInputDesktop" 
             oninput="handleSearch(this.value)" 
             type="text" 
             placeholder='Search "milk", "chips", "oil", "atta"...' 
-            class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
+            class="w-full px-4 py-2 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
           >
         </div>
 
-        <!-- Right: Actions & User -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <!-- Hub Shortcut -->
-          <a href="admin.html" class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] font-bold text-slate-700">
-            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 text-amber-500"></i>
+        <!-- Right Buttons -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <a href="admin.html" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition shadow-sm">
+            <span>📊</span>
             <span>Hub</span>
           </a>
 
-          <!-- My Orders Button -->
-          <button onclick="toggleOrdersView()" class="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 flex items-center gap-1">
-            <i data-lucide="package" class="w-4 h-4 text-emerald-600"></i>
-            <span class="hidden sm:inline">Orders</span>
+          <button onclick="toggleOrdersView()" class="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition shadow-sm">
+            <span>📦</span>
+            <span class="hidden sm:inline">My Orders</span>
           </button>
 
           <!-- Auth Chip -->
           <div id="authContainer">
-            <button onclick="openLoginModal()" id="loginBtn" class="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-brand-navy hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1 shadow-sm">
-              <i data-lucide="user" class="w-3.5 h-3.5"></i>
+            <button onclick="openLoginModal()" id="loginBtn" class="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1 shadow-md transition">
+              <span>👤</span>
               <span>Login</span>
             </button>
-            <div id="userChip" class="hidden flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
+            <div id="userChip" class="hidden flex items-center gap-1.5 bg-[#1C2541] border border-slate-700 px-2.5 py-1 rounded-xl">
               <span class="text-xs">👤</span>
-              <span id="userPhoneDisplay" class="text-xs font-black text-slate-800"></span>
-              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-500 text-xs ml-0.5 font-bold">✕</button>
+              <span id="userPhoneDisplay" class="text-xs font-black text-white"></span>
+              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-1 font-black">✕</button>
             </div>
           </div>
         </div>
 
       </div>
 
-      <!-- Mobile Search Row -->
+      <!-- Mobile Search Bar -->
       <div class="mt-2 relative md:hidden">
-        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i>
         <input 
           id="searchInputMobile" 
           oninput="handleSearch(this.value)" 
           type="text" 
-          placeholder='Search "milk", "atta", "oil", "chips"...' 
-          class="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition"
+          placeholder='Search for groceries & essentials...' 
+          class="w-full px-3 py-2 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
         >
       </div>
 
     </div>
   </header>
 
-  <!-- 2. NAVY BLUE PROMOTION HERO BANNER (REPLACED GREEN) -->
+  <!-- SIGNATURE NAVY BLUE HERO BANNER -->
   <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
-    <div class="rounded-3xl bg-gradient-to-r from-[#0B132B] via-[#1C2541] to-[#0A1128] text-white p-5 sm:p-8 flex flex-col md:flex-row items-center justify-between shadow-xl border border-slate-800 relative overflow-hidden">
+    <div id="heroBannerContainer" class="rounded-3xl bg-gradient-to-r from-[#0B132B] via-[#1C2541] to-[#0D1B2A] text-white p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between shadow-xl border border-slate-800/80 relative overflow-hidden">
       
-      <div class="z-10 space-y-2.5 max-w-lg text-left">
-        <span class="px-3 py-1 bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-full shadow-sm inline-block">
-          ⚡ RAVULAPALEM RTC DARK STORE
+      <div class="z-10 space-y-3 max-w-lg text-left">
+        <span class="px-3 py-1 bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-full shadow inline-block">
+          ⚡ RAVULAPALEM EXPRESS DARK STORE
         </span>
-        <h1 class="text-xl sm:text-3xl font-extrabold tracking-tight leading-snug text-white">
-          Groceries & Essentials in 10 Minutes
+        <h1 id="bannerTitleDisplay" class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight text-white">
+          Stock up on daily essentials
         </h1>
-        <p class="text-xs sm:text-sm text-slate-300">
-          Original local market prices. Freshly packed and delivered across Ravulapalem within 6 KM.
+        <p id="bannerSubDisplay" class="text-xs sm:text-sm text-slate-300">
+          Get farm-fresh goodness & a range of exotic fruits, vegetables, eggs & more
         </p>
-        <div class="pt-1">
-          <button onclick="selectCategory('staples')" class="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-brand-navy rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg">
-            Shop Essentials
+        <div class="pt-2">
+          <button onclick="selectCategory('dairy', this)" class="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg hover:scale-105">
+            Shop Now
           </button>
         </div>
       </div>
 
-      <div class="mt-4 md:mt-0 z-10 w-44 sm:w-64 drop-shadow-2xl">
-        <img src="https://images.pexels.com/photos/1435735/pexels-photo-1435735.jpeg?auto=compress&cs=tinysrgb&w=600" alt="Fresh Groceries" class="rounded-2xl object-cover border border-white/10 shadow-2xl">
+      <div class="mt-4 md:mt-0 z-10 w-52 sm:w-80 shrink-0">
+        <img id="bannerImgDisplay" src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80" alt="Fresh Produce Shelf" class="w-full h-36 sm:h-44 object-cover rounded-2xl drop-shadow-2xl border border-white/10">
       </div>
     </div>
 
-    <!-- 3 Mini Promo Tiles -->
-    <div class="grid grid-cols-3 gap-2 sm:gap-4 mt-3">
-      <div onclick="selectCategory('dairy')" class="p-2.5 sm:p-4 rounded-2xl bg-cyan-50/70 border border-cyan-100 flex flex-col sm:flex-row items-center justify-between cursor-pointer hover:shadow-md transition text-center sm:text-left">
+    <!-- 3 Mini Category Promo Tiles -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+      <div onclick="selectCategory('instant', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
         <div>
-          <h4 class="text-[11px] sm:text-xs font-black text-cyan-950">Dairy & Milk</h4>
-          <p class="hidden sm:block text-[10px] text-cyan-700 mt-0.5">Bread & Paneer</p>
+          <h4 class="text-xs sm:text-sm font-black text-slate-900">Pharmacy at your doorstep!</h4>
+          <p class="text-[11px] text-slate-500 mt-0.5">Cough syrups, pain relief sprays & more</p>
+          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
         </div>
-        <span class="text-xl sm:text-2xl mt-1 sm:mt-0">🥛</span>
+        <img src="https://images.pexels.com/photos/593451/pexels-photo-593451.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
       </div>
 
-      <div onclick="selectCategory('snacks')" class="p-2.5 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-100 flex flex-col sm:flex-row items-center justify-between cursor-pointer hover:shadow-md transition text-center sm:text-left">
+      <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
         <div>
-          <h4 class="text-[11px] sm:text-xs font-black text-amber-950">Munchies</h4>
-          <p class="hidden sm:block text-[10px] text-amber-700 mt-0.5">Chips & Drinks</p>
+          <h4 class="text-xs sm:text-sm font-black text-slate-900">Pet care supplies at your door</h4>
+          <p class="text-[11px] text-slate-500 mt-0.5">Food, treats, toys & more essentials</p>
+          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
         </div>
-        <span class="text-xl sm:text-2xl mt-1 sm:mt-0">🍫</span>
+        <img src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
       </div>
 
-      <div onclick="selectCategory('veggies')" class="p-2.5 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex flex-col sm:flex-row items-center justify-between cursor-pointer hover:shadow-md transition text-center sm:text-left">
+      <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
         <div>
-          <h4 class="text-[11px] sm:text-xs font-black text-emerald-950">Fresh Veggies</h4>
-          <p class="hidden sm:block text-[10px] text-emerald-700 mt-0.5">Onions & Tomatoes</p>
+          <h4 class="text-xs sm:text-sm font-black text-slate-900">No time for a diaper run?</h4>
+          <p class="text-[11px] text-slate-500 mt-0.5">Get baby care essentials in minutes</p>
+          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
         </div>
-        <span class="text-xl sm:text-2xl mt-1 sm:mt-0">🥕</span>
+        <img src="https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
       </div>
     </div>
   </section>
 
-  <!-- 3. DIRECT CATEGORY SELECTION (NO 'ALL ITEMS') -->
+  <!-- 20 VISUAL CATEGORIES GRID -->
   <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-sm sm:text-base font-extrabold text-slate-900">Explore Categories</h3>
-      <span class="text-xs text-brand-accent font-bold">⚡ 10-Min Delivery</span>
+    <div class="flex items-center justify-between mb-3.5">
+      <div>
+        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Explore Categories</h3>
+        <p class="text-[11px] text-slate-400 font-semibold">Tap any category to view instant 10-min essentials</p>
+      </div>
+      <span class="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shadow-sm">
+        ⚡ 10-Min Fast Delivery
+      </span>
     </div>
-    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-      <div onclick="selectCategory('staples')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🌾</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Atta & Rice</p>
+
+    <div class="grid grid-rows-2 grid-flow-col auto-cols-[100px] sm:auto-cols-[118px] md:grid-flow-row md:grid-cols-5 lg:grid-cols-10 gap-2.5 overflow-x-auto no-scrollbar pb-3">
+      <div onclick="selectCategory('paan', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Paan">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Paan Corner</p>
       </div>
-      <div onclick="selectCategory('dairy')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🥛</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Milk & Dairy</p>
+
+      <div onclick="selectCategory('dairy', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Dairy">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Dairy, Bread & Eggs</p>
       </div>
-      <div onclick="selectCategory('snacks')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🍫</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Munchies</p>
+
+      <div onclick="selectCategory('veggies', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/144248/potatoes-vegetables-erdfrucht-bio-144248.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Veggies">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Fruits & Vegetables</p>
       </div>
-      <div onclick="selectCategory('veggies')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🥕</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Fresh Veggies</p>
+
+      <div onclick="selectCategory('drinks', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Coca-Cola_can_-_2020.jpg/220px-Coca-Cola_can_-_2020.jpg" class="max-h-full object-contain group-hover:scale-105 transition" alt="Cold Drinks">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Cold Drinks & Juices</p>
       </div>
-      <div onclick="selectCategory('instant')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🍜</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Instant Foods</p>
+
+      <div onclick="selectCategory('snacks', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/568805/pexels-photo-568805.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Snacks">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Snacks & Munchies</p>
       </div>
-      <div onclick="selectCategory('personal')" class="cat-pill p-2.5 sm:p-3 bg-white border border-slate-200 rounded-2xl text-center cursor-pointer hover:border-brand-accent hover:shadow-sm transition">
-        <div class="text-xl sm:text-2xl mb-1">🧼</div>
-        <p class="text-[11px] sm:text-xs font-bold text-slate-800 truncate">Personal Care</p>
+
+      <div onclick="selectCategory('breakfast', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/884600/pexels-photo-884600.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Breakfast">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Breakfast & Instant Food</p>
+      </div>
+
+      <div onclick="selectCategory('sweets', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/65882/chocolate-dark-coffee-confiserie-65882.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Sweets">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Sweet Tooth</p>
+      </div>
+
+      <div onclick="selectCategory('bakery', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/1395319/pexels-photo-1395319.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Bakery">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Bakery & Biscuits</p>
+      </div>
+
+      <div onclick="selectCategory('tea', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Tea">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Tea, Coffee & Milk Drinks</p>
+      </div>
+
+      <div onclick="selectCategory('staples', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/6287295/pexels-photo-6287295.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Atta">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Atta, Rice & Dal</p>
+      </div>
+
+      <!-- Row 2 -->
+      <div onclick="selectCategory('masala', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Oil">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Masala, Oil & More</p>
+      </div>
+
+      <div onclick="selectCategory('sauces', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/1435735/pexels-photo-1435735.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Sauces">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Sauces & Spreads</p>
+      </div>
+
+      <div onclick="selectCategory('meat', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Meat">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Chicken, Meat & Fish</p>
+      </div>
+
+      <div onclick="selectCategory('organic', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/7421213/pexels-photo-7421213.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Organic">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Organic & Healthy</p>
+      </div>
+
+      <div onclick="selectCategory('baby', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Baby">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Baby Care</p>
+      </div>
+
+      <div onclick="selectCategory('pharma', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/593451/pexels-photo-593451.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Pharma">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Pharma & Wellness</p>
+      </div>
+
+      <div onclick="selectCategory('cleaning', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/5202925/pexels-photo-5202925.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Cleaning">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Cleaning Essentials</p>
+      </div>
+
+      <div onclick="selectCategory('home', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/4198024/pexels-photo-4198024.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Home">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Home & Office</p>
+      </div>
+
+      <div onclick="selectCategory('personal', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/6621376/pexels-photo-6621376.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Personal">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Personal Care</p>
+      </div>
+
+      <div onclick="selectCategory('pet', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Pet">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Pet Care</p>
       </div>
     </div>
   </section>
 
-  <!-- 4. PRODUCTS FEED -->
+  <!-- PRODUCTS FEED -->
   <main class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center justify-between mb-4">
       <div>
-        <h3 id="categoryHeading" class="text-base sm:text-lg font-black text-slate-900">Atta, Rice & Dal</h3>
-        <p class="text-[11px] text-slate-400">Tap product card to view full description</p>
+        <h3 id="categoryHeading" class="text-base sm:text-lg font-black text-slate-900">Dairy, Bread & Eggs</h3>
+        <p class="text-[11px] text-slate-400">Products are loaded dynamically from Admin Panel</p>
       </div>
       <span id="itemCountBadge" class="text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1 rounded-full shadow-sm">
         0 Items
       </span>
     </div>
 
+    <!-- Product Cards Grid -->
     <div id="productsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"></div>
   </main>
 
-  <!-- 5. PRODUCT DESCRIPTION QUICK-VIEW MODAL (Z-INDEX 80 FOR CLEAR FRONT POPUP) -->
+  <!-- SIGNATURE NAVY BLUE MEGA FOOTER -->
+  <footer class="mt-20 bg-[#0B132B] text-slate-300 border-t border-slate-800 pt-14 pb-16 text-xs">
+    <div class="max-w-7xl mx-auto px-4 lg:px-8">
+      
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-10 mb-10 border-b border-slate-800 gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg">
+            ⚡
+          </div>
+          <div>
+            <h4 class="text-xl font-black text-white tracking-tight leading-none">
+              MyShopzy<span class="text-amber-400">.</span>
+            </h4>
+            <p class="text-[11px] text-cyan-400 font-bold mt-1">Ravulapalem's 10-Minute Dark Store Network</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Dark Store: <strong>RTC Complex Hub</strong></span>
+          </div>
+          <a href="admin.html" class="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] transition shadow">
+            Store Console →
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-8 pb-12 border-b border-slate-800/80">
+        <div class="space-y-2.5">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Useful Links</h5>
+          <p><a href="#" class="hover:text-white transition">About MyShopzy</a></p>
+          <p><a href="#" class="hover:text-white transition">Privacy Policy</a></p>
+          <p><a href="#" class="hover:text-white transition">Terms of Service</a></p>
+          <p><a href="#" class="hover:text-white transition">FAQs & Help</a></p>
+          <p><a href="#" class="hover:text-white transition">Security & Safety</a></p>
+          <p><a href="#" class="hover:text-white transition">Contact Support</a></p>
+        </div>
+
+        <div class="space-y-2.5">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Partner</h5>
+          <p><a href="rider.html" class="text-cyan-400 hover:text-cyan-300 font-bold transition">Delivery Partner</a></p>
+          <p><a href="admin.html" class="text-cyan-400 hover:text-cyan-300 font-bold transition">Store Manager Hub</a></p>
+          <p><a href="#" class="hover:text-white transition">Local Farmer Tie-up</a></p>
+          <p><a href="#" class="hover:text-white transition">Franchise Enquiry</a></p>
+          <p><a href="#" class="hover:text-white transition">Warehouse Hub</a></p>
+        </div>
+
+        <div class="space-y-2.5">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Groceries</h5>
+          <p><a onclick="selectCategory('staples', this)" class="cursor-pointer hover:text-white transition">Atta, Rice & Dal</a></p>
+          <p><a onclick="selectCategory('masala', this)" class="cursor-pointer hover:text-white transition">Cooking Oils & Ghee</a></p>
+          <p><a onclick="selectCategory('dairy', this)" class="cursor-pointer hover:text-white transition">Milk, Curd & Paneer</a></p>
+          <p><a onclick="selectCategory('veggies', this)" class="cursor-pointer hover:text-white transition">Fresh Vegetables</a></p>
+          <p><a onclick="selectCategory('masala', this)" class="cursor-pointer hover:text-white transition">Masala & Spices</a></p>
+        </div>
+
+        <div class="space-y-2.5">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Snacks</h5>
+          <p><a onclick="selectCategory('snacks', this)" class="cursor-pointer hover:text-white transition">Chips & Namkeen</a></p>
+          <p><a onclick="selectCategory('sweets', this)" class="cursor-pointer hover:text-white transition">Chocolates & Sweets</a></p>
+          <p><a onclick="selectCategory('bakery', this)" class="cursor-pointer hover:text-white transition">Biscuits & Cookies</a></p>
+          <p><a onclick="selectCategory('breakfast', this)" class="cursor-pointer hover:text-white transition">Instant Noodles</a></p>
+          <p><a onclick="selectCategory('drinks', this)" class="cursor-pointer hover:text-white transition">Cold Drinks & Juices</a></p>
+        </div>
+
+        <div class="space-y-2.5">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Household</h5>
+          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Bath & Soaps</a></p>
+          <p><a onclick="selectCategory('cleaning', this)" class="cursor-pointer hover:text-white transition">Detergents & Bars</a></p>
+          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Oral Care & Pastes</a></p>
+          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Skin & Hair Care</a></p>
+          <p><a onclick="selectCategory('cleaning', this)" class="cursor-pointer hover:text-white transition">Cleaning Supplies</a></p>
+        </div>
+
+        <div class="space-y-3">
+          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Ravulapalem SLA</h5>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            ⚡ <strong>10-Minute Dispatch:</strong> Direct deliveries from RTC Hub Centre across Ravulapalem 6KM Radius.
+          </p>
+          <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl">
+            <span class="block text-[10px] uppercase font-black text-amber-400">Dark Store Hub:</span>
+            <span class="text-[11px] font-bold text-white">RTC Complex, Ravulapalem</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
+        <p>© 2026 MyShopzy Express Commerce Pvt Ltd. All rights reserved.</p>
+        <p class="text-slate-400">Built for Ravulapalem Dark Store Operations</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- LOCATION PICKER MODAL (HIDDEN) -->
+  <div id="locationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-3.5 bg-[#0B132B] text-white flex items-center justify-between">
+        <div>
+          <h3 class="text-xs font-black">Select Delivery Location</h3>
+          <p class="text-[10px] text-cyan-400 font-bold">Ravulapalem Hub (6 KM Express Radius)</p>
+        </div>
+        <button onclick="closeLocationModal()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold">✕</button>
+      </div>
+
+      <div class="p-3.5 space-y-3">
+        <div id="deliveryMap" class="w-full h-44 rounded-2xl border border-slate-200 shadow-inner"></div>
+
+        <button onclick="detectDeviceLocation()" class="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-black text-emerald-800 flex items-center justify-center gap-2 transition shadow-sm">
+          <span>🎯</span> Use My Exact Current Location (GPS)
+        </button>
+
+        <div class="space-y-1">
+          <p class="text-[10px] font-bold text-slate-400 uppercase">Popular Hub Areas:</p>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <button onclick="selectPresetLoc('RTC Complex, Ravulapalem', 16.7483, 81.8488)" class="p-2 text-left bg-slate-50 hover:bg-amber-50 border border-slate-200 rounded-xl transition">
+              <strong class="block text-[11px] text-slate-800">RTC Complex</strong>
+              <span class="text-[9px] text-slate-500">Dark Store (0.2 km)</span>
+            </button>
+            <button onclick="selectPresetLoc('Kotipalli Road, Ravulapalem', 16.7510, 81.8510)" class="p-2 text-left bg-slate-50 hover:bg-amber-50 border border-slate-200 rounded-xl transition">
+              <strong class="block text-[11px] text-slate-800">Kotipalli Road</strong>
+              <span class="text-[9px] text-slate-500">Market (0.8 km)</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="serviceStatusBox" class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between font-bold">
+          <span>⚡ 10-Min Fast Delivery</span>
+          <span id="distanceBadge" class="font-black">0.5 KM</span>
+        </div>
+
+        <button onclick="confirmLocationSelection()" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow">
+          Deliver to this Address
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHECKOUT MODAL (HIDDEN) -->
+  <div id="checkoutModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-[#0B132B] text-white flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="text-sm font-black text-white">Review & Place Order</h3>
+          <p class="text-[10px] text-cyan-400 font-bold">Ravulapalem 10-Min Express Dispatch</p>
+        </div>
+        <button onclick="closeCheckout()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold">✕</button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50">
+        <div id="cartItemsContainer" class="space-y-1.5"></div>
+
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+          <input id="inputPhone" type="tel" maxlength="10" placeholder="10-Digit Mobile Number" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none font-bold bg-slate-50 tracking-wider">
+          <input id="inputAddress" type="text" placeholder="House / Street Landmark in Ravulapalem" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none bg-slate-50 font-medium">
+        </div>
+
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2.5 shadow-sm">
+          <p class="text-[11px] font-black text-slate-800 uppercase tracking-wide">Select Payment Method</p>
+          
+          <div class="grid grid-cols-3 gap-1.5">
+            <button type="button" onclick="setPaymentMethod('UPI_APPS')" id="btnMethodApps" class="p-2 border border-slate-200 rounded-xl text-center text-xs font-bold bg-white transition flex flex-col items-center gap-1">
+              <span class="text-sm">📱</span>
+              <span class="text-[10px]">UPI Apps</span>
+            </button>
+            <button type="button" onclick="setPaymentMethod('UPI_QR')" id="btnMethodQR" class="p-2 border-2 border-emerald-600 rounded-xl text-center text-xs font-bold bg-emerald-50/50 transition flex flex-col items-center gap-1">
+              <span class="text-sm">📷</span>
+              <span class="text-[10px]">Scan QR</span>
+            </button>
+            <button type="button" onclick="setPaymentMethod('COD')" id="btnMethodCOD" class="p-2 border border-slate-200 rounded-xl text-center text-xs font-bold bg-white transition flex flex-col items-center gap-1">
+              <span class="text-sm">💵</span>
+              <span class="text-[10px]">Pay on Delivery</span>
+            </button>
+          </div>
+
+          <div id="upiAppsBox" class="hidden p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-center">
+            <p class="text-xs font-extrabold text-slate-700">Pay directly with installed app:</p>
+            <div class="flex items-center justify-center gap-2">
+              <button type="button" onclick="triggerDirectUpiPay('GPay')" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 shadow-sm hover:border-emerald-500">Google Pay</button>
+              <button type="button" onclick="triggerDirectUpiPay('PhonePe')" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-purple-700 shadow-sm hover:border-emerald-500">PhonePe</button>
+              <button type="button" onclick="triggerDirectUpiPay('Paytm')" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-cyan-700 shadow-sm hover:border-emerald-500">Paytm</button>
+            </div>
+          </div>
+
+          <div id="upiQrBox" class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center justify-center">
+            <div id="qrcodeCanvas" class="p-2 bg-white rounded-xl shadow border border-slate-200"></div>
+            <p class="text-[10px] font-bold text-slate-500 mt-2">Scan & pay using any UPI app</p>
+          </div>
+
+          <div id="codNoticeBox" class="hidden p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+            <span>💵</span>
+            <span>Pay Cash or UPI directly to the delivery rider at your doorstep.</span>
+          </div>
+        </div>
+
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1.5 text-xs">
+          <div class="flex justify-between text-slate-600"><span>Items Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
+          <div class="flex justify-between text-slate-600"><span>10-Min Fast Delivery</span><span class="font-bold text-emerald-600">FREE</span></div>
+          <div class="flex justify-between text-slate-600"><span>Handling & Bag Fee</span><span class="font-bold text-slate-900">₹4</span></div>
+          <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
+            <span>To Pay</span><span id="billFinal" class="text-emerald-600">₹0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 bg-white border-t border-slate-200 shrink-0">
+        <button onclick="processPaymentFlow()" id="btnConfirmPlaceOrder" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+          <span>Confirm & Place Order</span>
+          <span>⚡</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MY ORDERS MODAL (HIDDEN) -->
+  <div id="ordersModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 max-h-[85vh] flex flex-col shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div>
+          <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
+            <span class="text-emerald-600">📦</span> My Orders
+          </h3>
+          <p class="text-[10px] text-slate-400">Tap order to open detailed bill & print receipt</p>
+        </div>
+        <button onclick="closeOrdersView()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold">✕</button>
+      </div>
+      <div id="ordersFeed" class="overflow-y-auto space-y-2 py-3 flex-1 text-xs"></div>
+    </div>
+  </div>
+
+  <!-- PRODUCT DETAIL MODAL (HIDDEN) -->
   <div id="productDetailModal" class="hidden fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150">
-      
       <div class="relative h-52 sm:h-56 bg-slate-50 flex items-center justify-center p-4 border-b border-slate-100">
         <img id="detailImg" src="" alt="Product" class="max-h-full max-w-full object-contain">
         <button onclick="closeProductDetailModal()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-950 text-white flex items-center justify-center font-bold text-sm transition">✕</button>
@@ -247,9 +605,9 @@
 
       <div class="p-4 space-y-3">
         <div>
-          <span id="detailCategory" class="text-[10px] uppercase font-black text-brand-accent tracking-wider block">STAPLES</span>
+          <span id="detailCategory" class="text-[10px] uppercase font-black text-brand-accent tracking-wider block">CATEGORY</span>
           <h3 id="detailName" class="text-sm sm:text-base font-extrabold text-slate-900 leading-snug mt-0.5">Product Name</h3>
-          <p id="detailUnit" class="text-xs text-slate-500 font-semibold mt-0.5">1 kg Pack</p>
+          <p id="detailUnit" class="text-xs text-slate-500 font-semibold mt-0.5">1 Unit</p>
         </div>
 
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
@@ -267,11 +625,10 @@
           <div id="detailActionBtn"></div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- 6. ORDER DETAIL RECEIPT MODAL (Z-INDEX 90) -->
+  <!-- RECEIPT MODAL (HIDDEN) -->
   <div id="orderDetailReceiptModal" class="hidden fixed inset-0 z-[90] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
       <div class="p-4 bg-slate-950 text-white flex items-center justify-between">
@@ -314,11 +671,11 @@
     </div>
   </div>
 
-  <!-- FLOATING CART BAR -->
+  <!-- FLOATING BOTTOM CART BAR (HIDDEN) -->
   <div id="bottomCartBar" class="hidden fixed bottom-3 left-0 right-0 max-w-md mx-auto px-3 z-[60]">
-    <div onclick="openCheckout()" class="bg-brand-navy hover:bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between cursor-pointer border border-amber-400/40 backdrop-blur-md">
+    <div onclick="openCheckout()" class="bg-[#0B132B] hover:bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between cursor-pointer border border-amber-400/40 backdrop-blur-md">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-amber-400 text-brand-navy flex items-center justify-center font-black text-sm">
+        <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm">
           🛒
         </div>
         <div>
@@ -326,84 +683,53 @@
           <span id="barGrandPrice" class="text-sm font-black text-white block leading-none">₹0</span>
         </div>
       </div>
-      <div class="flex items-center gap-1 bg-amber-400 text-brand-navy px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider">
+      <div class="flex items-center gap-1 bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider">
         <span>Proceed</span>
-        <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        <span>→</span>
       </div>
     </div>
   </div>
 
-  <!-- OTHER MODALS (MY ORDERS, CHECKOUT, LOCATION, AUTH) -->
-  <div id="ordersModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-4 max-h-[85vh] flex flex-col shadow-2xl border border-slate-200">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+  <!-- LOGIN MODAL (HIDDEN) -->
+  <div id="customerLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="text-left flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-400 flex items-center justify-center font-black text-sm">⚡</div>
+          <div>
+            <h3 class="text-sm font-black text-slate-900 leading-none">MyShopzy</h3>
+            <p class="text-[10px] text-emerald-600 font-bold mt-0.5">India's last minute app</p>
+          </div>
+        </div>
+        <button onclick="closeLoginModal()" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs">✕</button>
+      </div>
+      <div id="loginStepPhone" class="space-y-3 text-left">
         <div>
-          <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
-            <i data-lucide="package" class="w-4 h-4 text-emerald-600"></i> My Orders
-          </h3>
-          <p class="text-[10px] text-slate-400">Tap order to open detailed bill & print receipt</p>
+          <h4 class="text-sm font-extrabold text-slate-900">Log in or Sign up</h4>
+          <p class="text-xs text-slate-400 mt-0.5">Enter your 10-digit mobile number to proceed</p>
         </div>
-        <button onclick="closeOrdersView()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold">✕</button>
+        <div class="flex items-center border-2 border-slate-200 focus-within:border-brand-navy rounded-2xl px-3 py-2.5 bg-slate-50 transition">
+          <span class="text-xs font-black text-slate-500 mr-2 border-r border-slate-300 pr-2">+91</span>
+          <input id="loginMobileInput" type="tel" maxlength="10" placeholder="Enter mobile number" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)" class="flex-1 bg-transparent text-sm font-black tracking-wider outline-none text-slate-900">
+        </div>
+        <button onclick="sendCustomerLoginOtp()" class="w-full py-3 bg-[#0B132B] hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md">Continue with OTP</button>
       </div>
-      <div id="ordersFeed" class="overflow-y-auto space-y-2 py-3 flex-1 text-xs"></div>
-    </div>
-  </div>
-
-  <div id="checkoutModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end flex-col sm:items-center sm:justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
-      <div class="p-3.5 bg-brand-navy text-white flex items-center justify-between">
-        <h3 class="text-xs font-bold">Review & Place Order</h3>
-        <button onclick="closeCheckout()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center">✕</button>
-      </div>
-      <div class="p-3.5 overflow-y-auto space-y-3 flex-1 text-xs bg-slate-50">
-        <div id="cartItemsContainer" class="space-y-1.5"></div>
-        <div class="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
-          <input id="inputPhone" type="tel" maxlength="10" placeholder="10-Digit Mobile Number" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none font-bold">
-          <input id="inputAddress" type="text" placeholder="House / Street Landmark in Ravulapalem" class="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg outline-none">
+      <div id="loginStepOtp" class="hidden space-y-3 text-center">
+        <div>
+          <h4 class="text-sm font-extrabold text-slate-900">Verify Mobile Number</h4>
+          <p class="text-xs text-slate-400 mt-0.5">Enter the 4-digit OTP sent to your phone</p>
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <button type="button" onclick="setPaymentMethod('UPI_QR')" id="btnMethodQR" class="p-2 border-2 border-brand-accent rounded-xl text-center text-xs font-bold bg-blue-50">Scan UPI QR</button>
-          <button type="button" onclick="setPaymentMethod('COD')" id="btnMethodCOD" class="p-2 border border-slate-200 rounded-xl text-center text-xs font-bold bg-white">Pay on Delivery</button>
-        </div>
-        <div id="upiQrBox" class="p-2 bg-white rounded-xl border border-slate-200 flex flex-col items-center">
-          <div id="qrcodeCanvas"></div>
-        </div>
-        <div class="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1 text-[11px]">
-          <div class="flex justify-between"><span>Subtotal</span><span id="billSubtotal" class="font-bold">₹0</span></div>
-          <div class="flex justify-between"><span>Bag Fee</span><span class="font-bold">₹4</span></div>
-          <div class="flex justify-between text-xs font-black pt-1 border-t border-slate-100"><span>To Pay</span><span id="billFinal" class="text-brand-accent">₹0</span></div>
-        </div>
-      </div>
-      <div class="p-3 bg-white border-t border-slate-200">
-        <button onclick="processPaymentFlow()" class="w-full py-2.5 bg-brand-navy text-white text-xs font-bold uppercase rounded-xl">Confirm & Order</button>
+        <input id="loginOtpInput" type="tel" maxlength="4" placeholder="••••" class="w-full text-center tracking-[1em] text-2xl font-black py-2.5 border-2 border-slate-200 rounded-2xl focus:border-brand-navy outline-none bg-slate-50">
+        <button onclick="verifyCustomerLoginOtp()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md">Verify & Access Store</button>
       </div>
     </div>
   </div>
 
-  <div id="locationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-sm w-full overflow-hidden p-4 space-y-3">
-      <div class="flex justify-between items-center"><h3 class="text-xs font-bold">Select Delivery Area</h3><button onclick="closeLocationModal()">✕</button></div>
-      <div id="deliveryMap" class="h-44 rounded-xl border border-slate-200"></div>
-      <button onclick="confirmLocationSelection()" class="w-full py-2 bg-brand-navy text-white text-xs font-bold rounded-xl">Set Location</button>
-    </div>
-  </div>
-
-  <div id="customerLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-xs w-full p-4 space-y-3 text-center">
-      <h3 class="text-xs font-black">Customer Mobile Login</h3>
-      <div id="loginStepPhone" class="space-y-2">
-        <input id="loginMobileInput" type="tel" maxlength="10" placeholder="Enter Mobile Number" class="w-full text-center py-2 text-xs border rounded-xl font-bold">
-        <button onclick="sendCustomerLoginOtp()" class="w-full py-2 bg-brand-navy text-white text-xs font-bold rounded-xl">Send OTP</button>
-      </div>
-      <div id="loginStepOtp" class="hidden space-y-2">
-        <input id="loginOtpInput" type="tel" maxlength="4" placeholder="••••" class="w-full text-center py-2 text-lg font-black border rounded-xl tracking-widest">
-        <button onclick="verifyCustomerLoginOtp()" class="w-full py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl">Verify & Enter</button>
-      </div>
-    </div>
-  </div>
-
+  <!-- ORDER OVERLAY (HIDDEN) -->
   <div id="paymentOverlay" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-5 text-center text-xs font-bold">Placing order with Ravulapalem Dark Store...</div>
+    <div class="bg-white rounded-2xl p-5 text-center text-xs font-bold shadow-2xl">
+      Placing order with Ravulapalem Dark Store...
+    </div>
   </div>
 
   <script src="js/firebase-config.js"></script>
