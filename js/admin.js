@@ -432,12 +432,30 @@ function renderStatusPills(orderId, currentStatus) {
 
 async function quickSetStatus(orderId, newStatus) {
   try {
+    // 1. Firebase Firestore లో అప్‌డేట్ చేయడం
     await db.collection("orders").doc(orderId).update({
       status: newStatus,
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
+
+    // 2. LocalStorage లో కూడా సేవ్ అయి ఉంటే అక్కడ కూడా అప్‌డేట్ చేయడం (ഡెమో కోసం ఇన్‌స్టంట్ సింక్)
+    for (let i = 0; i < localStorage.length; i++) {
+      let key = localStorage.key(i);
+      if (key && key.startsWith('orders_')) {
+        let ords = JSON.parse(localStorage.getItem(key) || '[]');
+        let index = ords.findIndex(o => o.id === orderId);
+        if (index !== -1) {
+          ords[index].status = newStatus;
+          localStorage.setItem(key, JSON.stringify(ords));
+          break;
+        }
+      }
+    }
+
+    console.log(`Order ${orderId} status updated to ${newStatus}`);
   } catch(e) {
-    console.error(e);
+    console.error("Error updating status: ", e);
+    alert("Failed to update status. Check console.");
   }
 }
 
