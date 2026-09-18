@@ -451,12 +451,121 @@ function verifyCustomerLoginOtp() {
   closeLoginModal(); syncCustomerAuthUI(); alert("Logged in successfully!");
 }
 function logoutCustomer() { localStorage.removeItem('quickdash_customer'); activeCustomerSession = null; syncCustomerAuthUI(); alert("Logged out."); }
-function toggleOrdersView() { closeAllModals(); document.getElementById('ordersModal').classList.remove('hidden'); }
+function toggleOrdersView() {
+  closeAllModals();
+  const m = document.getElementById('ordersModal');
+  if (m) m.classList.remove('hidden');
 
+  const feed = document.getElementById('ordersFeed');
+  if (!feed) return;
+
+  // Active session phone లేదా fallback నంబర్
+  const phone = activeCustomerSession ? activeCustomerSession.phone : "8897798251";
+  
+  // Local storage నుంచి ఆర్డర్స్ తెచ్చుకోవడం (ఒకవేళ కీ తేడా ఉన్నా అన్ని కీస్ చెక్ చేయడానికి)
+  let localOrders = JSON.parse(localStorage.getItem(`orders_${phone}`) || '[]');
+  
+  // ఒకవేళ డైరెక్ట్ గా సేవ్ అయి ఉంటే లేదా డెమో కోసం అన్ని లోకల్ ఆర్డర్స్ చూపించాలంటే
+  if (localOrders.length === 0) {
+    // Fallback: localStorage లో ఏ ఆర్డర్స్ ఉన్నా అన్నీ తెచ్చి డెమోకి చూపించడానికి
+    for (let i = 0; i < localStorage.length; i++) {
+      let key = localStorage.key(i);
+      if (key && key.startsWith('orders_')) {
+        let ords = JSON.parse(localStorage.getItem(key) || '[]');
+        localOrders = localOrders.concat(ords);
+      }
+    }
+  }
+
+  if (localOrders.length === 0) {
+    feed.innerHTML = `<div class="text-center py-10 text-slate-400 font-bold">No orders found! Place an order to see history.</div>`;
+    return;
+  }
+
+  feed.innerHTML = '';
+  localOrders.forEach(o => {
+    feed.innerHTML += `
+      <div onclick="openOrderDetailReceipt('${o.id}')" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl space-y-1 cursor-pointer transition">
+        <div class="flex justify-between font-black text-slate-900">
+          <span>${o.id}</span>
+          <span class="text-emerald-600">₹${o.total_amount || o.total}</span>
+        </div>
+        <p class="text-[11px] text-slate-500">Status: <strong class="text-emerald-700">${o.status || 'PLACED'}</strong> • OTP: <strong class="text-amber-600">${o.delivery_otp || '4821'}</strong></p>
+        <p class="text-[10px] text-slate-400 truncate">📍 ${o.delivery_address}</p>
+      </div>
+    `;
+  });
+}
 document.addEventListener('DOMContentLoaded', () => {
   checkStoreWorkingHours();
   fetchProducts();
   syncCustomerAuthUI();
   selectCategory('veggies', null);
   populateCheckoutAddressDropdown();
+  // --- OPEN ORDER RECEIPT & DETAILS MODAL ---
+function openOrderDetailReceipt(orderId) {
+  closeAllModals();
+  const modal = document.getElementById('orderDetailReceiptModal');
+  if (modal) modal.classList.remove('hidden');
+
+  // లోకల్ స్టోరేజ్ నుంచి ఆ ఆర్డర్ డెటెయిల్స్ వెతకడం
+  let targetOrder = null;
+  for (let i = 0; i < localStorage.length; i++) {
+    let key = localStorage.key(i);
+    if (key && key.startsWith('orders_')) {
+      let ords = JSON.parse(localStorage.getItem(key) || '[]');
+      let found = ords.find(o => o.id === orderId);
+      if (found) {
+        targetOrder = found;
+        break;
+      }
+    }
+  }
+
+  if (!targetOrder) {
+    alert("Order details not found!");
+    return;
+  }
+
+  // UI లో డేటా ఫిల్ చేయడం
+  document.getElementById('receiptOrderId').innerText = targetOrder.id;
+  document.getElementById('receiptStatus').innerText = targetOrder.status || "PLACED";
+  document.getElementById('receiptAddress').innerText = targetOrder.delivery_address || "Ravulapalem";
+  document.getElementById('receiptPayment').innerText = (targetOrder.payment_mode || "COD") + " (Paid)";
+  document.getElementById('receiptRider').innerText = "Suresh (Assigned Hub Rider)";
+
+  // ఐటమ్స్ లిస్ట్ రెండర్ చేయడం
+  const itemsContainer = document.getElementById('receiptItemsContainer');
+  if (itemsContainer) {
+    itemsContainer.innerHTML = '';
+    if (Array.isArray(targetOrder.items)) {
+      targetOrder.items.forEach(i => {
+        itemsContainer.innerHTML += `
+          <div class="flex justify-between text-xs py-1 border-b border-slate-100">
+            <span>${i.quantity}x ${i.name} <span class="text-[10px] text-slate-400">(${i.unit || ''})</span></span>
+            <span class="font-bold">₹${(i.price || 0) * i.quantity}</span>
+          </div>
+        `;
+      });
+    }
+  }
+
+  const sub = targetOrder.total_amount ? targetOrder.total_amount - 29 : 199; // estimation or exact
+  document.getElementById('receiptSubtotal').innerText = `₹${sub > 0 ? sub : targetOrder.total_amount}`;
+  document.getElementById('receiptDeliveryFee').innerText = targetOrder.total_amount >= 199 ? "FREE" : "₹25";
+  document.getElementById('receiptGrandTotal').innerText = `₹${targetOrder.total_amount || targetOrder.total}`;
+
+  // Print PDF button logic
+  const printBtn = document.getElementById('receiptPrintPdfBtn');
+  if (printBtn) {
+    printBtn.onclick = () => {
+      window.print();
+    };
+  }
+}
+
+function closeOrderDetailReceipt() {
+  const modal = document.getElementById('orderDetailReceiptModal');
+  if (modal) modal.classList.add('hidden');
+}
 });
