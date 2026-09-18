@@ -1,561 +1,4539 @@
 // ==========================================
-// 🛒 CUSTOMER STOREFRONT ENGINE (customer.js)
+// 🛒 MYSHOPZY CUSTOMER STOREFRONT ENGINE
+// ==========================================
+// Features:
+// ✅ Customer-wise login/session
+// ✅ Customer-wise saved addresses
+// ✅ Customer-wise orders
+// ✅ Exact browser GPS location
+// ✅ Reverse geocoded address
+// ✅ Leaflet map
+// ✅ Distance calculation
+// ✅ UPI Apps / QR / COD selection
+// ✅ Order address snapshot
 // ==========================================
 
-const DARK_STORE_COORDS = { lat: 16.7483, lng: 81.8488, name: "Ravulapalem RTC Dark Store" };
-let currentCustomerCoords = { lat: 16.7483, lng: 81.8488, address: "RTC Complex, Ravulapalem" };
+
+// ==========================================
+// 1. STORE / LOCATION CONFIG
+// ==========================================
+
+const DARK_STORE_COORDS = {
+  lat: 16.7483,
+  lng: 81.8488,
+  name: "Ravulapalem RTC Dark Store"
+};
+
+let currentCustomerCoords = {
+  lat: DARK_STORE_COORDS.lat,
+  lng: DARK_STORE_COORDS.lng,
+  address: "RTC Complex, Ravulapalem",
+  accuracy: null
+};
+
 let leafletMap = null;
 let customerMarker = null;
 
-// --- 1. BUSINESS WORKING HOURS (7 AM - 10 PM IST) ---
-function checkStoreWorkingHours() {
-  const now = new Date();
-  const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-  const hours = new Date(istString).getHours();
-  const isClosed = hours < 7 || hours >= 22;
-  const banner = document.getElementById('storeStatusBanner');
-  if (banner) {
-    if (isClosed) banner.classList.remove('hidden');
-    else banner.classList.add('hidden');
-  }
-  return !isClosed;
+
+// ==========================================
+// 2. CUSTOMER SESSION
+// ==========================================
+
+let activeCustomerSession = JSON.parse(
+  localStorage.getItem("quickdash_customer") || "null"
+);
+
+
+// ==========================================
+// 3. CUSTOMER STORAGE HELPERS
+// ==========================================
+
+function normalizePhone(phone) {
+
+  return String(phone || "")
+    .replace(/\D/g, "")
+    .slice(-10);
 }
 
-// --- 2. GPS & LEAFLET MAP ENGINE ---
-function initLeafletMap() {
-  if (leafletMap) return;
-  setTimeout(() => {
+
+function getCurrentCustomerPhone() {
+
+  if (
+    activeCustomerSession &&
+    activeCustomerSession.phone
+  ) {
+
+    return normalizePhone(
+      activeCustomerSession.phone
+    );
+  }
+
+  return "";
+}
+
+
+function getCustomerStorageKey(phone = null) {
+
+  const currentPhone =
+    normalizePhone(
+      phone || getCurrentCustomerPhone()
+    );
+
+  if (!currentPhone) {
+
+    return "my_saved_addresses_guest";
+  }
+
+  return `my_saved_addresses_${currentPhone}`;
+}
+
+
+// ==========================================
+// 4. LOAD CUSTOMER ADDRESSES
+// ==========================================
+
+function loadCustomerAddresses() {
+
+  const phone =
+    getCurrentCustomerPhone();
+
+  if (!phone) {
+
+    return [];
+  }
+
+  const customerKey =
+    getCustomerStorageKey(phone);
+
+  const customerData =
+    localStorage.getItem(customerKey);
+
+  if (customerData) {
+
     try {
-      leafletMap = L.map('deliveryMap').setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(leafletMap);
-      
-      L.circle([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], { color: '#0B132B', fillColor: '#3A86FF', fillOpacity: 0.12, radius: 6000 }).addTo(leafletMap);
-      L.marker([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng]).addTo(leafletMap).bindPopup("<b>⚡ Ravulapalem RTC Dark Store</b>");
 
-      customerMarker = L.marker([currentCustomerCoords.lat, currentCustomerCoords.lng], { draggable: true }).addTo(leafletMap).bindPopup("<b>📍 Deliver Here</b>");
-      customerMarker.on('dragend', function (e) {
-        const pos = e.target.getLatLng();
-        handleLocationUpdate(pos.lat, pos.lng, "Pinned Map Location, Ravulapalem");
-      });
-      leafletMap.on('click', function(e) {
-        customerMarker.setLatLng(e.latlng);
-        handleLocationUpdate(e.latlng.lat, e.latlng.lng, "Selected Map Location, Ravulapalem");
-      });
-    } catch(err) {}
-  }, 200);
-}
+      const parsed =
+        JSON.parse(customerData);
 
-function handleLocationUpdate(lat, lng, addressName) {
-  currentCustomerCoords = { lat, lng, address: addressName };
-}
+      if (Array.isArray(parsed)) {
 
-function selectPresetLoc(name, lat, lng) {
-  currentCustomerCoords = { lat, lng, address: name };
-  if (customerMarker && leafletMap) {
-    customerMarker.setLatLng([lat, lng]);
-    leafletMap.panTo([lat, lng]);
+        return parsed;
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Customer address data error:",
+        error
+      );
+    }
   }
+
+
+  // ------------------------------------------
+  // Legacy migration
+  // ------------------------------------------
+  // Old version used:
+  // my_saved_addresses
+  //
+  // We only migrate addresses that actually
+  // belong to this logged-in customer.
+  // ------------------------------------------
+
+  const oldData =
+    localStorage.getItem(
+      "my_saved_addresses"
+    );
+
+  if (oldData) {
+
+    try {
+
+      const oldAddresses =
+        JSON.parse(oldData);
+
+      if (Array.isArray(oldAddresses)) {
+
+        const matchingAddresses =
+          oldAddresses.filter(
+            address =>
+              normalizePhone(address.mobile) === phone
+          );
+
+        if (
+          matchingAddresses.length > 0
+        ) {
+
+          localStorage.setItem(
+            customerKey,
+            JSON.stringify(
+              matchingAddresses
+            )
+          );
+
+          return matchingAddresses;
+        }
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Legacy address migration failed:",
+        error
+      );
+    }
+  }
+
+  return [];
 }
 
-function detectDeviceLocation() {
-  if (!navigator.geolocation) return alert("Geolocation not supported!");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => selectPresetLoc("Current GPS Location", pos.coords.latitude, pos.coords.longitude),
-    () => selectPresetLoc("RTC Complex, Ravulapalem", 16.7483, 81.8488),
-    { enableHighAccuracy: true, timeout: 8000 }
+
+let savedAddresses =
+  loadCustomerAddresses();
+
+
+// ==========================================
+// 5. SAVE CUSTOMER ADDRESSES
+// ==========================================
+
+function persistCustomerAddresses() {
+
+  const phone =
+    getCurrentCustomerPhone();
+
+  if (!phone) {
+
+    console.warn(
+      "Cannot save addresses without customer login."
+    );
+
+    return;
+  }
+
+  localStorage.setItem(
+    getCustomerStorageKey(phone),
+    JSON.stringify(savedAddresses)
   );
 }
 
-function openLocationModal() {
-  closeAllModals();
-  const modal = document.getElementById('locationModal');
-  if (modal) modal.classList.remove('hidden');
-  initLeafletMap();
-}
-function closeLocationModal() { 
-  const modal = document.getElementById('locationModal');
-  if (modal) modal.classList.add('hidden'); 
+
+// ==========================================
+// 6. BUSINESS WORKING HOURS
+// ==========================================
+
+function checkStoreWorkingHours() {
+
+  const now = new Date();
+
+  const istString =
+    now.toLocaleString(
+      "en-US",
+      {
+        timeZone: "Asia/Kolkata"
+      }
+    );
+
+  const hours =
+    new Date(istString).getHours();
+
+  const isClosed =
+    hours < 7 || hours >= 22;
+
+  const banner =
+    document.getElementById(
+      "storeStatusBanner"
+    );
+
+  if (banner) {
+
+    if (isClosed) {
+
+      banner.classList.remove(
+        "hidden"
+      );
+
+    } else {
+
+      banner.classList.add(
+        "hidden"
+      );
+    }
+  }
+
+  return !isClosed;
 }
 
+
+// ==========================================
+// 7. MAP INITIALIZATION
+// ==========================================
+
+function initLeafletMap() {
+
+  if (leafletMap) {
+
+    setTimeout(() => {
+
+      leafletMap.invalidateSize();
+
+    }, 200);
+
+    return;
+  }
+
+  setTimeout(() => {
+
+    try {
+
+      const mapElement =
+        document.getElementById(
+          "deliveryMap"
+        );
+
+      if (!mapElement) {
+
+        console.warn(
+          "deliveryMap element not found."
+        );
+
+        return;
+      }
+
+      leafletMap =
+        L.map(
+          "deliveryMap"
+        ).setView(
+          [
+            currentCustomerCoords.lat,
+            currentCustomerCoords.lng
+          ],
+          14
+        );
+
+
+      // OpenStreetMap tiles
+      L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution:
+            '&copy; OpenStreetMap contributors'
+        }
+      ).addTo(
+        leafletMap
+      );
+
+
+      // Service radius
+      L.circle(
+        [
+          DARK_STORE_COORDS.lat,
+          DARK_STORE_COORDS.lng
+        ],
+        {
+          color: "#0B132B",
+          fillColor: "#3A86FF",
+          fillOpacity: 0.12,
+          radius: 6000
+        }
+      ).addTo(
+        leafletMap
+      );
+
+
+      // Dark store marker
+      L.marker(
+        [
+          DARK_STORE_COORDS.lat,
+          DARK_STORE_COORDS.lng
+        ]
+      )
+        .addTo(leafletMap)
+        .bindPopup(
+          "<b>⚡ Ravulapalem RTC Dark Store</b>"
+        );
+
+
+      // Customer marker
+      customerMarker =
+        L.marker(
+          [
+            currentCustomerCoords.lat,
+            currentCustomerCoords.lng
+          ],
+          {
+            draggable: true
+          }
+        )
+          .addTo(leafletMap)
+          .bindPopup(
+            "<b>📍 Deliver Here</b>"
+          );
+
+
+      // Drag marker
+      customerMarker.on(
+        "dragend",
+        async function (e) {
+
+          const pos =
+            e.target.getLatLng();
+
+          await handleLocationUpdate(
+            pos.lat,
+            pos.lng,
+            "Pinned Map Location"
+          );
+        }
+      );
+
+
+      // Click map
+      leafletMap.on(
+        "click",
+        async function (e) {
+
+          customerMarker.setLatLng(
+            e.latlng
+          );
+
+          await handleLocationUpdate(
+            e.latlng.lat,
+            e.latlng.lng,
+            "Selected Map Location"
+          );
+        }
+      );
+
+
+      updateDeliveryDistance(
+        currentCustomerCoords.lat,
+        currentCustomerCoords.lng
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        "Leaflet initialization error:",
+        error
+      );
+    }
+
+  }, 250);
+}
+
+
+// ==========================================
+// 8. HANDLE MAP LOCATION
+// ==========================================
+
+async function handleLocationUpdate(
+  lat,
+  lng,
+  addressName = "Selected Location"
+) {
+
+  currentCustomerCoords = {
+    lat: Number(lat),
+    lng: Number(lng),
+    address: addressName,
+    accuracy: null
+  };
+
+
+  if (
+    customerMarker &&
+    leafletMap
+  ) {
+
+    customerMarker.setLatLng([
+      lat,
+      lng
+    ]);
+
+    leafletMap.panTo([
+      lat,
+      lng
+    ]);
+  }
+
+
+  updateDeliveryDistance(
+    lat,
+    lng
+  );
+
+
+  // Try readable address
+  try {
+
+    const readableAddress =
+      await reverseGeocode(
+        lat,
+        lng
+      );
+
+    if (
+      readableAddress &&
+      readableAddress.trim()
+    ) {
+
+      currentCustomerCoords.address =
+        readableAddress;
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "Reverse geocoding failed:",
+      error
+    );
+  }
+
+
+  updateLocationUI();
+}
+
+
+// ==========================================
+// 9. PRESET LOCATION
+// ==========================================
+
+async function selectPresetLoc(
+  name,
+  lat,
+  lng
+) {
+
+  currentCustomerCoords = {
+    lat: Number(lat),
+    lng: Number(lng),
+    address: name,
+    accuracy: null
+  };
+
+
+  if (
+    customerMarker &&
+    leafletMap
+  ) {
+
+    customerMarker.setLatLng([
+      lat,
+      lng
+    ]);
+
+    leafletMap.panTo([
+      lat,
+      lng
+    ]);
+  }
+
+
+  updateDeliveryDistance(
+    lat,
+    lng
+  );
+
+
+  updateLocationUI();
+}
+
+
+// ==========================================
+// 10. EXACT GPS LOCATION
+// ==========================================
+
+function detectDeviceLocation() {
+
+  if (!navigator.geolocation) {
+
+    alert(
+      "❌ Your browser does not support GPS location."
+    );
+
+    return;
+  }
+
+
+  const statusBox =
+    document.getElementById(
+      "serviceStatusBox"
+    );
+
+
+  if (statusBox) {
+
+    statusBox.innerHTML = `
+      <span>
+        🎯 Detecting exact location...
+      </span>
+
+      <span class="font-black animate-pulse">
+        GPS...
+      </span>
+    `;
+  }
+
+
+  navigator.geolocation.getCurrentPosition(
+
+    async function(position) {
+
+      const lat =
+        position.coords.latitude;
+
+      const lng =
+        position.coords.longitude;
+
+      const accuracy =
+        position.coords.accuracy;
+
+
+      console.log(
+        "GPS latitude:",
+        lat
+      );
+
+      console.log(
+        "GPS longitude:",
+        lng
+      );
+
+      console.log(
+        "GPS accuracy:",
+        accuracy,
+        "meters"
+      );
+
+
+      currentCustomerCoords = {
+        lat: lat,
+        lng: lng,
+        address:
+          "Detecting exact address...",
+        accuracy: accuracy
+      };
+
+
+      // Move marker
+      if (
+        customerMarker &&
+        leafletMap
+      ) {
+
+        customerMarker.setLatLng([
+          lat,
+          lng
+        ]);
+
+        leafletMap.setView(
+          [
+            lat,
+            lng
+          ],
+          17
+        );
+      }
+
+
+      updateDeliveryDistance(
+        lat,
+        lng
+      );
+
+
+      // Reverse geocode
+      try {
+
+        const readableAddress =
+          await reverseGeocode(
+            lat,
+            lng
+          );
+
+        currentCustomerCoords.address =
+          readableAddress ||
+          `GPS Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+
+      } catch (error) {
+
+        console.error(
+          "Reverse geocode error:",
+          error
+        );
+
+        currentCustomerCoords.address =
+          `GPS Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+      }
+
+
+      updateLocationUI();
+
+
+      if (statusBox) {
+
+        statusBox.innerHTML = `
+          <span>
+            📍 Exact location detected
+          </span>
+
+          <span class="font-black">
+            ±${Math.round(accuracy)}m
+          </span>
+        `;
+      }
+
+
+      alert(
+        `📍 Location detected!\n\n${currentCustomerCoords.address}\n\nGPS accuracy: approximately ${Math.round(accuracy)} meters.`
+      );
+    },
+
+
+    function(error) {
+
+      console.error(
+        "GPS error:",
+        error
+      );
+
+
+      if (statusBox) {
+
+        statusBox.innerHTML = `
+          <span class="text-rose-600">
+            ⚠️ GPS permission required
+          </span>
+
+          <span>
+            Try Again
+          </span>
+        `;
+      }
+
+
+      // IMPORTANT:
+      // No fake RTC fallback.
+      // User must manually select location
+      // if GPS is unavailable.
+
+      if (
+        error.code ===
+        error.PERMISSION_DENIED
+      ) {
+
+        alert(
+          "📍 Location permission was denied.\n\nPlease allow location permission in your browser and click the GPS button again."
+        );
+
+      } else if (
+        error.code ===
+        error.POSITION_UNAVAILABLE
+      ) {
+
+        alert(
+          "📍 Your device could not determine the location.\n\nPlease turn ON GPS/Location and try again."
+        );
+
+      } else if (
+        error.code ===
+        error.TIMEOUT
+      ) {
+
+        alert(
+          "📍 GPS took too long.\n\nPlease try again near a window or outdoors."
+        );
+
+      } else {
+
+        alert(
+          "❌ Unable to detect your location.\n\nPlease try again."
+        );
+      }
+
+    },
+
+
+    {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0
+    }
+  );
+}
+
+
+// ==========================================
+// 11. REVERSE GEOCODING
+// ==========================================
+
+async function reverseGeocode(
+  lat,
+  lng
+) {
+
+  try {
+
+    const url =
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+
+
+    const response =
+      await fetch(
+        url,
+        {
+          headers: {
+            "Accept":
+              "application/json"
+          }
+        }
+      );
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        `Reverse geocode HTTP ${response.status}`
+      );
+    }
+
+
+    const data =
+      await response.json();
+
+
+    const address =
+      data.address || {};
+
+
+    const house =
+      address.house_number || "";
+
+    const road =
+      address.road ||
+      address.neighbourhood ||
+      address.suburb ||
+      "";
+
+    const village =
+      address.village ||
+      address.town ||
+      address.city ||
+      "";
+
+    const district =
+      address.county ||
+      address.district ||
+      "";
+
+    const state =
+      address.state ||
+      "";
+
+    const postcode =
+      address.postcode ||
+      "";
+
+
+    const parts = [
+      house,
+      road,
+      village,
+      district,
+      state,
+      postcode
+    ].filter(Boolean);
+
+
+    if (parts.length > 0) {
+
+      return parts.join(", ");
+    }
+
+
+    return `GPS Location (${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)})`;
+
+  } catch (error) {
+
+    console.error(
+      "Reverse geocode failed:",
+      error
+    );
+
+    return `GPS Location (${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)})`;
+  }
+}
+
+
+// ==========================================
+// 12. UPDATE LOCATION UI
+// ==========================================
+
+function updateLocationUI() {
+
+  const header =
+    document.getElementById(
+      "currentAddressHeader"
+    );
+
+  if (header) {
+
+    header.innerText =
+      currentCustomerCoords.address;
+  }
+
+
+  const distanceBadge =
+    document.getElementById(
+      "distanceBadge"
+    );
+
+  if (distanceBadge) {
+
+    const distance =
+      calculateDistanceKm(
+        DARK_STORE_COORDS.lat,
+        DARK_STORE_COORDS.lng,
+        currentCustomerCoords.lat,
+        currentCustomerCoords.lng
+      );
+
+    distanceBadge.innerText =
+      `${distance.toFixed(2)} KM`;
+  }
+}
+
+
+// ==========================================
+// 13. HAVERSINE DISTANCE
+// ==========================================
+
+function calculateDistanceKm(
+  lat1,
+  lon1,
+  lat2,
+  lon2
+) {
+
+  const R = 6371;
+
+  const dLat =
+    (lat2 - lat1) *
+    Math.PI / 180;
+
+  const dLon =
+    (lon2 - lon1) *
+    Math.PI / 180;
+
+
+  const a =
+    Math.sin(dLat / 2) *
+    Math.sin(dLat / 2) +
+
+    Math.cos(
+      lat1 * Math.PI / 180
+    ) *
+    Math.cos(
+      lat2 * Math.PI / 180
+    ) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+
+  return R * c;
+}
+
+
+// ==========================================
+// 14. DELIVERY DISTANCE UI
+// ==========================================
+
+function updateDeliveryDistance(
+  lat,
+  lng
+) {
+
+  const distance =
+    calculateDistanceKm(
+      DARK_STORE_COORDS.lat,
+      DARK_STORE_COORDS.lng,
+      Number(lat),
+      Number(lng)
+    );
+
+
+  const badge =
+    document.getElementById(
+      "distanceBadge"
+    );
+
+  if (badge) {
+
+    badge.innerText =
+      `${distance.toFixed(2)} KM`;
+  }
+
+
+  const status =
+    document.getElementById(
+      "serviceStatusBox"
+    );
+
+  if (!status) return;
+
+
+  if (distance <= 6) {
+
+    status.className =
+      "p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between font-bold";
+
+  } else {
+
+    status.className =
+      "p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between font-bold";
+  }
+}
+
+
+// ==========================================
+// 15. LOCATION MODAL
+// ==========================================
+
+function openLocationModal() {
+
+  closeAllModals();
+
+  const modal =
+    document.getElementById(
+      "locationModal"
+    );
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  initLeafletMap();
+
+
+  setTimeout(() => {
+
+    if (leafletMap) {
+
+      leafletMap.invalidateSize();
+
+      leafletMap.setView(
+        [
+          currentCustomerCoords.lat,
+          currentCustomerCoords.lng
+        ],
+        16
+      );
+    }
+
+  }, 400);
+}
+
+
+function closeLocationModal() {
+
+  const modal =
+    document.getElementById(
+      "locationModal"
+    );
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+// ==========================================
+// 16. CONFIRM LOCATION
+// ==========================================
+
 function confirmLocationSelection() {
-  const headerAddr = document.getElementById('currentAddressHeader');
-  if (headerAddr) headerAddr.innerText = currentCustomerCoords.address;
+
+  if (
+    !currentCustomerCoords ||
+    !currentCustomerCoords.lat ||
+    !currentCustomerCoords.lng
+  ) {
+
+    alert(
+      "Please select a delivery location first."
+    );
+
+    return;
+  }
+
+
+  const headerAddr =
+    document.getElementById(
+      "currentAddressHeader"
+    );
+
+  if (headerAddr) {
+
+    headerAddr.innerText =
+      currentCustomerCoords.address;
+  }
+
+
   closeLocationModal();
+
+
+  // Open address manager so customer can
+  // add/save the GPS location manually.
   openAddressManager();
 }
 
+
+// ==========================================
+// 17. GENERAL MODAL HELPERS
+// ==========================================
+
 function closeAllModals() {
-  ['checkoutModal', 'ordersModal', 'locationModal', 'paymentOverlay', 'productDetailModal', 'customerLoginModal', 'orderDetailReceiptModal', 'accountModal', 'addressManagerModal'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
+
+  [
+    "checkoutModal",
+    "ordersModal",
+    "locationModal",
+    "paymentOverlay",
+    "productDetailModal",
+    "customerLoginModal",
+    "orderDetailReceiptModal",
+    "accountModal",
+    "addressManagerModal"
+  ].forEach(
+    id => {
+
+      const el =
+        document.getElementById(id);
+
+      if (el) {
+
+        el.classList.add(
+          "hidden"
+        );
+      }
+    }
+  );
+}
+
+
+function closeOrdersView() {
+
+  const modal =
+    document.getElementById(
+      "ordersModal"
+    );
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+function openAccountModal() {
+
+  closeAllModals();
+
+  syncAccountDashboard();
+
+  const modal =
+    document.getElementById(
+      "accountModal"
+    );
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+}
+
+
+function closeAccountModal() {
+
+  const modal =
+    document.getElementById(
+      "accountModal"
+    );
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+function openAddressManager() {
+
+  const modal =
+    document.getElementById(
+      "addressManagerModal"
+    );
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+
+  renderSavedAddressesList();
+}
+
+
+function closeAddressManager() {
+
+  const modal =
+    document.getElementById(
+      "addressManagerModal"
+    );
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+function scrollToCategories() {
+
+  window.scrollTo({
+    top: 400,
+    behavior: "smooth"
   });
 }
-function closeOrdersView() { const m = document.getElementById('ordersModal'); if(m) m.classList.add('hidden'); }
-function openAccountModal() { closeAllModals(); syncAccountDashboard(); const m = document.getElementById('accountModal'); if(m) m.classList.remove('hidden'); }
-function closeAccountModal() { const m = document.getElementById('accountModal'); if(m) m.classList.add('hidden'); }
-function openAddressManager() { const m = document.getElementById('addressManagerModal'); if(m) m.classList.remove('hidden'); renderSavedAddressesList(); }
-function closeAddressManager() { const m = document.getElementById('addressManagerModal'); if(m) m.classList.add('hidden'); }
-function scrollToCategories() { window.scrollTo({ top: 400, behavior: 'smooth' }); }
 
-// --- 🌟 MULTI-ADDRESS MANAGEMENT ENGINE ---
-let savedAddresses = JSON.parse(localStorage.getItem('my_saved_addresses') || JSON.stringify([
-  { id: "addr_1", fullName: "Chelluri Chandu", mobile: "8897798251", house: "Door 1-23", street: "RTC Complex", city: "Ravulapalem", district: "East Godavari", state: "Andhra Pradesh", pincode: "533238", landmark: "Near Bus Stand", isDefault: true }
-]));
+
+// ==========================================
+// 18. ADDRESS MANAGEMENT
+// ==========================================
 
 function renderSavedAddressesList() {
-  const container = document.getElementById('savedAddressesContainer');
+
+  const container =
+    document.getElementById(
+      "savedAddressesContainer"
+    );
+
   if (!container) return;
-  container.innerHTML = '';
+
+
+  container.innerHTML = "";
+
+
+  if (!getCurrentCustomerPhone()) {
+
+    container.innerHTML = `
+      <div class="text-center py-5">
+        <p class="text-xs text-slate-500 font-bold">
+          Please login to manage your addresses.
+        </p>
+      </div>
+    `;
+
+    return;
+  }
+
 
   if (savedAddresses.length === 0) {
-    container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No saved addresses yet. Add one below!</p>`;
+
+    container.innerHTML = `
+      <p class="text-xs text-slate-400 text-center py-4">
+        No saved addresses yet. Add one below!
+      </p>
+    `;
+
     return;
   }
 
-  savedAddresses.forEach((addr, idx) => {
-    container.innerHTML += `
-      <div class="p-2.5 rounded-xl border ${addr.isDefault ? 'border-emerald-600 bg-emerald-50/40' : 'border-slate-200'} text-xs space-y-1">
-        <div class="flex justify-between font-bold">
-          <span>${addr.fullName} (${addr.mobile})</span>
-          <div>
-            ${addr.isDefault ? '<span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded">DEFAULT</span>' : `<button onclick="setDefaultAddress(${idx})" class="text-[9px] text-blue-600 underline">Set Default</button>`}
-            <button onclick="deleteAddress(${idx})" class="text-[9px] text-rose-600 ml-2">Delete</button>
+
+  savedAddresses.forEach(
+    (addr, idx) => {
+
+      container.innerHTML += `
+        <div
+          class="p-2.5 rounded-xl border ${
+            addr.isDefault
+              ? "border-emerald-600 bg-emerald-50/40"
+              : "border-slate-200"
+          } text-xs space-y-1"
+        >
+
+          <div class="flex justify-between font-bold gap-2">
+
+            <span>
+              ${escapeHtml(addr.fullName)}
+              (${escapeHtml(addr.mobile)})
+            </span>
+
+            <div class="shrink-0">
+
+              ${
+                addr.isDefault
+                  ? `
+                    <span
+                      class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded"
+                    >
+                      DEFAULT
+                    </span>
+                  `
+                  : `
+                    <button
+                      onclick="setDefaultAddress(${idx})"
+                      class="text-[9px] text-blue-600 underline"
+                    >
+                      Set Default
+                    </button>
+                  `
+              }
+
+              <button
+                onclick="deleteAddress(${idx})"
+                class="text-[9px] text-rose-600 ml-2"
+              >
+                Delete
+              </button>
+
+            </div>
+
           </div>
+
+          <p class="text-slate-600">
+            ${escapeHtml(addr.house)},
+            ${escapeHtml(addr.street)},
+            ${escapeHtml(addr.city)},
+            ${escapeHtml(addr.state)}
+            -
+            ${escapeHtml(addr.pincode)}
+          </p>
+
+          ${
+            addr.landmark
+              ? `
+                <p class="text-[10px] text-slate-400">
+                  Landmark:
+                  ${escapeHtml(addr.landmark)}
+                </p>
+              `
+              : ""
+          }
+
+          ${
+            addr.latitude && addr.longitude
+              ? `
+                <p class="text-[10px] text-emerald-600 font-bold">
+                  📍 GPS location saved
+                </p>
+              `
+              : ""
+          }
+
         </div>
-        <p class="text-slate-600">${addr.house}, ${addr.street}, ${addr.city}, ${addr.state} - ${addr.pincode}</p>
-        ${addr.landmark ? `<p class="text-[10px] text-slate-400">Landmark: ${addr.landmark}</p>` : ''}
-      </div>
-    `;
-  });
+      `;
+    }
+  );
 }
+
+
+// ==========================================
+// 19. SAVE MANUAL ADDRESS
+// ==========================================
 
 function saveNewManualAddress(e) {
-  e.preventDefault();
-  const newAddr = {
-    id: "addr_" + Date.now(),
-    fullName: document.getElementById('manualFullName').value.trim(),
-    mobile: document.getElementById('manualMobile').value.trim(),
-    house: document.getElementById('manualHouse').value.trim(),
-    street: document.getElementById('manualStreet').value.trim(),
-    city: document.getElementById('manualCity').value.trim(),
-    district: document.getElementById('manualDistrict').value.trim(),
-    state: document.getElementById('manualState').value.trim(),
-    pincode: document.getElementById('manualPincode').value.trim(),
-    landmark: document.getElementById('manualLandmark').value.trim(),
-    isDefault: savedAddresses.length === 0
-  };
 
-  if (!newAddr.fullName || !newAddr.mobile || !newAddr.house || !newAddr.pincode) {
-    alert("Please fill all required address fields!");
+  e.preventDefault();
+
+
+  const currentPhone =
+    getCurrentCustomerPhone();
+
+
+  if (!currentPhone) {
+
+    alert(
+      "Please login before saving an address."
+    );
+
     return;
   }
 
-  savedAddresses.push(newAddr);
-  localStorage.setItem('my_saved_addresses', JSON.stringify(savedAddresses));
-  document.getElementById('manualAddressForm').reset();
+
+  const fullName =
+    document
+      .getElementById(
+        "manualFullName"
+      )
+      .value
+      .trim();
+
+
+  const mobile =
+    document
+      .getElementById(
+        "manualMobile"
+      )
+      .value
+      .trim();
+
+
+  const house =
+    document
+      .getElementById(
+        "manualHouse"
+      )
+      .value
+      .trim();
+
+
+  const street =
+    document
+      .getElementById(
+        "manualStreet"
+      )
+      .value
+      .trim();
+
+
+  const city =
+    document
+      .getElementById(
+        "manualCity"
+      )
+      .value
+      .trim();
+
+
+  const district =
+    document
+      .getElementById(
+        "manualDistrict"
+      )
+      .value
+      .trim();
+
+
+  const state =
+    document
+      .getElementById(
+        "manualState"
+      )
+      .value
+      .trim();
+
+
+  const pincode =
+    document
+      .getElementById(
+        "manualPincode"
+      )
+      .value
+      .trim();
+
+
+  const landmark =
+    document
+      .getElementById(
+        "manualLandmark"
+      )
+      .value
+      .trim();
+
+
+  const cleanMobile =
+    normalizePhone(mobile);
+
+
+  if (
+    !fullName ||
+    cleanMobile.length !== 10 ||
+    !house ||
+    !street ||
+    !city ||
+    !state ||
+    !pincode
+  ) {
+
+    alert(
+      "Please fill all required address fields correctly!"
+    );
+
+    return;
+  }
+
+
+  const newAddr = {
+
+    id:
+      "addr_" +
+      Date.now(),
+
+    fullName:
+      fullName,
+
+    mobile:
+      cleanMobile,
+
+    house:
+      house,
+
+    street:
+      street,
+
+    city:
+      city,
+
+    district:
+      district,
+
+    state:
+      state,
+
+    pincode:
+      pincode,
+
+    landmark:
+      landmark,
+
+    isDefault:
+      savedAddresses.length === 0,
+
+    latitude:
+      null,
+
+    longitude:
+      null,
+
+    createdAt:
+      Date.now()
+  };
+
+
+  // If this address is the logged-in
+  // customer's own phone, keep it useful
+  // for account profile.
+  if (
+    cleanMobile === currentPhone &&
+    savedAddresses.length === 0
+  ) {
+
+    newAddr.isDefault = true;
+  }
+
+
+  savedAddresses.push(
+    newAddr
+  );
+
+
+  persistCustomerAddresses();
+
+
+  const form =
+    document.getElementById(
+      "manualAddressForm"
+    );
+
+  if (form) {
+
+    form.reset();
+  }
+
+
   renderSavedAddressesList();
+
   populateCheckoutAddressDropdown();
+
+  syncAccountDashboard();
+
   closeAddressManager();
-  alert("Address saved successfully!");
+
+
+  alert(
+    "✅ Address saved successfully!"
+  );
 }
+
+
+// ==========================================
+// 20. SAVE CURRENT GPS AS ADDRESS
+// ==========================================
+
+function saveCurrentGpsAddress() {
+
+  const phone =
+    getCurrentCustomerPhone();
+
+
+  if (!phone) {
+
+    alert(
+      "Please login first."
+    );
+
+    return;
+  }
+
+
+  if (
+    !currentCustomerCoords ||
+    !currentCustomerCoords.lat ||
+    !currentCustomerCoords.lng
+  ) {
+
+    alert(
+      "Please detect your current GPS location first."
+    );
+
+    return;
+  }
+
+
+  const addressText =
+    currentCustomerCoords.address ||
+    "Current GPS Location";
+
+
+  const parts =
+    addressText
+      .split(",")
+      .map(
+        x => x.trim()
+      )
+      .filter(Boolean);
+
+
+  const gpsAddress = {
+
+    id:
+      "gps_" +
+      Date.now(),
+
+    fullName:
+      "Current Location",
+
+    mobile:
+      phone,
+
+    house:
+      parts[0] || "GPS Location",
+
+    street:
+      parts[1] || "Current Location",
+
+    city:
+      parts[2] || "Ravulapalem",
+
+    district:
+      parts[3] || "East Godavari",
+
+    state:
+      parts[4] || "Andhra Pradesh",
+
+    pincode:
+      parts.find(
+        part => /^\d{6}$/.test(part)
+      ) || "533238",
+
+    landmark:
+      "Exact GPS location",
+
+    isDefault:
+      savedAddresses.length === 0,
+
+    latitude:
+      currentCustomerCoords.lat,
+
+    longitude:
+      currentCustomerCoords.lng,
+
+    accuracy:
+      currentCustomerCoords.accuracy,
+
+    createdAt:
+      Date.now()
+  };
+
+
+  savedAddresses.push(
+    gpsAddress
+  );
+
+
+  persistCustomerAddresses();
+
+  renderSavedAddressesList();
+
+  populateCheckoutAddressDropdown();
+
+  syncAccountDashboard();
+
+
+  alert(
+    "📍 Current GPS location saved for this customer!"
+  );
+}
+
+
+// ==========================================
+// 21. DEFAULT ADDRESS
+// ==========================================
 
 function setDefaultAddress(idx) {
-  savedAddresses.forEach((a, i) => a.isDefault = (i === idx));
-  localStorage.setItem('my_saved_addresses', JSON.stringify(savedAddresses));
+
+  if (
+    !savedAddresses[idx]
+  ) return;
+
+
+  savedAddresses.forEach(
+    (address, index) => {
+
+      address.isDefault =
+        index === idx;
+    }
+  );
+
+
+  persistCustomerAddresses();
+
   renderSavedAddressesList();
+
   populateCheckoutAddressDropdown();
 }
 
+
+// ==========================================
+// 22. DELETE ADDRESS
+// ==========================================
+
 function deleteAddress(idx) {
-  if (confirm("Delete this saved address?")) {
-    savedAddresses.splice(idx, 1);
-    if (savedAddresses.length > 0 && !savedAddresses.some(a => a.isDefault)) savedAddresses[0].isDefault = true;
-    localStorage.setItem('my_saved_addresses', JSON.stringify(savedAddresses));
-    renderSavedAddressesList();
-    populateCheckoutAddressDropdown();
-  }
-}
 
-function populateCheckoutAddressDropdown() {
-  const select = document.getElementById('checkoutAddressSelect');
-  if (!select) return;
-  select.innerHTML = '<option value="">-- Select Saved Address --</option>';
-  savedAddresses.forEach((addr, idx) => {
-    select.innerHTML += `<option value="${idx}" ${addr.isDefault ? 'selected' : ''}>${addr.fullName} - ${addr.house}, ${addr.city} (${addr.pincode})</option>`;
-  });
-}
+  if (
+    !savedAddresses[idx]
+  ) return;
 
-// --- 3. CATEGORIES & CATALOG ---
-const categories = [
-  { id: "paan", name: "Paan Corner & Refreshers" }, { id: "dairy", name: "Dairy, Bread & Eggs" },
-  { id: "veggies", name: "Fruits & Fresh Vegetables" }, { id: "drinks", name: "Cold Drinks & Juices" },
-  { id: "snacks", name: "Snacks & Munchies" }, { id: "breakfast", name: "Breakfast & Instant Food" },
-  { id: "sweets", name: "Sweet Tooth & Chocolates" }, { id: "bakery", name: "Bakery & Biscuits" },
-  { id: "tea", name: "Tea, Coffee & Milk Drinks" }, { id: "staples", name: "Atta, Rice & Dal" },
-  { id: "masala", name: "Masala, Cooking Oil & Ghee" }, { id: "sauces", name: "Sauces & Spreads" },
-  { id: "meat", name: "Chicken, Meat & Fresh Fish" }, { id: "organic", name: "Organic & Healthy Living" },
-  { id: "baby", name: "Baby Care Essentials" }, { id: "pharma", name: "Pharma & Wellness" },
-  { id: "cleaning", name: "Cleaning Essentials" }, { id: "home", name: "Home & Office Needs" },
-  { id: "personal", name: "Personal Care & Hygiene" }, { id: "pet", name: "Pet Care Supplies" }
-];
 
-let liveCatalog = [];
-let cartState = {};
-let activeCategory = "veggies";
-let currentSearch = "";
+  if (
+    !confirm(
+      "Delete this saved address?"
+    )
+  ) {
 
-async function fetchProducts() {
-  db.collection("products").orderBy("created_at", "desc").onSnapshot((snapshot) => {
-    let cloudProducts = [];
-    snapshot.forEach(doc => cloudProducts.push({ id: doc.id, ...doc.data() }));
-    liveCatalog = cloudProducts;
-    filterAndRender();
-  });
-}
-
-function filterAndRender() {
-  let filtered = liveCatalog.filter(item => item.category === activeCategory);
-  if (currentSearch) filtered = liveCatalog.filter(item => item.name.toLowerCase().includes(currentSearch));
-
-  const grid = document.getElementById('productsGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  if (filtered.length === 0) {
-    grid.innerHTML = `<div class="col-span-full py-10 text-center bg-white rounded-2xl border"><h4 class="text-xs font-bold text-slate-600">No products in this category</h4></div>`;
-    document.getElementById('itemCountBadge').innerText = "0 Items";
     return;
   }
 
-  filtered.forEach(p => {
-    const qtyVal = p.qty_value !== undefined ? p.qty_value : 1;
-    const qtyUnit = p.qty_unit || p.unit || 'pc';
-    const qty = cartState[p.id] || 0;
 
-    grid.innerHTML += `
-      <div class="bg-white p-2.5 rounded-2xl border shadow-sm flex flex-col justify-between">
-        <div>
-          <div class="h-28 w-full rounded-xl bg-slate-50 relative mb-2 flex items-center justify-center p-2">
-            <img src="${p.image_url}" class="max-h-full max-w-full object-contain">
-            <span class="absolute bottom-1 left-1 bg-slate-900 text-amber-300 text-[8px] font-black px-1 rounded">⚡ 10 MINS</span>
-          </div>
-          <h4 class="text-xs font-bold text-slate-900 line-clamp-2">${p.name}</h4>
-          <span class="text-[10px] text-slate-500 font-bold">${qtyVal} ${qtyUnit}</span>
-        </div>
-        <div class="mt-2 flex items-center justify-between pt-2 border-t">
-          <span class="text-xs font-black">₹${p.price}</span>
-          <div>
-            ${qty === 0 ? `<button onclick="modifyCart('${p.id}', 1)" class="px-3 py-1 rounded-lg border-2 border-emerald-600 text-emerald-700 text-xs font-black">ADD</button>` : 
-            `<div class="flex items-center bg-emerald-700 text-white rounded-lg px-2 py-1 text-xs gap-2"><button onclick="modifyCart('${p.id}', -1)">-</button><span>${qty}</span><button onclick="modifyCart('${p.id}', 1)">+</button></div>`}
-          </div>
-        </div>
-      </div>
-    `;
-  });
-  document.getElementById('itemCountBadge').innerText = `${filtered.length} Items`;
-}
+  const deletingDefault =
+    savedAddresses[idx].isDefault;
 
-function selectCategory(catId, targetEl = null) {
-  activeCategory = catId;
-  const obj = categories.find(c => c.id === catId);
-  const h = document.getElementById('categoryHeading');
-  if (h) h.innerText = obj ? obj.name : "Products";
-  filterAndRender();
-}
 
-function modifyCart(prodId, delta) {
-  const next = (cartState[prodId] || 0) + delta;
-  if (next <= 0) delete cartState[prodId];
-  else cartState[prodId] = next;
-  filterAndRender();
-  syncCartBar();
-}
+  savedAddresses.splice(
+    idx,
+    1
+  );
 
-function syncCartBar() {
-  const bar = document.getElementById('bottomCartBar');
-  let count = 0, sum = 0;
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    if (item) { count += cartState[id]; sum += item.price * cartState[id]; }
-  });
-  if (count > 0) {
-    bar.classList.remove('hidden');
-    document.getElementById('barItemCount').innerText = `${count} items added`;
-    document.getElementById('barGrandPrice').innerText = `₹${sum}`;
-  } else { bar.classList.add('hidden'); }
-}
 
-function handleSearch(val) { currentSearch = val.toLowerCase().trim(); filterAndRender(); }
+  if (
+    deletingDefault &&
+    savedAddresses.length > 0
+  ) {
 
-// --- 4. FREE DELIVERY RULE (>= ₹199) ---
-function calculateCartTotals() {
-  let sub = 0;
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    if (item) sub += item.price * cartState[id];
-  });
-  const deliveryFee = sub >= 199 ? 0 : 25;
-  const grandTotal = sub > 0 ? sub + deliveryFee + 4 : 0;
-  return { sub, deliveryFee, grandTotal };
-}
-
-function openCheckout() {
-  if (!checkStoreWorkingHours()) { alert("Store is closed (7 AM - 10 PM IST)"); return; }
-  closeAllModals();
-  document.getElementById('bottomCartBar').classList.add('hidden');
-  document.getElementById('checkoutModal').classList.remove('hidden');
-  populateCheckoutAddressDropdown();
-  renderCheckoutSummary();
-}
-
-function closeCheckout() { document.getElementById('checkoutModal').classList.add('hidden'); syncCartBar(); }
-
-function renderCheckoutSummary() {
-  const container = document.getElementById('cartItemsContainer');
-  if (!container) return;
-  container.innerHTML = '';
-  
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    if (item) {
-      const qty = cartState[id];
-      container.innerHTML += `<div class="flex justify-between text-xs"><span>${qty}x ${item.name}</span><span class="font-bold">₹${item.price * qty}</span></div>`;
-    }
-  });
-
-  const { sub, deliveryFee, grandTotal } = calculateCartTotals();
-
-  const banner = document.getElementById('freeDeliveryBanner');
-  if (sub >= 199) {
-    banner.innerText = "🎉 You unlocked FREE DELIVERY!";
-    banner.className = "p-2 bg-emerald-50 text-emerald-800 rounded-xl font-black text-center text-[11px]";
-  } else {
-    const diff = 199 - sub;
-    banner.innerText = `Add ₹${diff} more to get FREE DELIVERY`;
-    banner.className = "p-2 bg-amber-50 text-amber-800 rounded-xl font-black text-center text-[11px]";
+    savedAddresses[0].isDefault =
+      true;
   }
 
-  document.getElementById('billSubtotal').innerText = `₹${sub}`;
-  document.getElementById('billDeliveryFee').innerText = deliveryFee === 0 ? "FREE" : `₹${deliveryFee}`;
-  document.getElementById('billFinal').innerText = `₹${grandTotal}`;
+
+  persistCustomerAddresses();
+
+  renderSavedAddressesList();
+
+  populateCheckoutAddressDropdown();
 }
 
-let selectedPaymentMode = 'COD';
-function setPaymentMethod(mode) {
-  selectedPaymentMode = mode;
-  document.getElementById('upiQrBox').classList.add('hidden');
-  document.getElementById('codNoticeBox').classList.add('hidden');
-  if (mode === 'UPI_QR') { document.getElementById('upiQrBox').classList.remove('hidden'); renderPaymentQR(); }
-  else if (mode === 'COD') { document.getElementById('codNoticeBox').classList.remove('hidden'); }
+
+// ==========================================
+// 23. CHECKOUT ADDRESS DROPDOWN
+// ==========================================
+
+function populateCheckoutAddressDropdown() {
+
+  const select =
+    document.getElementById(
+      "checkoutAddressSelect"
+    );
+
+  if (!select) return;
+
+
+  select.innerHTML =
+    `
+      <option value="">
+        -- Select Saved Address --
+      </option>
+    `;
+
+
+  savedAddresses.forEach(
+    (addr, idx) => {
+
+      select.innerHTML += `
+        <option
+          value="${idx}"
+          ${
+            addr.isDefault
+              ? "selected"
+              : ""
+          }
+        >
+          ${escapeHtml(addr.fullName)}
+          -
+          ${escapeHtml(addr.house)},
+          ${escapeHtml(addr.city)}
+          (${escapeHtml(addr.pincode)})
+        </option>
+      `;
+    }
+  );
 }
+
+
+// ==========================================
+// 24. CATEGORIES
+// ==========================================
+
+const categories = [
+
+  {
+    id: "paan",
+    name: "Paan Corner & Refreshers"
+  },
+
+  {
+    id: "dairy",
+    name: "Dairy, Bread & Eggs"
+  },
+
+  {
+    id: "veggies",
+    name: "Fruits & Fresh Vegetables"
+  },
+
+  {
+    id: "drinks",
+    name: "Cold Drinks & Juices"
+  },
+
+  {
+    id: "snacks",
+    name: "Snacks & Munchies"
+  },
+
+  {
+    id: "breakfast",
+    name: "Breakfast & Instant Food"
+  },
+
+  {
+    id: "sweets",
+    name: "Sweet Tooth & Chocolates"
+  },
+
+  {
+    id: "bakery",
+    name: "Bakery & Biscuits"
+  },
+
+  {
+    id: "tea",
+    name: "Tea, Coffee & Milk Drinks"
+  },
+
+  {
+    id: "staples",
+    name: "Atta, Rice & Dal"
+  },
+
+  {
+    id: "masala",
+    name: "Masala, Cooking Oil & Ghee"
+  },
+
+  {
+    id: "sauces",
+    name: "Sauces & Spreads"
+  },
+
+  {
+    id: "meat",
+    name: "Chicken, Meat & Fresh Fish"
+  },
+
+  {
+    id: "organic",
+    name: "Organic & Healthy Living"
+  },
+
+  {
+    id: "baby",
+    name: "Baby Care Essentials"
+  },
+
+  {
+    id: "pharma",
+    name: "Pharma & Wellness"
+  },
+
+  {
+    id: "cleaning",
+    name: "Cleaning Essentials"
+  },
+
+  {
+    id: "home",
+    name: "Home & Office Needs"
+  },
+
+  {
+    id: "personal",
+    name: "Personal Care & Hygiene"
+  },
+
+  {
+    id: "pet",
+    name: "Pet Care Supplies"
+  }
+
+];
+
+
+let liveCatalog = [];
+
+let cartState = {};
+
+let activeCategory =
+  "veggies";
+
+let currentSearch =
+  "";
+
+
+// ==========================================
+// 25. FIREBASE PRODUCTS
+// ==========================================
+
+async function fetchProducts() {
+
+  db.collection(
+    "products"
+  )
+    .orderBy(
+      "created_at",
+      "desc"
+    )
+    .onSnapshot(
+
+      snapshot => {
+
+        let cloudProducts =
+          [];
+
+        snapshot.forEach(
+          doc => {
+
+            cloudProducts.push(
+              {
+                id: doc.id,
+                ...doc.data()
+              }
+            );
+          }
+        );
+
+
+        liveCatalog =
+          cloudProducts;
+
+        filterAndRender();
+      },
+
+      error => {
+
+        console.error(
+          "Products listener error:",
+          error
+        );
+      }
+    );
+}
+
+
+// ==========================================
+// 26. FILTER PRODUCTS
+// ==========================================
+
+function filterAndRender() {
+
+  let filtered =
+    liveCatalog.filter(
+      item =>
+        item.category ===
+        activeCategory
+    );
+
+
+  if (currentSearch) {
+
+    filtered =
+      liveCatalog.filter(
+        item =>
+          String(
+            item.name || ""
+          )
+            .toLowerCase()
+            .includes(
+              currentSearch
+            )
+      );
+  }
+
+
+  const grid =
+    document.getElementById(
+      "productsGrid"
+    );
+
+  if (!grid) return;
+
+
+  grid.innerHTML =
+    "";
+
+
+  if (
+    filtered.length === 0
+  ) {
+
+    grid.innerHTML = `
+      <div class="col-span-full py-10 text-center bg-white rounded-2xl border">
+
+        <h4 class="text-xs font-bold text-slate-600">
+          No products in this category
+        </h4>
+
+      </div>
+    `;
+
+
+    const badge =
+      document.getElementById(
+        "itemCountBadge"
+      );
+
+    if (badge) {
+
+      badge.innerText =
+        "0 Items";
+    }
+
+    return;
+  }
+
+
+  filtered.forEach(
+    p => {
+
+      const qtyVal =
+        p.qty_value !== undefined
+          ? p.qty_value
+          : 1;
+
+
+      const qtyUnit =
+        p.qty_unit ||
+        p.unit ||
+        "pc";
+
+
+      const qty =
+        cartState[p.id] ||
+        0;
+
+
+      grid.innerHTML += `
+        <div class="bg-white p-2.5 rounded-2xl border shadow-sm flex flex-col justify-between">
+
+          <div>
+
+            <div class="h-28 w-full rounded-xl bg-slate-50 relative mb-2 flex items-center justify-center p-2">
+
+              <img
+                src="${escapeAttribute(
+                  p.image_url || ""
+                )}"
+                class="max-h-full max-w-full object-contain"
+                onerror="this.style.display='none'"
+              >
+
+              <span class="absolute bottom-1 left-1 bg-slate-900 text-amber-300 text-[8px] font-black px-1 rounded">
+                ⚡ 10 MINS
+              </span>
+
+            </div>
+
+            <h4 class="text-xs font-bold text-slate-900 line-clamp-2">
+              ${escapeHtml(
+                p.name || "Product"
+              )}
+            </h4>
+
+            <span class="text-[10px] text-slate-500 font-bold">
+              ${qtyVal} ${escapeHtml(qtyUnit)}
+            </span>
+
+          </div>
+
+
+          <div class="mt-2 flex items-center justify-between pt-2 border-t">
+
+            <span class="text-xs font-black">
+              ₹${Number(p.price || 0)}
+            </span>
+
+
+            <div>
+
+              ${
+                qty === 0
+
+                  ? `
+
+                    <button
+                      onclick="modifyCart('${escapeAttribute(p.id)}', 1)"
+                      class="px-3 py-1 rounded-lg border-2 border-emerald-600 text-emerald-700 text-xs font-black"
+                    >
+                      ADD
+                    </button>
+
+                  `
+
+                  : `
+
+                    <div class="flex items-center bg-emerald-700 text-white rounded-lg px-2 py-1 text-xs gap-2">
+
+                      <button
+                        onclick="modifyCart('${escapeAttribute(p.id)}', -1)"
+                      >
+                        -
+                      </button>
+
+                      <span>
+                        ${qty}
+                      </span>
+
+                      <button
+                        onclick="modifyCart('${escapeAttribute(p.id)}', 1)"
+                      >
+                        +
+                      </button>
+
+                    </div>
+
+                  `
+              }
+
+            </div>
+
+          </div>
+
+        </div>
+      `;
+    }
+  );
+
+
+  const badge =
+    document.getElementById(
+      "itemCountBadge"
+    );
+
+  if (badge) {
+
+    badge.innerText =
+      `${filtered.length} Items`;
+  }
+}
+
+
+// ==========================================
+// 27. CATEGORY SELECTION
+// ==========================================
+
+function selectCategory(
+  catId,
+  targetEl = null
+) {
+
+  activeCategory =
+    catId;
+
+
+  const obj =
+    categories.find(
+      c => c.id === catId
+    );
+
+
+  const heading =
+    document.getElementById(
+      "categoryHeading"
+    );
+
+
+  if (heading) {
+
+    heading.innerText =
+      obj
+        ? obj.name
+        : "Products";
+  }
+
+
+  filterAndRender();
+}
+
+
+// ==========================================
+// 28. CART
+// ==========================================
+
+function modifyCart(
+  prodId,
+  delta
+) {
+
+  const next =
+    (cartState[prodId] || 0) +
+    delta;
+
+
+  if (next <= 0) {
+
+    delete cartState[prodId];
+
+  } else {
+
+    cartState[prodId] =
+      next;
+  }
+
+
+  filterAndRender();
+
+  syncCartBar();
+}
+
+
+function syncCartBar() {
+
+  const bar =
+    document.getElementById(
+      "bottomCartBar"
+    );
+
+
+  if (!bar) return;
+
+
+  let count = 0;
+
+  let sum = 0;
+
+
+  Object.keys(
+    cartState
+  ).forEach(
+    id => {
+
+      const item =
+        liveCatalog.find(
+          p => p.id == id
+        );
+
+
+      if (item) {
+
+        count +=
+          cartState[id];
+
+        sum +=
+          Number(item.price || 0) *
+          cartState[id];
+      }
+    }
+  );
+
+
+  if (count > 0) {
+
+    bar.classList.remove(
+      "hidden"
+    );
+
+
+    const countElement =
+      document.getElementById(
+        "barItemCount"
+      );
+
+    if (countElement) {
+
+      countElement.innerText =
+        `${count} items added`;
+    }
+
+
+    const priceElement =
+      document.getElementById(
+        "barGrandPrice"
+      );
+
+    if (priceElement) {
+
+      priceElement.innerText =
+        `₹${sum}`;
+    }
+
+  } else {
+
+    bar.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+function handleSearch(
+  val
+) {
+
+  currentSearch =
+    String(val || "")
+      .toLowerCase()
+      .trim();
+
+
+  filterAndRender();
+}
+
+
+// ==========================================
+// 29. CART TOTALS
+// ==========================================
+
+function calculateCartTotals() {
+
+  let sub = 0;
+
+
+  Object.keys(
+    cartState
+  ).forEach(
+    id => {
+
+      const item =
+        liveCatalog.find(
+          p => p.id == id
+        );
+
+
+      if (item) {
+
+        sub +=
+          Number(item.price || 0) *
+          cartState[id];
+      }
+    }
+  );
+
+
+  const deliveryFee =
+    sub >= 199
+      ? 0
+      : 25;
+
+
+  const grandTotal =
+    sub > 0
+      ? sub + deliveryFee + 4
+      : 0;
+
+
+  return {
+    sub,
+    deliveryFee,
+    grandTotal
+  };
+}
+
+
+// ==========================================
+// 30. OPEN CHECKOUT
+// ==========================================
+
+function openCheckout() {
+
+  if (
+    !checkStoreWorkingHours()
+  ) {
+
+    alert(
+      "Store is closed (7 AM - 10 PM IST)"
+    );
+
+    return;
+  }
+
+
+  // Must be logged in
+  if (
+    !getCurrentCustomerPhone()
+  ) {
+
+    alert(
+      "Please login before placing an order."
+    );
+
+    openLoginModal();
+
+    return;
+  }
+
+
+  closeAllModals();
+
+
+  const bottomBar =
+    document.getElementById(
+      "bottomCartBar"
+    );
+
+  if (bottomBar) {
+
+    bottomBar.classList.add(
+      "hidden"
+    );
+  }
+
+
+  const modal =
+    document.getElementById(
+      "checkoutModal"
+    );
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  populateCheckoutAddressDropdown();
+
+  renderCheckoutSummary();
+
+
+  // Keep current HTML default as QR
+  // unless customer previously selected
+  // something.
+  setPaymentMethod(
+    selectedPaymentMode
+  );
+}
+
+
+// ==========================================
+// 31. CLOSE CHECKOUT
+// ==========================================
+
+function closeCheckout() {
+
+  const modal =
+    document.getElementById(
+      "checkoutModal"
+    );
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+
+
+  syncCartBar();
+}
+
+
+// ==========================================
+// 32. CHECKOUT SUMMARY
+// ==========================================
+
+function renderCheckoutSummary() {
+
+  const container =
+    document.getElementById(
+      "cartItemsContainer"
+    );
+
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    "";
+
+
+  Object.keys(
+    cartState
+  ).forEach(
+    id => {
+
+      const item =
+        liveCatalog.find(
+          p => p.id == id
+        );
+
+
+      if (item) {
+
+        const qty =
+          cartState[id];
+
+
+        container.innerHTML += `
+          <div class="flex justify-between text-xs">
+
+            <span>
+              ${qty}x
+              ${escapeHtml(item.name)}
+            </span>
+
+            <span class="font-bold">
+              ₹${Number(item.price || 0) * qty}
+            </span>
+
+          </div>
+        `;
+      }
+    }
+  );
+
+
+  const {
+    sub,
+    deliveryFee,
+    grandTotal
+  } =
+    calculateCartTotals();
+
+
+  const banner =
+    document.getElementById(
+      "freeDeliveryBanner"
+    );
+
+
+  if (banner) {
+
+    if (sub >= 199) {
+
+      banner.innerText =
+        "🎉 You unlocked FREE DELIVERY!";
+
+      banner.className =
+        "p-2 bg-emerald-50 text-emerald-800 rounded-xl font-black text-center text-[11px]";
+
+    } else {
+
+      const diff =
+        199 - sub;
+
+      banner.innerText =
+        `Add ₹${diff} more to get FREE DELIVERY`;
+
+      banner.className =
+        "p-2 bg-amber-50 text-amber-800 rounded-xl font-black text-center text-[11px]";
+    }
+  }
+
+
+  const subtotalElement =
+    document.getElementById(
+      "billSubtotal"
+    );
+
+  if (subtotalElement) {
+
+    subtotalElement.innerText =
+      `₹${sub}`;
+  }
+
+
+  const deliveryElement =
+    document.getElementById(
+      "billDeliveryFee"
+    );
+
+  if (deliveryElement) {
+
+    deliveryElement.innerText =
+      deliveryFee === 0
+        ? "FREE"
+        : `₹${deliveryFee}`;
+  }
+
+
+  const finalElement =
+    document.getElementById(
+      "billFinal"
+    );
+
+  if (finalElement) {
+
+    finalElement.innerText =
+      `₹${grandTotal}`;
+  }
+}
+
+
+// ==========================================
+// 33. PAYMENT METHOD
+// ==========================================
+
+let selectedPaymentMode =
+  "UPI_QR";
+
+
+function setPaymentMethod(
+  mode
+) {
+
+  selectedPaymentMode =
+    mode;
+
+
+  // Actual IDs from index.html
+  const upiAppsButton =
+    document.getElementById(
+      "btnMethodApps"
+    );
+
+  const qrButton =
+    document.getElementById(
+      "btnMethodQR"
+    );
+
+  const codButton =
+    document.getElementById(
+      "btnMethodCOD"
+    );
+
+
+  const buttons = [
+    upiAppsButton,
+    qrButton,
+    codButton
+  ];
+
+
+  // Reset
+  buttons.forEach(
+    button => {
+
+      if (!button) return;
+
+
+      button.classList.remove(
+        "border-emerald-600",
+        "border-2",
+        "bg-emerald-50/50",
+        "bg-emerald-50/30",
+        "ring-2",
+        "ring-emerald-500",
+        "text-emerald-700"
+      );
+
+
+      button.classList.add(
+        "border",
+        "border-slate-200",
+        "bg-white"
+      );
+    }
+  );
+
+
+  let selectedButton =
+    null;
+
+
+  if (
+    mode === "UPI_APPS"
+  ) {
+
+    selectedButton =
+      upiAppsButton;
+
+  } else if (
+    mode === "UPI_QR"
+  ) {
+
+    selectedButton =
+      qrButton;
+
+  } else if (
+    mode === "COD"
+  ) {
+
+    selectedButton =
+      codButton;
+  }
+
+
+  if (selectedButton) {
+
+    selectedButton.classList.remove(
+      "border-slate-200",
+      "bg-white"
+    );
+
+
+    selectedButton.classList.add(
+      "border-2",
+      "border-emerald-600",
+      "bg-emerald-50/50",
+      "ring-2",
+      "ring-emerald-500",
+      "text-emerald-700"
+    );
+  }
+
+
+  // Payment boxes
+  const appsBox =
+    document.getElementById(
+      "upiAppsBox"
+    );
+
+  const qrBox =
+    document.getElementById(
+      "upiQrBox"
+    );
+
+  const codBox =
+    document.getElementById(
+      "codNoticeBox"
+    );
+
+
+  if (appsBox) {
+
+    appsBox.classList.add(
+      "hidden"
+    );
+  }
+
+
+  if (qrBox) {
+
+    qrBox.classList.add(
+      "hidden"
+    );
+  }
+
+
+  if (codBox) {
+
+    codBox.classList.add(
+      "hidden"
+    );
+  }
+
+
+  // UPI Apps
+  if (
+    mode === "UPI_APPS"
+  ) {
+
+    if (appsBox) {
+
+      appsBox.classList.remove(
+        "hidden"
+      );
+    }
+  }
+
+
+  // QR
+  if (
+    mode === "UPI_QR"
+  ) {
+
+    if (qrBox) {
+
+      qrBox.classList.remove(
+        "hidden"
+      );
+    }
+
+    renderPaymentQR();
+  }
+
+
+  // COD
+  if (
+    mode === "COD"
+  ) {
+
+    if (codBox) {
+
+      codBox.classList.remove(
+        "hidden"
+      );
+    }
+  }
+}
+
+
+// ==========================================
+// 34. UPI QR
+// ==========================================
 
 function renderPaymentQR() {
-  const { grandTotal } = calculateCartTotals();
-  const canvas = document.getElementById('qrcodeCanvas');
-  if (canvas) { canvas.innerHTML = ''; new QRCode(canvas, { text: `upi://pay?pa=ravulapalemhub@okaxis&pn=MyShopzy&am=${grandTotal}&cu=INR`, width: 110, height: 110 }); }
-}
 
-// --- 5. ORDER PLACEMENT & IMMUTABLE ADDRESS SNAPSHOT ---
-async function processPaymentFlow() {
-  const selectIdx = document.getElementById('checkoutAddressSelect').value;
-  if (selectIdx === "") return alert("Please select a delivery address!");
-  const chosenAddr = savedAddresses[Number(selectIdx)];
+  const {
+    grandTotal
+  } =
+    calculateCartTotals();
 
-  document.getElementById('paymentOverlay').classList.remove('hidden');
-  setTimeout(() => finalizeOrderAndLaunch(chosenAddr), 600);
-}
 
-async function finalizeOrderAndLaunch(chosenAddr) {
-  document.getElementById('paymentOverlay').classList.add('hidden');
-  const { sub, deliveryFee, grandTotal } = calculateCartTotals();
-  
-  let orderItems = [];
-  Object.keys(cartState).forEach(id => {
-    const item = liveCatalog.find(p => p.id == id);
-    orderItems.push({ id: item.id, name: item.name, unit: `${item.qty_value || 1} ${item.qty_unit || 'pc'}`, quantity: cartState[id], price: item.price });
-  });
+  const canvas =
+    document.getElementById(
+      "qrcodeCanvas"
+    );
 
-  const orderId = "QD-" + Math.floor(100000 + Math.random() * 900000);
-  const fullAddressString = `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.house}, ${chosenAddr.street}, ${chosenAddr.city}, ${chosenAddr.state} - ${chosenAddr.pincode}`;
 
-  const orderPayload = {
-    id: orderId,
-    customer_phone: chosenAddr.mobile,
-    delivery_address: fullAddressString, // Immutable Snapshot
-    items: orderItems,
-    total_amount: grandTotal,
-    status: "PLACED",
-    payment_mode: selectedPaymentMode,
-    delivery_otp: Math.floor(1000 + Math.random() * 9000).toString(),
-    created_at_ms: Date.now()
-  };
+  if (!canvas) return;
+
+
+  canvas.innerHTML =
+    "";
+
 
   try {
-    await db.collection("orders").doc(orderId).set({ ...orderPayload, created_at: firebase.firestore.FieldValue.serverTimestamp() });
-  } catch(e) {}
 
-  activeCustomerSession = { phone: chosenAddr.mobile };
-  localStorage.setItem('quickdash_customer', JSON.stringify(activeCustomerSession));
+    new QRCode(
+      canvas,
+      {
+        text:
+          `upi://pay?pa=ravulapalemhub@okaxis&pn=MyShopzy&am=${grandTotal}&cu=INR`,
+
+        width: 110,
+
+        height: 110
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "QR generation error:",
+      error
+    );
+
+    canvas.innerHTML = `
+      <p class="text-[10px] text-rose-500 font-bold">
+        QR unavailable
+      </p>
+    `;
+  }
+}
+
+
+// ==========================================
+// 35. DIRECT UPI PAYMENT
+// ==========================================
+
+function triggerDirectUpiPay(
+  appName
+) {
+
+  const {
+    grandTotal
+  } =
+    calculateCartTotals();
+
+
+  if (
+    grandTotal <= 0
+  ) {
+
+    alert(
+      "Cart is empty."
+    );
+
+    return;
+  }
+
+
+  const upiUrl =
+    `upi://pay?pa=ravulapalemhub@okaxis&pn=MyShopzy&am=${grandTotal}&cu=INR`;
+
+
+  alert(
+    `Opening ${appName}...\n\nIf the app does not open, use the Scan QR option.`
+  );
+
+
+  window.location.href =
+    upiUrl;
+}
+
+
+// ==========================================
+// 36. PROCESS PAYMENT / ORDER
+// ==========================================
+
+async function processPaymentFlow() {
+
+  // Must be logged in
+  const customerPhone =
+    getCurrentCustomerPhone();
+
+
+  if (!customerPhone) {
+
+    alert(
+      "Please login before placing an order."
+    );
+
+    openLoginModal();
+
+    return;
+  }
+
+
+  const select =
+    document.getElementById(
+      "checkoutAddressSelect"
+    );
+
+
+  if (!select) {
+
+    alert(
+      "Address selector not found."
+    );
+
+    return;
+  }
+
+
+  const selectIdx =
+    select.value;
+
+
+  if (
+    selectIdx === ""
+  ) {
+
+    alert(
+      "Please select a delivery address!"
+    );
+
+    return;
+  }
+
+
+  const chosenAddr =
+    savedAddresses[
+      Number(selectIdx)
+    ];
+
+
+  if (!chosenAddr) {
+
+    alert(
+      "Selected address not found."
+    );
+
+    return;
+  }
+
+
+  // Show loading
+  const overlay =
+    document.getElementById(
+      "paymentOverlay"
+    );
+
+
+  if (overlay) {
+
+    overlay.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  setTimeout(
+    () => {
+
+      finalizeOrderAndLaunch(
+        chosenAddr
+      );
+
+    },
+    600
+  );
+}
+
+
+// ==========================================
+// 37. FINALIZE ORDER
+// ==========================================
+
+async function finalizeOrderAndLaunch(
+  chosenAddr
+) {
+
+  const overlay =
+    document.getElementById(
+      "paymentOverlay"
+    );
+
+
+  if (overlay) {
+
+    overlay.classList.add(
+      "hidden"
+    );
+  }
+
+
+  const customerPhone =
+    getCurrentCustomerPhone();
+
+
+  if (!customerPhone) {
+
+    alert(
+      "Customer session expired. Please login again."
+    );
+
+    openLoginModal();
+
+    return;
+  }
+
+
+  const {
+    sub,
+    deliveryFee,
+    grandTotal
+  } =
+    calculateCartTotals();
+
+
+  if (
+    grandTotal <= 0
+  ) {
+
+    alert(
+      "Your cart is empty."
+    );
+
+    return;
+  }
+
+
+  let orderItems = [];
+
+
+  Object.keys(
+    cartState
+  ).forEach(
+    id => {
+
+      const item =
+        liveCatalog.find(
+          p => p.id == id
+        );
+
+
+      if (!item) return;
+
+
+      orderItems.push({
+
+        id:
+          item.id,
+
+        name:
+          item.name,
+
+        unit:
+          `${item.qty_value || 1} ${item.qty_unit || "pc"}`,
+
+        quantity:
+          cartState[id],
+
+        price:
+          Number(item.price || 0)
+      });
+    }
+  );
+
+
+  if (
+    orderItems.length === 0
+  ) {
+
+    alert(
+      "No valid products in cart."
+    );
+
+    return;
+  }
+
+
+  const orderId =
+    "QD-" +
+    Math.floor(
+      100000 +
+      Math.random() *
+      900000
+    );
+
+
+  const fullAddressString =
+    `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.house}, ${chosenAddr.street}, ${chosenAddr.city}, ${chosenAddr.state} - ${chosenAddr.pincode}`;
+
+
+  // IMPORTANT:
+  // Order ownership is ALWAYS the
+  // logged-in customer phone.
+  //
+  // NOT chosenAddr.mobile.
+  //
+  // This allows:
+  // Customer A -> delivers to mother/father
+  // without changing account ownership.
+  //
+  const orderPayload = {
+
+    id:
+      orderId,
+
+    customer_phone:
+      customerPhone,
+
+    customer_name:
+      getCustomerDisplayName(),
+
+    delivery_address:
+      fullAddressString,
+
+    delivery_latitude:
+      chosenAddr.latitude ||
+      currentCustomerCoords.latitude ||
+      null,
+
+    delivery_longitude:
+      chosenAddr.longitude ||
+      currentCustomerCoords.longitude ||
+      null,
+
+    delivery_accuracy:
+      chosenAddr.accuracy ||
+      currentCustomerCoords.accuracy ||
+      null,
+
+    items:
+      orderItems,
+
+    subtotal:
+      sub,
+
+    delivery_fee:
+      deliveryFee,
+
+    total_amount:
+      grandTotal,
+
+    status:
+      "PLACED",
+
+    payment_mode:
+      selectedPaymentMode,
+
+    delivery_otp:
+      Math.floor(
+        1000 +
+        Math.random() *
+        9000
+      ).toString(),
+
+    created_at_ms:
+      Date.now()
+  };
+
+
+  try {
+
+    await db
+      .collection(
+        "orders"
+      )
+      .doc(orderId)
+      .set(
+        {
+          ...orderPayload,
+
+          created_at:
+            firebase.firestore.FieldValue.serverTimestamp()
+        }
+      );
+
+
+    // Local backup for this customer
+    const localOrderKey =
+      `orders_${customerPhone}`;
+
+
+    const localOrders =
+      JSON.parse(
+        localStorage.getItem(
+          localOrderKey
+        ) || "[]"
+      );
+
+
+    localOrders.push(
+      orderPayload
+    );
+
+
+    localStorage.setItem(
+      localOrderKey,
+      JSON.stringify(
+        localOrders
+      )
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Firebase order save failed:",
+      error
+    );
+
+
+    // Local backup even if Firebase fails
+    const localOrderKey =
+      `orders_${customerPhone}`;
+
+
+    const localOrders =
+      JSON.parse(
+        localStorage.getItem(
+          localOrderKey
+        ) || "[]"
+      );
+
+
+    localOrders.push(
+      orderPayload
+    );
+
+
+   localStorage.setItem(
+    localOrderKey,
+    JSON.stringify(localOrders)
+);
+
+alert(
+    "⚠️ Internet/Firebase issue.\n\nOrder saved locally on this device."
+);
+
+
+    alert(
+      "⚠️ Internet/Firebase issue.\n\nOrder saved locally on this device."
+    );
+  }
+
+
+  // IMPORTANT:
+  // Do NOT change customer account to
+  // chosenAddr.mobile.
+  //
+  activeCustomerSession = {
+    phone:
+      customerPhone
+  };
+
+
+  localStorage.setItem(
+    "quickdash_customer",
+    JSON.stringify(
+      activeCustomerSession
+    )
+  );
+
+
+  // Reload this customer's addresses
+  savedAddresses =
+    loadCustomerAddresses();
+
+
   syncCustomerAuthUI();
 
+  syncAccountDashboard();
+
+
+  // Clear cart
   cartState = {};
+
+
   filterAndRender();
+
   syncCartBar();
-  document.getElementById('checkoutModal').classList.add('hidden');
-  alert(`🎉 Order Placed Successfully (${orderId})!`);
+
+
+  const checkoutModal =
+    document.getElementById(
+      "checkoutModal"
+    );
+
+
+  if (checkoutModal) {
+
+    checkoutModal.classList.add(
+      "hidden"
+    );
+  }
+
+
+  alert(
+    `🎉 Order Placed Successfully (${orderId})!`
+  );
+
+
   toggleOrdersView();
 }
 
-// --- 6. MY ACCOUNT DASHBOARD SYNC ---
-function syncAccountDashboard() {
-  const phone = activeCustomerSession ? activeCustomerSession.phone : "8897798251";
-  document.getElementById('accPhoneDisplay').innerText = phone;
+
+// ==========================================
+// 38. CUSTOMER ACCOUNT
+// ==========================================
+
+function getCustomerDisplayName() {
+
+  const phone =
+    getCurrentCustomerPhone();
+
+
+  if (!phone) {
+
+    return "MyShopzy Customer";
+  }
+
+
+  const matched =
+    savedAddresses.find(
+      address =>
+        normalizePhone(
+          address.mobile
+        ) === phone
+    );
+
+
+  if (
+    matched &&
+    matched.fullName
+  ) {
+
+    return matched.fullName;
+  }
+
+
+  return "MyShopzy Customer";
 }
 
-// --- 7. AUTH & ORDERS VIEW ---
-let activeCustomerSession = JSON.parse(localStorage.getItem('quickdash_customer') || 'null');
-function syncCustomerAuthUI() {
-  const loginBtn = document.getElementById('loginBtn');
-  const userChip = document.getElementById('userChip');
-  if (activeCustomerSession && activeCustomerSession.phone) {
-    if (loginBtn) loginBtn.classList.add('hidden');
-    if (userChip) userChip.classList.remove('hidden');
-    document.getElementById('userPhoneDisplay').innerText = activeCustomerSession.phone.slice(-4);
-  } else {
-    if (loginBtn) loginBtn.classList.remove('hidden');
-    if (userChip) userChip.classList.add('hidden');
+
+function syncAccountDashboard() {
+
+  const phone =
+    getCurrentCustomerPhone();
+
+
+  const phoneDisp =
+    document.getElementById(
+      "accPhoneDisplay"
+    );
+
+
+  if (phoneDisp) {
+
+    phoneDisp.innerText =
+      phone || "Not logged in";
+  }
+
+
+  const name =
+    phone
+      ? getCustomerDisplayName()
+      : "MyShopzy Customer";
+
+
+  const email =
+    phone
+      ? `${phone}@myshopzy.com`
+      : "Not logged in";
+
+
+  const nameDisp =
+    document.getElementById(
+      "accNameDisplay"
+    );
+
+
+  if (nameDisp) {
+
+    nameDisp.innerText =
+      name;
+  }
+
+
+  const emailDisp =
+    document.getElementById(
+      "accEmailDisplay"
+    );
+
+
+  if (emailDisp) {
+
+    emailDisp.innerText =
+      email;
   }
 }
-function openLoginModal() { closeAllModals(); document.getElementById('customerLoginModal').classList.remove('hidden'); }
-function closeLoginModal() { document.getElementById('customerLoginModal').classList.add('hidden'); }
-function sendCustomerLoginOtp() { document.getElementById('loginStepPhone').classList.add('hidden'); document.getElementById('loginStepOtp').classList.remove('hidden'); document.getElementById('loginOtpInput').value = "4821"; }
-function verifyCustomerLoginOtp() {
-  const phone = document.getElementById('loginMobileInput').value.trim() || "8897798251";
-  activeCustomerSession = { phone };
-  localStorage.setItem('quickdash_customer', JSON.stringify(activeCustomerSession));
-  closeLoginModal(); syncCustomerAuthUI(); alert("Logged in successfully!");
+
+
+// ==========================================
+// 39. AUTH UI
+// ==========================================
+
+function syncCustomerAuthUI() {
+
+  const loginBtn =
+    document.getElementById(
+      "loginBtn"
+    );
+
+
+  const userChip =
+    document.getElementById(
+      "userChip"
+    );
+
+
+  const phoneDisplay =
+    document.getElementById(
+      "userPhoneDisplay"
+    );
+
+
+  const phone =
+    getCurrentCustomerPhone();
+
+
+  if (phone) {
+
+    if (loginBtn) {
+
+      loginBtn.classList.add(
+        "hidden"
+      );
+    }
+
+
+    if (userChip) {
+
+      userChip.classList.remove(
+        "hidden"
+      );
+    }
+
+
+    if (phoneDisplay) {
+
+      phoneDisplay.innerText =
+        phone.slice(-4);
+    }
+
+  } else {
+
+    if (loginBtn) {
+
+      loginBtn.classList.remove(
+        "hidden"
+      );
+    }
+
+
+    if (userChip) {
+
+      userChip.classList.add(
+        "hidden"
+      );
+    }
+  }
 }
-function logoutCustomer() { localStorage.removeItem('quickdash_customer'); activeCustomerSession = null; syncCustomerAuthUI(); alert("Logged out."); }
 
-// --- FIREBASE LIVE ORDERS & RECEIPT ENGINE ---
-async function toggleOrdersView() {
+
+// ==========================================
+// 40. LOGIN
+// ==========================================
+
+function openLoginModal() {
+
   closeAllModals();
-  const m = document.getElementById('ordersModal');
-  if (m) m.classList.remove('hidden');
 
-  const feed = document.getElementById('ordersFeed');
-  if (!feed) return;
 
-  if (!activeCustomerSession || !activeCustomerSession.phone) {
-    feed.innerHTML = `
-      <div class="text-center py-10 space-y-3">
-        <p class="text-slate-500 font-bold text-xs">Please login to view your orders history!</p>
-        <button onclick="closeOrdersView(); openLoginModal();" class="px-4 py-2 bg-[#0B132B] text-white rounded-xl text-xs font-black uppercase">
-          Login Now 👤
-        </button>
-      </div>
-    `;
+  const modal =
+    document.getElementById(
+      "customerLoginModal"
+    );
+
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+}
+
+
+function closeLoginModal() {
+
+  const modal =
+    document.getElementById(
+      "customerLoginModal"
+    );
+
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+// ==========================================
+// 41. SEND OTP
+// ==========================================
+
+function sendCustomerLoginOtp() {
+
+  const input =
+    document.getElementById(
+      "loginMobileInput"
+    );
+
+
+  const phone =
+    normalizePhone(
+      input
+        ? input.value
+        : ""
+    );
+
+
+  if (
+    phone.length !== 10
+  ) {
+
+    alert(
+      "Please enter a valid 10-digit mobile number."
+    );
+
     return;
   }
 
-  const phone = activeCustomerSession.phone;
-  feed.innerHTML = `<div class="text-center py-6 text-slate-400 font-bold">Loading your orders...</div>`;
+
+  const phoneStep =
+    document.getElementById(
+      "loginStepPhone"
+    );
+
+
+  const otpStep =
+    document.getElementById(
+      "loginStepOtp"
+    );
+
+
+  if (phoneStep) {
+
+    phoneStep.classList.add(
+      "hidden"
+    );
+  }
+
+
+  if (otpStep) {
+
+    otpStep.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  // Demo OTP
+  const otpInput =
+    document.getElementById(
+      "loginOtpInput"
+    );
+
+
+  if (otpInput) {
+
+    otpInput.value =
+      "4821";
+  }
+
+
+  console.log(
+    "Demo OTP: 4821"
+  );
+}
+
+
+// ==========================================
+// 42. VERIFY OTP
+// ==========================================
+
+function verifyCustomerLoginOtp() {
+
+  const phoneInput =
+    document.getElementById(
+      "loginMobileInput"
+    );
+
+
+  const otpInput =
+    document.getElementById(
+      "loginOtpInput"
+    );
+
+
+  const phone =
+    normalizePhone(
+      phoneInput
+        ? phoneInput.value
+        : ""
+    );
+
+
+  const otp =
+    otpInput
+      ? otpInput.value.trim()
+      : "";
+
+
+  if (
+    phone.length !== 10
+  ) {
+
+    alert(
+      "Please enter a valid 10-digit mobile number."
+    );
+
+    return;
+  }
+
+
+  if (
+    otp !== "4821"
+  ) {
+
+    alert(
+      "Invalid OTP.\n\nFor this demo use: 4821"
+    );
+
+    return;
+  }
+
+
+  // ------------------------------------------
+  // IMPORTANT
+  // Customer identity changes here.
+  // ------------------------------------------
+
+  activeCustomerSession = {
+    phone:
+      phone
+  };
+
+
+  localStorage.setItem(
+    "quickdash_customer",
+    JSON.stringify(
+      activeCustomerSession
+    )
+  );
+
+
+  // Load ONLY this customer's addresses
+  savedAddresses =
+    loadCustomerAddresses();
+
+
+  closeLoginModal();
+
+
+  syncCustomerAuthUI();
+
+  syncAccountDashboard();
+
+  populateCheckoutAddressDropdown();
+
+
+  alert(
+    `✅ Logged in successfully as ${phone}!`
+  );
+
+
+  toggleOrdersView();
+}
+
+
+// ==========================================
+// 43. LOGOUT
+// ==========================================
+
+function logoutCustomer() {
+
+  localStorage.removeItem(
+    "quickdash_customer"
+  );
+
+
+  activeCustomerSession =
+    null;
+
+
+  savedAddresses =
+    [];
+
+
+  syncCustomerAuthUI();
+
+  syncAccountDashboard();
+
+  closeOrdersView();
+
+  populateCheckoutAddressDropdown();
+
+
+  alert(
+    "Logged out successfully."
+  );
+}
+
+
+// ==========================================
+// 44. CUSTOMER ORDERS
+// ==========================================
+
+async function toggleOrdersView() {
+
+  closeAllModals();
+
+
+  const modal =
+    document.getElementById(
+      "ordersModal"
+    );
+
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  const feed =
+    document.getElementById(
+      "ordersFeed"
+    );
+
+
+  if (!feed) return;
+
+
+  const currentLoginPhone =
+    getCurrentCustomerPhone();
+
+
+  if (!currentLoginPhone) {
+
+    feed.innerHTML = `
+      <div class="text-center py-10 space-y-3">
+
+        <p class="text-slate-500 font-bold text-xs">
+          Please login with your mobile number to view your orders!
+        </p>
+
+        <button
+          onclick="closeOrdersView(); openLoginModal();"
+          class="px-4 py-2 bg-[#0B132B] text-white rounded-xl text-xs font-black uppercase"
+        >
+          Login Now 👤
+        </button>
+
+      </div>
+    `;
+
+    return;
+  }
+
+
+  feed.innerHTML = `
+    <div class="text-center py-6 text-slate-400 font-bold">
+      Loading orders for ${escapeHtml(currentLoginPhone)}...
+    </div>
+  `;
+
 
   try {
-    const snapshot = await db.collection("orders")
-      .where("customer_phone", "==", phone)
-      .get();
 
-    let cloudOrders = [];
-    snapshot.forEach(doc => {
-      cloudOrders.push({ id: doc.id, ...doc.data() });
-    });
+    const snapshot =
+      await db
+        .collection(
+          "orders"
+        )
+        .where(
+          "customer_phone",
+          "==",
+          currentLoginPhone
+        )
+        .get();
 
-    cloudOrders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
 
-    if (cloudOrders.length === 0) {
-      feed.innerHTML = `<div class="text-center py-10 text-slate-400 font-bold">No orders found for this account!</div>`;
-      return;
+    let userCloudOrders =
+      [];
+
+
+    snapshot.forEach(
+      doc => {
+
+        userCloudOrders.push(
+          {
+            id:
+              doc.id,
+
+            ...doc.data()
+          }
+        );
+      }
+    );
+
+
+    // Local backup
+    if (
+      userCloudOrders.length === 0
+    ) {
+
+      const localKey =
+        `orders_${currentLoginPhone}`;
+
+
+      userCloudOrders =
+        JSON.parse(
+          localStorage.getItem(
+            localKey
+          ) || "[]"
+        );
     }
 
-    feed.innerHTML = '';
-    cloudOrders.forEach(o => {
-      const statusColor = o.status === 'DELIVERED' ? 'text-emerald-600' : 'text-amber-600';
-      feed.innerHTML += `
-        <div onclick="openOrderDetailReceipt('${o.id}')" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl space-y-1 cursor-pointer transition">
-          <div class="flex justify-between font-black text-slate-900">
-            <span>${o.id}</span>
-            <span class="text-emerald-600">₹${o.total_amount || o.total}</span>
-          </div>
-          <p class="text-[11px] text-slate-500">Status: <strong class="${statusColor}">${o.status || 'PLACED'}</strong> • OTP: <strong class="text-amber-600">${o.delivery_otp || '4821'}</strong></p>
-          <p class="text-[10px] text-slate-400 truncate">📍 ${o.delivery_address}</p>
+
+    userCloudOrders.sort(
+      (a, b) =>
+        (b.created_at_ms || 0) -
+        (a.created_at_ms || 0)
+    );
+
+
+    if (
+      userCloudOrders.length === 0
+    ) {
+
+      feed.innerHTML = `
+        <div class="text-center py-10 text-slate-400 font-bold">
+
+          No orders found for
+          ${escapeHtml(currentLoginPhone)}!
+
+          <br>
+
+          Place a new order.
+
         </div>
       `;
-    });
-  } catch (err) {
-    console.error("Error fetching orders:", err);
-    feed.innerHTML = `<div class="text-center py-6 text-rose-500 font-bold">Failed to load orders.</div>`;
-  }
-}
 
-async function openOrderDetailReceipt(orderId) {
-  closeAllModals();
-  const modal = document.getElementById('orderDetailReceiptModal');
-  if (modal) modal.classList.remove('hidden');
-
-  try {
-    const doc = await db.collection("orders").doc(orderId).get();
-    if (!doc.exists) {
-      alert("Order details not found!");
       return;
     }
-    const targetOrder = doc.data();
 
-    document.getElementById('receiptOrderId').innerText = orderId;
-    document.getElementById('receiptStatus').innerText = targetOrder.status || "PLACED";
-    document.getElementById('receiptAddress').innerText = targetOrder.delivery_address || "Ravulapalem";
-    document.getElementById('receiptPayment').innerText = (targetOrder.payment_mode || "COD") + " (Paid)";
-    document.getElementById('receiptRider').innerText = "Suresh (Assigned Hub Rider)";
 
-    const itemsContainer = document.getElementById('receiptItemsContainer');
-    if (itemsContainer) {
-      itemsContainer.innerHTML = '';
-      if (Array.isArray(targetOrder.items)) {
-        targetOrder.items.forEach(i => {
-          itemsContainer.innerHTML += `
-            <div class="flex justify-between text-xs py-1 border-b border-slate-100">
-              <span>${i.quantity}x ${i.name} <span class="text-[10px] text-slate-400">(${i.unit || ''})</span></span>
-              <span class="font-bold">₹${(i.price || 0) * i.quantity}</span>
+    feed.innerHTML =
+      "";
+
+
+    userCloudOrders.forEach(
+      order => {
+
+        const statusColor =
+          order.status ===
+          "DELIVERED"
+
+            ? "text-emerald-600"
+
+            : "text-amber-600";
+
+
+        feed.innerHTML += `
+          <div
+            onclick="openOrderDetailReceipt('${escapeAttribute(order.id)}')"
+            class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl space-y-1 cursor-pointer transition"
+          >
+
+            <div class="flex justify-between font-black text-slate-900">
+
+              <span>
+                ${escapeHtml(order.id)}
+              </span>
+
+              <span class="text-emerald-600">
+                ₹${Number(
+                  order.total_amount ||
+                  order.total ||
+                  0
+                )}
+              </span>
+
             </div>
-          `;
-        });
+
+
+            <p class="text-[11px] text-slate-500">
+
+              Status:
+
+              <strong
+                class="${statusColor}"
+              >
+                ${escapeHtml(
+                  order.status ||
+                  "PLACED"
+                )}
+              </strong>
+
+              •
+
+              OTP:
+
+              <strong class="text-amber-600">
+                ${escapeHtml(
+                  order.delivery_otp ||
+                  "----"
+                )}
+              </strong>
+
+            </p>
+
+
+            <p class="text-[10px] text-slate-400 truncate">
+
+              📍
+              ${escapeHtml(
+                order.delivery_address ||
+                "Address unavailable"
+              )}
+
+            </p>
+
+          </div>
+        `;
       }
-    }
+    );
 
-    const total = targetOrder.total_amount || targetOrder.total || 0;
-    const sub = total >= 199 ? total - 29 : total - 54;
-    document.getElementById('receiptSubtotal').innerText = `₹${sub > 0 ? sub : total}`;
-    document.getElementById('receiptDeliveryFee').innerText = total >= 199 ? "FREE" : "₹25";
-    document.getElementById('receiptGrandTotal').innerText = `₹${total}`;
 
-    const printBtn = document.getElementById('receiptPrintPdfBtn');
-    if (printBtn) {
-      printBtn.onclick = () => window.print();
+  } catch (error) {
+
+    console.error(
+      "Error fetching orders:",
+      error
+    );
+
+
+    // Local fallback
+    const localKey =
+      `orders_${currentLoginPhone}`;
+
+
+    const localOrders =
+      JSON.parse(
+        localStorage.getItem(
+          localKey
+        ) || "[]"
+      );
+
+
+    if (
+      localOrders.length > 0
+    ) {
+
+      feed.innerHTML =
+        "";
+
+
+      localOrders
+        .sort(
+          (a, b) =>
+            (b.created_at_ms || 0) -
+            (a.created_at_ms || 0)
+        )
+        .forEach(
+          order => {
+
+            feed.innerHTML += `
+              <div
+                onclick="openOrderDetailReceipt('${escapeAttribute(order.id)}')"
+                class="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1 cursor-pointer"
+              >
+
+                <div class="flex justify-between font-black">
+
+                  <span>
+                    ${escapeHtml(order.id)}
+                  </span>
+
+                  <span>
+                    ₹${Number(
+                      order.total_amount || 0
+                    )}
+                  </span>
+
+                </div>
+
+                <p class="text-[10px] text-slate-400">
+                  📍
+                  ${escapeHtml(
+                    order.delivery_address ||
+                    ""
+                  )}
+                </p>
+
+              </div>
+            `;
+          }
+        );
+
+    } else {
+
+      feed.innerHTML = `
+        <div class="text-center py-6 text-rose-500 font-bold">
+          Failed to load orders.
+        </div>
+      `;
     }
-  } catch (err) {
-    console.error("Error loading receipt:", err);
   }
 }
 
-function closeOrderDetailReceipt() {
-  const modal = document.getElementById('orderDetailReceiptModal');
-  if (modal) modal.classList.add('hidden');
+
+// ==========================================
+// 45. ORDER DETAIL / RECEIPT
+// ==========================================
+
+async function openOrderDetailReceipt(
+  orderId
+) {
+
+  closeAllModals();
+
+
+  const modal =
+    document.getElementById(
+      "orderDetailReceiptModal"
+    );
+
+
+  if (modal) {
+
+    modal.classList.remove(
+      "hidden"
+    );
+  }
+
+
+  try {
+
+    const doc =
+      await db
+        .collection(
+          "orders"
+        )
+        .doc(orderId)
+        .get();
+
+
+    if (!doc.exists) {
+
+      // Try local order
+      const phone =
+        getCurrentCustomerPhone();
+
+
+      const localOrders =
+        JSON.parse(
+          localStorage.getItem(
+            `orders_${phone}`
+          ) || "[]"
+        );
+
+
+      const localOrder =
+        localOrders.find(
+          order =>
+            order.id === orderId
+        );
+
+
+      if (!localOrder) {
+
+        alert(
+          "Order details not found!"
+        );
+
+        return;
+      }
+
+
+      renderReceipt(
+        orderId,
+        localOrder
+      );
+
+
+      return;
+    }
+
+
+    const targetOrder =
+      doc.data();
+
+
+    renderReceipt(
+      orderId,
+      targetOrder
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Error loading receipt:",
+      error
+    );
+
+
+    alert(
+      "Unable to load order details."
+    );
+  }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  checkStoreWorkingHours();
-  fetchProducts();
-  syncCustomerAuthUI();
-  selectCategory('veggies', null);
-  populateCheckoutAddressDropdown();
-});
+
+// ==========================================
+// 46. RENDER RECEIPT
+// ==========================================
+
+function renderReceipt(
+  orderId,
+  targetOrder
+) {
+
+  const receiptOrderId =
+    document.getElementById(
+      "receiptOrderId"
+    );
+
+
+  if (receiptOrderId) {
+
+    receiptOrderId.innerText =
+      orderId;
+  }
+
+
+  const receiptStatus =
+    document.getElementById(
+      "receiptStatus"
+    );
+
+
+  if (receiptStatus) {
+
+    receiptStatus.innerText =
+      targetOrder.status ||
+      "PLACED";
+  }
+
+
+  const receiptAddress =
+    document.getElementById(
+      "receiptAddress"
+    );
+
+
+  if (receiptAddress) {
+
+    receiptAddress.innerText =
+      targetOrder.delivery_address ||
+      "Ravulapalem";
+  }
+
+
+  const receiptPayment =
+    document.getElementById(
+      "receiptPayment"
+    );
+
+
+  if (receiptPayment) {
+
+    receiptPayment.innerText =
+      targetOrder.payment_mode ||
+      "COD";
+  }
+
+
+  const receiptRider =
+    document.getElementById(
+      "receiptRider"
+    );
+
+
+  if (receiptRider) {
+
+    receiptRider.innerText =
+      "Suresh (Assigned Hub Rider)";
+  }
+
+
+  const itemsContainer =
+    document.getElementById(
+      "receiptItemsContainer"
+    );
+
+
+  if (itemsContainer) {
+
+    itemsContainer.innerHTML =
+      "";
+
+
+    if (
+      Array.isArray(
+        targetOrder.items
+      )
+    ) {
+
+      targetOrder.items.forEach(
+        item => {
+
+          itemsContainer.innerHTML += `
+            <div class="flex justify-between text-xs py-1 border-b border-slate-100">
+
+              <span>
+
+                ${Number(
+                  item.quantity || 0
+                )}x
+
+                ${escapeHtml(
+                  item.name || ""
+                )}
+
+                <span class="text-[10px] text-slate-400">
+
+                  (
+                  ${escapeHtml(
+                    item.unit || ""
+                  )}
+                  )
+
+                </span>
+
+              </span>
+
+
+              <span class="font-bold">
+
+                ₹${Number(
+                  item.price || 0
+                ) *
+                Number(
+                  item.quantity || 0
+                )}
+
+              </span>
+
+            </div>
+          `;
+        }
+      );
+    }
+  }
+
+
+  const total =
+    Number(
+      targetOrder.total_amount ||
+      targetOrder.total ||
+      0
+    );
+
+
+  const sub =
+    Number(
+      targetOrder.subtotal ||
+      0
+    );
+
+
+  const deliveryFee =
+    Number(
+      targetOrder.delivery_fee ||
+      0
+    );
+
+
+  const receiptSubtotal =
+    document.getElementById(
+      "receiptSubtotal"
+    );
+
+
+  if (receiptSubtotal) {
+
+    receiptSubtotal.innerText =
+      `₹${sub}`;
+  }
+
+
+  const receiptDelivery =
+    document.getElementById(
+      "receiptDeliveryFee"
+    );
+
+
+  if (receiptDelivery) {
+
+    receiptDelivery.innerText =
+      deliveryFee === 0
+        ? "FREE"
+        : `₹${deliveryFee}`;
+  }
+
+
+  const receiptGrand =
+    document.getElementById(
+      "receiptGrandTotal"
+    );
+
+
+  if (receiptGrand) {
+
+    receiptGrand.innerText =
+      `₹${total}`;
+  }
+
+
+  const printBtn =
+    document.getElementById(
+      "receiptPrintPdfBtn"
+    );
+
+
+  if (printBtn) {
+
+    printBtn.onclick =
+      () => window.print();
+  }
+}
+
+
+// ==========================================
+// 47. CLOSE RECEIPT
+// ==========================================
+
+function closeOrderDetailReceipt() {
+
+  const modal =
+    document.getElementById(
+      "orderDetailReceiptModal"
+    );
+
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+  }
+}
+
+
+// ==========================================
+// 48. HTML ESCAPING
+// ==========================================
+
+function escapeHtml(value) {
+
+  return String(
+    value ?? ""
+  )
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    )
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+    .replace(
+      /'/g,
+      "&#039;"
+    );
+}
+
+
+function escapeAttribute(value) {
+
+  return escapeHtml(
+    value
+  );
+}
+
+
+// ==========================================
+// 49. INITIALIZATION
+// ==========================================
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    checkStoreWorkingHours();
+
+
+    // Load addresses for current
+    // logged-in customer only.
+    savedAddresses =
+      loadCustomerAddresses();
+
+
+    fetchProducts();
+
+
+    syncCustomerAuthUI();
+
+
+    syncAccountDashboard();
+
+
+    selectCategory(
+      "veggies",
+      null
+    );
+
+
+    populateCheckoutAddressDropdown();
+
+
+    // Default payment method
+    // matches the HTML screenshot:
+    // Scan QR
+    setPaymentMethod(
+      "UPI_QR"
+    );
+
+
+    console.log(
+      "✅ MyShopzy customer engine loaded."
+    );
+
+
+    console.log(
+      "👤 Active customer:",
+      getCurrentCustomerPhone() ||
+      "Guest"
+    );
+
+  }
+);
