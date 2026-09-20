@@ -11,6 +11,7 @@ let currentVerifyingOrderId = null;
 let gpsWatchId = null;
 let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
 let knownAssignedOrderIds = new Set();
+let riderOrdersInitialized = false;
 let riderOtpSent = false;
 const RIDER_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
@@ -222,10 +223,11 @@ function startRiderOrdersListener() {
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     const assignedNow = orders.filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED');
     const newlyAssigned = assignedNow.filter(order => !knownAssignedOrderIds.has(order.id));
-    if (newlyAssigned.length > 0) {
+    if (riderOrdersInitialized && newlyAssigned.length > 0) {
       notifyNewAssignment(newlyAssigned[0]);
     }
     knownAssignedOrderIds = new Set(assignedNow.map(order => order.id));
+    riderOrdersInitialized = true;
     allRiderOrders = orders;
     renderPickupQueue();
     renderRiderOrders();
@@ -254,6 +256,21 @@ function openRiderOrderAlert() {
 function stopRiderOrderAlertSound() {
   RIDER_ORDER_SOUND.pause();
   RIDER_ORDER_SOUND.currentTime = 0;
+}
+
+async function acceptRiderOrder(orderId) {
+  try {
+    await db.collection("orders").doc(orderId).update({
+      status: "ACCEPTED_BY_RIDER",
+      rider_accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    stopRiderOrderAlertSound();
+    const banner = document.getElementById('riderAlertBanner');
+    if (banner) banner.classList.add('hidden');
+  } catch (error) {
+    alert(`Unable to accept delivery: ${error.message}`);
+  }
 }
 
 // --- REAL-TIME GPS STREAMING TO FIRESTORE ---
@@ -433,7 +450,9 @@ function renderRiderOrders() {
       <div>
         <p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>
         ${itemsText ? `<p class="text-[11px] text-slate-500 mt-1">📦 ${itemsText}</p>` : ''}
-        ${renderPickupChecklist(o)}
+        ${String(o.status || '').toUpperCase() === 'ACCEPTED'
+          ? '<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-800">Accept this delivery before starting pickup.</div>'
+          : renderPickupChecklist(o)}
         <div class="flex items-center justify-between mt-2 text-xs">
           <span class="font-extrabold text-slate-900">Total: ₹${o.total_amount || o.total}</span>
           <span class="text-[11px] font-bold ${o.payment_mode === 'COD' ? 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded'}">
@@ -454,7 +473,13 @@ function renderRiderOrders() {
 
       ${String(o.status || '').toUpperCase() !== 'DELIVERED' ? `
         <div class="pt-1 flex gap-2">
-          ${o.status !== 'Out for Delivery' && canStartDelivery(o) ? `
+          ${!['ACCEPTED_BY_RIDER', 'OUT FOR DELIVERY', 'DELIVERED'].includes(String(o.status || '').toUpperCase()) ? `
+            <button onclick="acceptRiderOrder('${o.id}')" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black transition">Accept delivery</button>
+          ` : String(o.status || '').toUpperCase() === 'ACCEPTED_BY_RIDER' && canStartDelivery(o) ? `
+            <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
+              <span>Start Delivery (Broadcast GPS)</span>
+            </button>
+          ` : o.status !== 'Out for Delivery' && canStartDelivery(o) ? `
             <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
               <span>Start Delivery (Broadcast GPS)</span>
             </button>
@@ -462,7 +487,7 @@ function renderRiderOrders() {
             <div class="flex-1 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live GPS Streaming
             </div>
-          ` : `<div class="flex-1 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 text-center">Finish all pickups first</div>`}
+          ` : `<div class="flex-1 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 text-center">Accept delivery first</div>`}
           <button onclick="openOtpModal('${o.id}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">
             Verify OTP
           </button>

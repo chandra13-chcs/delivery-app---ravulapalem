@@ -988,7 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleRestaurantProductFields();
   loadAdminInventory();
   // ==========================================
-// 🗺️ ZOMATO STYLE LIVE RIDER TRACKING (Admin Side)
+// 🗺️ LIVE RIDER TRACKING (Admin Side)
 // ==========================================
 
 let adminMap = null;
@@ -1004,7 +1004,7 @@ function openAdminRiderTracker(riderName) {
   }
 
   if (!adminMap) {
-    adminMap = L.map('adminMapContainer').setView([16.5062, 80.6480], 14);
+    adminMap = L.map('adminMapContainer').setView([16.7483, 81.8488], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(adminMap);
