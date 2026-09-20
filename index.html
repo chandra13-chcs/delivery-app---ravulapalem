@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
   
   <!-- TAILWIND CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -88,6 +89,11 @@
             <span class="text-[11px]">Orders</span>
           </button>
 
+          <button onclick="openAccountModal()" class="hidden sm:flex px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 items-center gap-1 transition shadow-sm">
+            <span>⚙️</span>
+            <span class="text-[11px]">Account</span>
+          </button>
+
           <!-- Separate Login / Account Control -->
           <div id="authContainer">
             <button onclick="openLoginModal()" id="loginBtn" class="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1 shadow-md transition">
@@ -118,7 +124,7 @@
         </div>
 
         <!-- Search Bar -->
-        <div class="relative flex-1">
+        <div class="relative flex-1 flex items-center gap-2">
           <input 
             id="searchInputMobile" 
             oninput="handleSearch(this.value)" 
@@ -126,6 +132,7 @@
             placeholder='Search groceries & essentials...' 
             class="w-full px-3 py-1.5 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
           >
+          <button type="button" onclick="startVoiceSearch()" aria-label="Voice search" class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shrink-0">🎙️</button>
         </div>
       </div>
 
@@ -696,8 +703,8 @@
   <div id="accountModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-3">
     <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
       <div class="flex items-center justify-between border-b pb-3">
-        <h3 class="text-base font-black text-slate-900">My Account</h3>
-        <button onclick="closeAccountModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold flex items-center justify-center">✕</button>
+        <h3 class="text-base font-black text-slate-900" data-i18n="myAccount">My Account</h3>
+          <button onclick="closeAccountModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold flex items-center justify-center" aria-label="Close">✕</button>
       </div>
 
       <div class="p-3 bg-slate-50 rounded-2xl border space-y-1 text-xs">
@@ -709,24 +716,39 @@
       <div class="grid grid-cols-2 gap-2">
         <button onclick="openAddressManager()" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
           <span class="text-base">📍</span>
-          <p class="text-xs font-black text-slate-800">Saved Address</p>
-          <p class="text-[10px] text-slate-400">Manage family / other locations</p>
+          <p class="text-xs font-black text-slate-800" data-i18n="savedAddress">Saved Address</p>
+          <p class="text-[10px] text-slate-400" data-i18n="manageLocations">Manage family / other locations</p>
         </button>
         <button onclick="alert('Payment modes managed securely at checkout.')" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
           <span class="text-base">💳</span>
-          <p class="text-xs font-black text-slate-800">Payment Modes</p>
-          <p class="text-[10px] text-slate-400">UPI, QR & Cash on Delivery</p>
+          <p class="text-xs font-black text-slate-800" data-i18n="paymentModes">Payment Modes</p>
+          <p class="text-[10px] text-slate-400" data-i18n="paymentDescription">UPI, QR & Cash on Delivery</p>
         </button>
       </div>
 
+      <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] font-black uppercase text-slate-600" data-i18n="preferences">Preferences</p>
+          <button type="button" onclick="toggleThemeMode()" id="themeToggleBtn" class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black">🌙 Dark</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-[10px] font-black uppercase text-slate-600" data-i18n="language">Language</label>
+          <select id="accountLanguageSelect" onchange="setUserLanguage(this.value)" class="flex-1 px-2 py-1.5 text-[10px] border rounded-lg bg-white font-bold">
+            <option value="en">English</option>
+            <option value="hi">हिन्दी</option>
+            <option value="te">తెలుగు</option>
+          </select>
+        </div>
+      </div>
+
       <div class="space-y-2">
-        <h4 class="text-xs font-black uppercase text-slate-700">Past Orders & Tracking</h4>
+        <h4 class="text-xs font-black uppercase text-slate-700" data-i18n="pastOrders">Past Orders & Tracking</h4>
         <div id="accountOrdersFeed" class="space-y-2 max-h-40 overflow-y-auto text-xs"></div>
       </div>
 
       <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
-        <h4 class="font-black uppercase">Account Security</h4>
-        <p class="text-[11px]">Secure OTP-based passwordless authentication active.</p>
+        <h4 class="font-black uppercase" data-i18n="accountSecurity">Account Security</h4>
+        <p class="text-[11px]" data-i18n="securityDescription">Secure OTP-based passwordless authentication active.</p>
       </div>
     </div>
   </div>
@@ -882,8 +904,22 @@
       <div id="loginStepPhone" class="space-y-3 text-left">
         <div>
           <h4 class="text-sm font-extrabold text-slate-900">Log in or Sign up</h4>
-          <p class="text-xs text-slate-400 mt-0.5">Enter your 10-digit mobile number to proceed</p>
+          <p class="text-xs text-slate-400 mt-0.5">Create an account or continue with your mobile number</p>
         </div>
+
+        <div class="flex items-center justify-between bg-slate-50 border rounded-xl p-1">
+          <button type="button" onclick="setAuthMode('login')" id="authModeLoginBtn" class="flex-1 py-2 rounded-lg bg-[#0B132B] text-white text-[10px] font-black uppercase">Login</button>
+          <button type="button" onclick="setAuthMode('signup')" id="authModeSignupBtn" class="flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-600">Sign Up</button>
+        </div>
+
+        <div id="signupExtraFields" class="hidden space-y-2">
+          <input id="signupNameInput" type="text" placeholder="Full name" class="w-full px-3 py-2.5 text-xs border rounded-xl font-bold outline-none bg-slate-50">
+          <input id="signupEmailInput" type="email" placeholder="Email address" class="w-full px-3 py-2.5 text-xs border rounded-xl font-bold outline-none bg-slate-50">
+          <input id="signupLocationInput" type="text" placeholder="Default delivery location" class="w-full px-3 py-2.5 text-xs border rounded-xl font-bold outline-none bg-slate-50">
+          <input id="signupPasswordInput" type="password" placeholder="Password" class="w-full px-3 py-2.5 text-xs border rounded-xl font-bold outline-none bg-slate-50">
+          <input id="signupConfirmPasswordInput" type="password" placeholder="Retype password" class="w-full px-3 py-2.5 text-xs border rounded-xl font-bold outline-none bg-slate-50">
+        </div>
+
         <div class="flex items-center border-2 border-slate-200 focus-within:border-brand-navy rounded-2xl px-3 py-2.5 bg-slate-50 transition">
           <span class="text-xs font-black text-slate-500 mr-2 border-r border-slate-300 pr-2">+91</span>
           <input id="loginMobileInput" type="tel" maxlength="10" placeholder="Enter mobile number" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)" class="flex-1 bg-transparent text-sm font-black tracking-wider outline-none text-slate-900">

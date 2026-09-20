@@ -36,6 +36,7 @@ let customerMarker = null;
 let riderTrackingMap = null;
 let riderTrackingMarker = null;
 let riderTrackingUnsubscribe = null;
+let suppressCategoryScrollOnInit = false;
 
 function openCustomerRiderTracker(orderId, riderName) {
   const modal = document.getElementById("customerRiderTrackingModal");
@@ -2093,18 +2094,13 @@ function filterAndRender() {
 
 
   if (currentSearch) {
-
-    filtered =
-      liveCatalog.filter(
-        item =>
-          String(
-            item.name || ""
-          )
-            .toLowerCase()
-            .includes(
-              currentSearch
-            )
-      );
+    const normalized = currentSearch.trim();
+    filtered = liveCatalog.filter(item => {
+      const matchesCategory = !activeCategory || item.category === activeCategory;
+      const matchesRestaurant = activeCategory !== "restaurants" || !activeRestaurantId || item.restaurant_id === activeRestaurantId;
+      const haystack = `${item.name || ""} ${item.category || ""} ${item.restaurant_name || ""}`.toLowerCase();
+      return matchesCategory && matchesRestaurant && haystack.includes(normalized);
+    });
   }
 
 
@@ -2192,11 +2188,13 @@ function filterAndRender() {
             </div>
 
             ${p.restaurant_name ? `<span class="text-[9px] font-black uppercase text-amber-700">${escapeHtml(p.restaurant_name)}</span>` : ''}
-            <h4 class="text-xs font-bold text-slate-900 line-clamp-2">
-              ${escapeHtml(
-                p.name || "Product"
-              )}
-            </h4>
+            <button type="button" onclick="openProductDetailModal(${JSON.stringify(p)})" class="text-left w-full">
+              <h4 class="text-xs font-bold text-slate-900 line-clamp-2">
+                ${escapeHtml(
+                  p.name || "Product"
+                )}
+              </h4>
+            </button>
 
             <span class="text-[10px] text-slate-500 font-bold">
               ${qtyVal} ${escapeHtml(qtyUnit)}
@@ -2313,8 +2311,12 @@ function selectCategory(
 
   filterAndRender();
 
+  if (suppressCategoryScrollOnInit) return;
+
   const productsGrid = document.getElementById("productsGrid");
-  if (productsGrid) productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (productsGrid && targetEl !== null && targetEl !== undefined) {
+    productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function selectRestaurant(restaurantId, restaurantName) {
@@ -2449,6 +2451,126 @@ function handleSearch(
 
 
   filterAndRender();
+}
+
+function startVoiceSearch() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Voice search is not supported in this browser.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-IN";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.start();
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const input = document.getElementById("searchInputMobile");
+    if (input) input.value = transcript;
+    handleSearch(transcript);
+  };
+  recognition.onerror = () => {
+    alert("Voice search could not capture audio. Please type your search.");
+  };
+}
+
+const accountTranslations = {
+  en: {
+    myAccount: "My Account", savedAddress: "Saved Address", manageLocations: "Manage family / other locations",
+    paymentModes: "Payment Modes", paymentDescription: "UPI, QR & Cash on Delivery", preferences: "Preferences",
+    language: "Language", pastOrders: "Past Orders & Tracking", accountSecurity: "Account Security",
+    securityDescription: "Secure OTP-based passwordless authentication active."
+  },
+  hi: {
+    myAccount: "मेरा खाता", savedAddress: "सहेजा हुआ पता", manageLocations: "परिवार या अन्य स्थान प्रबंधित करें",
+    paymentModes: "भुगतान के तरीके", paymentDescription: "UPI, QR और कैश ऑन डिलीवरी", preferences: "प्राथमिकताएं",
+    language: "भाषा", pastOrders: "पिछले ऑर्डर और ट्रैकिंग", accountSecurity: "खाता सुरक्षा",
+    securityDescription: "सुरक्षित OTP पासवर्ड-रहित प्रमाणीकरण सक्रिय है।"
+  },
+  te: {
+    myAccount: "నా ఖాతా", savedAddress: "సేవ్ చేసిన చిరునామా", manageLocations: "కుటుంబం / ఇతర ప్రదేశాలను నిర్వహించండి",
+    paymentModes: "చెల్లింపు విధానాలు", paymentDescription: "UPI, QR మరియు క్యాష్ ఆన్ డెలివరీ", preferences: "ప్రాధాన్యతలు",
+    language: "భాష", pastOrders: "గత ఆర్డర్లు & ట్రాకింగ్", accountSecurity: "ఖాతా భద్రత",
+    securityDescription: "సురక్షిత OTP పాస్‌వర్డ్ రహిత ధృవీకరణ యాక్టివ్‌గా ఉంది."
+  }
+};
+
+function applyThemeMode(isDark) {
+  const root = document.body;
+  const btn = document.getElementById("themeToggleBtn");
+  root.classList.toggle("theme-dark", isDark);
+  root.classList.toggle("bg-slate-900", isDark);
+  root.classList.toggle("text-white", isDark);
+  root.classList.toggle("text-slate-900", !isDark);
+  if (btn) btn.textContent = isDark ? "☀️ Light" : "🌙 Dark";
+}
+
+function toggleThemeMode() {
+  const isDark = !document.body.classList.contains("theme-dark");
+  localStorage.setItem("myshopzy_theme", isDark ? "dark" : "light");
+  applyThemeMode(isDark);
+}
+
+function setUserLanguage(value) {
+  const language = accountTranslations[value] ? value : "en";
+  localStorage.setItem("myshopzy_language", language);
+  const translations = accountTranslations[language];
+  document.querySelectorAll("[data-i18n]").forEach(element => {
+    const key = element.dataset.i18n;
+    if (translations[key]) element.textContent = translations[key];
+  });
+  const select = document.getElementById("accountLanguageSelect");
+  if (select) select.value = language;
+}
+
+function setAuthMode(mode) {
+  const signupFields = document.getElementById("signupExtraFields");
+  const loginBtn = document.getElementById("authModeLoginBtn");
+  const signupBtn = document.getElementById("authModeSignupBtn");
+
+  const isSignup = mode === "signup";
+  if (signupFields) signupFields.classList.toggle("hidden", !isSignup);
+  if (loginBtn) {
+    loginBtn.className = `flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${isSignup ? "text-slate-600" : "bg-[#0B132B] text-white"}`;
+  }
+  if (signupBtn) {
+    signupBtn.className = `flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${isSignup ? "bg-[#0B132B] text-white" : "text-slate-600"}`;
+  }
+}
+
+function openProductDetailModal(product) {
+  const modal = document.getElementById("productDetailModal");
+  if (!modal || !product) return;
+
+  const detailImg = document.getElementById("detailImg");
+  const detailCategory = document.getElementById("detailCategory");
+  const detailName = document.getElementById("detailName");
+  const detailUnit = document.getElementById("detailUnit");
+  const detailDesc = document.getElementById("detailDesc");
+  const detailPrice = document.getElementById("detailPrice");
+  const detailActionBtn = document.getElementById("detailActionBtn");
+
+  if (detailImg) detailImg.src = product.image_url || "";
+  if (detailCategory) detailCategory.innerText = product.category || "Product";
+  if (detailName) detailName.innerText = product.name || "Product";
+  if (detailUnit) detailUnit.innerText = `${product.qty_value || 1} ${product.qty_unit || "pc"}`;
+  if (detailDesc) detailDesc.innerText = product.desc || "Fresh product delivered by MyShopzy.";
+  if (detailPrice) detailPrice.innerText = `₹${Number(product.price || 0)}`;
+  if (detailActionBtn) {
+    detailActionBtn.innerHTML = `
+      <button onclick="modifyCart('${escapeAttribute(product.id)}', 1); closeProductDetailModal();" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase">Add to cart</button>
+    `;
+  }
+
+  modal.classList.remove("hidden");
+}
+
+function closeProductDetailModal() {
+  const modal = document.getElementById("productDetailModal");
+  if (modal) modal.classList.add("hidden");
 }
 
 
@@ -3706,77 +3828,46 @@ function closeLoginModal() {
 
 function sendCustomerLoginOtp() {
 
-  const input =
-    document.getElementById(
-      "loginMobileInput"
-    );
+  const input = document.getElementById("loginMobileInput");
+  const phone = normalizePhone(input ? input.value : "");
 
-
-  const phone =
-    normalizePhone(
-      input
-        ? input.value
-        : ""
-    );
-
-
-  if (
-    phone.length !== 10
-  ) {
-
-    alert(
-      "Please enter a valid 10-digit mobile number."
-    );
-
+  if (phone.length !== 10) {
+    alert("Please enter a valid 10-digit mobile number.");
     return;
   }
 
+  const signupMode = document.getElementById("signupExtraFields") && !document.getElementById("signupExtraFields").classList.contains("hidden");
+  if (signupMode) {
+    const name = document.getElementById("signupNameInput")?.value.trim();
+    const email = document.getElementById("signupEmailInput")?.value.trim();
+    const location = document.getElementById("signupLocationInput")?.value.trim();
+    const password = document.getElementById("signupPasswordInput")?.value;
+    const confirm = document.getElementById("signupConfirmPasswordInput")?.value;
 
-  const phoneStep =
-    document.getElementById(
-      "loginStepPhone"
-    );
+    if (!name || !email || !location || !password || !confirm) {
+      alert("Please complete all sign-up fields before continuing.");
+      return;
+    }
 
+    if (password.length < 6 || password !== confirm) {
+      alert("Password must be at least 6 characters and match the confirmation field.");
+      return;
+    }
 
-  const otpStep =
-    document.getElementById(
-      "loginStepOtp"
-    );
-
-
-  if (phoneStep) {
-
-    phoneStep.classList.add(
-      "hidden"
-    );
+    const userData = { name, email, location, password };
+    localStorage.setItem(`myshopzy_signup_${phone}`, JSON.stringify(userData));
   }
 
+  const phoneStep = document.getElementById("loginStepPhone");
+  const otpStep = document.getElementById("loginStepOtp");
 
-  if (otpStep) {
+  if (phoneStep) phoneStep.classList.add("hidden");
+  if (otpStep) otpStep.classList.remove("hidden");
 
-    otpStep.classList.remove(
-      "hidden"
-    );
-  }
+  const otpInput = document.getElementById("loginOtpInput");
+  if (otpInput) otpInput.value = "4821";
 
-
-  // Demo OTP
-  const otpInput =
-    document.getElementById(
-      "loginOtpInput"
-    );
-
-
-  if (otpInput) {
-
-    otpInput.value =
-      "4821";
-  }
-
-
-  console.log(
-    "Demo OTP: 4821"
-  );
+  console.log("Demo OTP: 4821");
 }
 
 
@@ -3786,96 +3877,46 @@ function sendCustomerLoginOtp() {
 
 function verifyCustomerLoginOtp() {
 
-  const phoneInput =
-    document.getElementById(
-      "loginMobileInput"
-    );
+  const phoneInput = document.getElementById("loginMobileInput");
+  const otpInput = document.getElementById("loginOtpInput");
+  const phone = normalizePhone(phoneInput ? phoneInput.value : "");
+  const otp = otpInput ? otpInput.value.trim() : "";
 
-
-  const otpInput =
-    document.getElementById(
-      "loginOtpInput"
-    );
-
-
-  const phone =
-    normalizePhone(
-      phoneInput
-        ? phoneInput.value
-        : ""
-    );
-
-
-  const otp =
-    otpInput
-      ? otpInput.value.trim()
-      : "";
-
-
-  if (
-    phone.length !== 10
-  ) {
-
-    alert(
-      "Please enter a valid 10-digit mobile number."
-    );
-
+  if (phone.length !== 10) {
+    alert("Please enter a valid 10-digit mobile number.");
     return;
   }
 
-
-  if (
-    otp !== "4821"
-  ) {
-
-    alert(
-      "Invalid OTP.\n\nFor this demo use: 4821"
-    );
-
+  if (otp !== "4821") {
+    alert("Invalid OTP.\n\nFor this demo use: 4821");
     return;
   }
 
+  const signupMode = document.getElementById("signupExtraFields") && !document.getElementById("signupExtraFields").classList.contains("hidden");
+  const signupDetails = JSON.parse(localStorage.getItem(`myshopzy_signup_${phone}`) || "null");
 
-  // ------------------------------------------
-  // IMPORTANT
-  // Customer identity changes here.
-  // ------------------------------------------
+  if (signupMode && signupDetails) {
+    localStorage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
+      name: signupDetails.name,
+      email: signupDetails.email,
+      defaultLocation: signupDetails.location,
+      password: signupDetails.password
+    }));
+  }
 
-  activeCustomerSession = {
-    phone:
-      phone
-  };
+  activeCustomerSession = { phone };
+  localStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
 
-
-  localStorage.setItem(
-    "quickdash_customer",
-    JSON.stringify(
-      activeCustomerSession
-    )
-  );
-
-
-  // Load ONLY this customer's addresses
-  savedAddresses =
-    loadCustomerAddresses();
-
+  savedAddresses = loadCustomerAddresses();
 
   closeLoginModal();
-
-
   syncCustomerAuthUI();
-
   syncAccountDashboard();
-
   populateCheckoutAddressDropdown();
 
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 
-  alert(
-    `✅ Logged in successfully as ${phone}!`
-  );
-
-
-  toggleOrdersView();
+  alert(`✅ Logged in successfully as ${phone}!`);
 }
 
 
@@ -3903,9 +3944,10 @@ function logoutCustomer() {
   syncAccountDashboard();
 
   closeOrdersView();
-
+  closeAccountModal();
   populateCheckoutAddressDropdown();
 
+  window.location.href = "index.html";
 
   alert(
     "Logged out successfully."
@@ -4075,10 +4117,14 @@ async function toggleOrdersView() {
             : "text-amber-600";
 
 
+        const orderDate = order.created_at_ms
+          ? new Date(order.created_at_ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+          : (order.created_at && order.created_at.toDate ? order.created_at.toDate() : new Date()).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+
         feed.innerHTML += `
           <div
             onclick="openOrderDetailReceipt('${escapeAttribute(order.id)}')"
-            class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl space-y-1 cursor-pointer transition"
+            class="p-3 ${order.status === 'PLACED' || order.status === 'DELIVERED' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'} hover:bg-emerald-100 border rounded-2xl space-y-2 cursor-pointer transition shadow-sm"
           >
 
             <div class="flex justify-between font-black text-slate-900">
@@ -4097,21 +4143,14 @@ async function toggleOrdersView() {
 
             </div>
 
+            <div class="flex items-center justify-between text-[10px] text-slate-500">
+              <span>${escapeHtml(orderDate)}</span>
+              <span class="px-1.5 py-0.5 rounded-full ${order.status === 'DELIVERED' ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'} font-bold">
+                ${escapeHtml(order.status || 'PLACED')}
+              </span>
+            </div>
 
             <p class="text-[11px] text-slate-500">
-
-              Status:
-
-              <strong
-                class="${statusColor}"
-              >
-                ${escapeHtml(
-                  order.status ||
-                  "PLACED"
-                )}
-              </strong>
-
-              •
 
               OTP:
 
@@ -4123,7 +4162,6 @@ async function toggleOrdersView() {
               </strong>
 
             </p>
-
 
             <p class="text-[10px] text-slate-400 truncate">
 
@@ -4629,6 +4667,10 @@ function escapeAttribute(value) {
 document.addEventListener(
   "DOMContentLoaded",
   () => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+
+    applyThemeMode(localStorage.getItem("myshopzy_theme") === "dark");
+    setUserLanguage(localStorage.getItem("myshopzy_language") || "en");
 
     checkStoreWorkingHours();
 
@@ -4649,10 +4691,16 @@ document.addEventListener(
     syncAccountDashboard();
 
 
+    suppressCategoryScrollOnInit = true;
+
+
     selectCategory(
       "veggies",
       null
     );
+
+
+    suppressCategoryScrollOnInit = false;
 
 
     populateCheckoutAddressDropdown();
