@@ -5,9 +5,22 @@
 const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
-const ADMIN_RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
+let ADMIN_RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
 const adminRiderLocations = {};
 const adminRiderLocationUnsubscribers = [];
+
+function formatOrderDateTime(order) {
+  let date = null;
+  if (Number.isFinite(Number(order?.created_at_ms))) {
+    date = new Date(Number(order.created_at_ms));
+  } else if (order?.created_at?.toDate) {
+    date = order.created_at.toDate();
+  } else if (order?.created_at?.seconds) {
+    date = new Date(Number(order.created_at.seconds) * 1000);
+  }
+  if (!date || Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
 
 function calculateDistanceKm(lat1, lng1, lat2, lng2) {
   const earthRadiusKm = 6371;
@@ -23,14 +36,34 @@ function calculateDistanceKm(lat1, lng1, lat2, lng2) {
 function startAdminRiderLocationListeners() {
   renderAdminRiderStatus();
   ADMIN_RIDER_NAMES.forEach(riderName => {
-    const unsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
-      if (doc.exists) adminRiderLocations[riderName] = doc.data();
-      else delete adminRiderLocations[riderName];
-      renderAdminRiderStatus();
-      if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
-    }, error => console.error(`Rider location listener error (${riderName}):`, error));
-    adminRiderLocationUnsubscribers.push(unsubscribe);
+    subscribeToAdminRiderLocation(riderName);
   });
+}
+
+function subscribeToAdminRiderLocation(riderName) {
+  if (adminRiderLocations[`${riderName}_listener`]) return;
+  const unsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
+    if (doc.exists) adminRiderLocations[riderName] = doc.data();
+    else delete adminRiderLocations[riderName];
+    renderAdminRiderStatus();
+    if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
+  }, error => console.error(`Rider location listener error (${riderName}):`, error));
+  adminRiderLocations[`${riderName}_listener`] = unsubscribe;
+  adminRiderLocationUnsubscribers.push(unsubscribe);
+}
+
+function startRegisteredRiderListener() {
+  db.collection("rider_profiles").onSnapshot(snapshot => {
+    const registeredNames = [];
+    snapshot.forEach(doc => {
+      const name = doc.data()?.name;
+      if (name) registeredNames.push(name);
+    });
+    ADMIN_RIDER_NAMES = [...new Set([...ADMIN_RIDER_NAMES, ...registeredNames])];
+    ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
+    renderAdminRiderStatus();
+    if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
+  }, error => console.error("Registered rider listener error:", error));
 }
 
 function renderAdminRiderStatus() {
@@ -698,6 +731,7 @@ function renderAdminOrders(orders) {
             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">${o.status || 'PLACED'}</span>
             <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
           </div>
+          <p class="text-[11px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</p>
           <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
           ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
           ${renderAdminPickupSummary(o)}
@@ -841,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   startLiveOrderQueue();
   startAdminRiderLocationListeners();
+  startRegisteredRiderListener();
   loadAdminRestaurants();
   toggleRestaurantProductFields();
   loadAdminInventory();

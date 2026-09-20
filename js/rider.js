@@ -8,6 +8,161 @@ let currentTab = 'pending';
 let allRiderOrders = [];
 let currentVerifyingOrderId = null;
 let gpsWatchId = null;
+let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
+let riderProfile = JSON.parse(localStorage.getItem('rider_profile') || 'null');
+let knownAssignedOrderIds = new Set();
+let riderOtpSent = false;
+
+function formatOrderDateTime(order) {
+  let date = null;
+  if (Number.isFinite(Number(order?.created_at_ms))) {
+    date = new Date(Number(order.created_at_ms));
+  } else if (order?.created_at?.toDate) {
+    date = order.created_at.toDate();
+  } else if (order?.created_at?.seconds) {
+    date = new Date(Number(order.created_at.seconds) * 1000);
+  }
+  if (!date || Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function isWithinWorkingHours() {
+  const hour = new Date().getHours();
+  return hour >= 7 && hour < 22;
+}
+
+function showRiderSection(section) {
+  const sections = {
+    home: document.getElementById('riderHomeSection'),
+    orders: document.getElementById('riderOrdersSection'),
+    account: document.getElementById('riderAccountSection')
+  };
+  Object.entries(sections).forEach(([name, element]) => {
+    if (element) element.classList.toggle('hidden', name !== section);
+  });
+  if (section === 'orders') renderRiderOrders();
+  if (section === 'account') syncRiderAccount();
+}
+
+function openRiderRegistrationModal() {
+  document.getElementById('riderRegistrationModal')?.classList.remove('hidden');
+  syncRiderAccount();
+}
+
+function closeRiderRegistrationModal() {
+  document.getElementById('riderRegistrationModal')?.classList.add('hidden');
+}
+
+function sendRiderRegistrationOtp() {
+  const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
+  if (mobile.length !== 10) {
+    alert('Enter a valid 10-digit mobile number.');
+    return;
+  }
+  riderOtpSent = true;
+  alert('Demo OTP: 4821');
+}
+
+async function hashRiderPassword(password) {
+  const bytes = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function completeRiderRegistration() {
+  const name = document.getElementById('riderNameInput')?.value.trim();
+  const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
+  const email = document.getElementById('riderEmailInput')?.value.trim();
+  const aadhaar = document.getElementById('riderAadhaarInput')?.value.replace(/\D/g, '');
+  const password = document.getElementById('riderPasswordInput')?.value;
+  const otp = document.getElementById('riderOtpInput')?.value.trim();
+
+  if (!name || mobile.length !== 10 || !email || aadhaar.length !== 12 || !password || password.length < 6) {
+    alert('Complete name, mobile, email, 12-digit Aadhaar, and a 6-character password.');
+    return;
+  }
+  if (!riderOtpSent || otp !== '4821') {
+    alert('Send the OTP first and enter the demo OTP: 4821');
+    return;
+  }
+
+  const passwordHash = await hashRiderPassword(password);
+  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: passwordHash, registered_at_ms: Date.now() };
+  riderProfile = profile;
+  currentActiveRider = name;
+  localStorage.setItem('rider_profile', JSON.stringify(profile));
+  localStorage.setItem('active_rider_name', name);
+  try {
+    await db.collection('rider_profiles').doc(mobile).set(profile, { merge: true });
+  } catch (error) {
+    console.error('Rider profile save failed:', error);
+    alert('Profile saved on this device. Firebase profile sync failed.');
+  }
+  closeRiderRegistrationModal();
+  updateRiderIdentity();
+  alert(`Welcome ${name}. Rider registration completed.`);
+}
+
+function syncRiderAccount() {
+  const fields = {
+    riderAccountName: riderProfile?.name || currentActiveRider,
+    riderAccountMobile: riderProfile?.mobile || '-',
+    riderAccountEmail: riderProfile?.email || '-',
+    riderAccountAadhaar: riderProfile?.aadhaar_last4 ? `•••• ${riderProfile.aadhaar_last4}` : '-'
+  };
+  Object.entries(fields).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.innerText = value;
+  });
+}
+
+function updateRiderIdentity() {
+  const titleEl = document.getElementById('currentRiderTitle');
+  if (titleEl) titleEl.innerText = currentActiveRider;
+  syncRiderAccount();
+  updateAvailabilityUi();
+}
+
+function updateAvailabilityUi() {
+  const button = document.getElementById('riderAvailabilityToggle');
+  const status = document.getElementById('riderDutyStatus');
+  if (button) {
+    button.innerText = riderIsAvailable ? 'Go offline' : 'Go online';
+    button.className = riderIsAvailable
+      ? 'px-3 py-1.5 rounded-xl bg-rose-100 text-rose-700 text-[10px] font-black'
+      : 'px-3 py-1.5 rounded-xl bg-slate-200 text-slate-700 text-[10px] font-black';
+  }
+  if (status) {
+    status.innerHTML = riderIsAvailable
+      ? '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> On-duty (7 AM - 10 PM)'
+      : '<span class="w-2 h-2 rounded-full bg-slate-400"></span> Off-duty';
+    status.className = riderIsAvailable
+      ? 'text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5'
+      : 'text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5';
+  }
+}
+
+async function toggleRiderAvailability() {
+  if (!riderIsAvailable && !isWithinWorkingHours()) {
+    alert('Rider availability is open only from 7:00 AM to 10:00 PM.');
+    return;
+  }
+  riderIsAvailable = !riderIsAvailable;
+  localStorage.setItem('rider_available', String(riderIsAvailable));
+  if (riderIsAvailable) startRiderGpsBroadcast();
+  else stopRiderGpsBroadcast();
+  updateAvailabilityUi();
+  try {
+    await db.collection('riders_location').doc(currentActiveRider).set({
+      rider_name: currentActiveRider,
+      available: riderIsAvailable,
+      working_hours: '07:00-22:00',
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Rider availability update failed:', error);
+  }
+}
 
 function populateRiderSelector() {
   const select = document.getElementById('riderSelect');
@@ -18,8 +173,8 @@ function populateRiderSelector() {
 function switchRider(name) {
   currentActiveRider = name;
   localStorage.setItem('active_rider_name', name);
-  const titleEl = document.getElementById('currentRiderTitle');
-  if (titleEl) titleEl.innerText = name;
+  knownAssignedOrderIds = new Set();
+  updateRiderIdentity();
   renderRiderOrders();
 }
 
@@ -42,9 +197,29 @@ function startRiderOrdersListener() {
   db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+    const assignedNow = orders.filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED');
+    const newlyAssigned = assignedNow.filter(order => !knownAssignedOrderIds.has(order.id));
+    if (knownAssignedOrderIds.size > 0 && newlyAssigned.length > 0) {
+      notifyNewAssignment(newlyAssigned[0]);
+    }
+    knownAssignedOrderIds = new Set(assignedNow.map(order => order.id));
     allRiderOrders = orders;
+    renderPickupQueue();
     renderRiderOrders();
   });
+}
+
+function notifyNewAssignment(order) {
+  const banner = document.getElementById('riderAlertBanner');
+  if (banner) {
+    banner.innerText = `New delivery assigned: ${order.id}. Check your pickup queue.`;
+    banner.classList.remove('hidden');
+    setTimeout(() => banner.classList.add('hidden'), 8000);
+  }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('New MyShopzy delivery', { body: `Order ${order.id} is ready in your queue.` });
+  }
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
 
 // --- REAL-TIME GPS STREAMING TO FIRESTORE ---
@@ -126,10 +301,35 @@ function renderPickupChecklist(order) {
           <span class="min-w-0 flex-1"><strong class="block text-[11px] text-slate-900">${group.name}</strong><span class="block text-[10px] text-slate-500 truncate">${group.address}</span><span class="block text-[10px] text-slate-500">${group.items.map(item => `${item.quantity}x ${item.name}`).join(', ') || 'Legacy order items'}</span></span>
           <span class="text-[10px] font-black ${completed[group.key] ? 'text-emerald-600' : 'text-amber-700'}">${completed[group.key] ? 'Picked' : nextGroup?.key === group.key ? 'Mark picked' : 'Next'}</span>
         </button>
+        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(group.address)}" target="_blank" class="block text-[10px] text-blue-600 font-bold text-right -mt-1">Open pickup location ↗</a>
       `).join('')}
       ${!allPicked ? '<p class="text-[10px] font-bold text-amber-800">Complete every pickup before starting delivery.</p>' : ''}
     </div>
   `;
+}
+
+function renderPickupQueue() {
+  const container = document.getElementById('pickupQueueContainer');
+  if (!container) return;
+  const activeOrders = allRiderOrders
+    .filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED')
+    .sort((a, b) => (a.created_at_ms || 0) - (b.created_at_ms || 0));
+
+  if (!activeOrders.length) {
+    container.innerHTML = '<p class="text-center text-slate-400 py-8 text-xs">No active pickups. Stay online for new assignments.</p>';
+    return;
+  }
+
+  container.innerHTML = activeOrders.map((order, index) => {
+    const groups = getPickupGroups(order);
+    const completed = order.pickup_progress || {};
+    const next = groups.find(group => !completed[group.key]);
+    return `<button onclick="showRiderSection('orders')" class="w-full text-left bg-white rounded-2xl p-3 border border-brand-border shadow-sm flex items-center gap-3">
+      <span class="w-7 h-7 rounded-full bg-brand-navy text-white flex items-center justify-center text-xs font-black">${index + 1}</span>
+      <span class="min-w-0 flex-1"><strong class="block text-xs text-slate-900">${order.id}</strong><span class="block text-[10px] text-slate-500 truncate">Next: ${next ? next.name : 'Ready for delivery'}</span><span class="block text-[10px] text-slate-400">${groups.filter(group => completed[group.key]).length}/${groups.length} pickup points complete</span></span>
+      <span class="text-[10px] font-black ${next ? 'text-amber-700' : 'text-emerald-600'}">${next ? 'Pickup' : 'Ready'}</span>
+    </button>`;
+  }).join('');
 }
 
 async function markPickupComplete(orderId, sourceKey) {
@@ -184,10 +384,13 @@ function renderRiderOrders() {
     if (Array.isArray(o.items)) itemsText = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
 
     const encodedAddress = encodeURIComponent(o.delivery_address || 'Ravulapalem');
+    const customerMapUrl = Number.isFinite(Number(o.delivery_latitude)) && Number.isFinite(Number(o.delivery_longitude))
+      ? `https://www.google.com/maps/search/?api=1&query=${o.delivery_latitude},${o.delivery_longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
     card.innerHTML = `
       <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-        <span class="text-xs font-black text-brand-navy">${o.id}</span>
+        <div><span class="block text-xs font-black text-brand-navy">${o.id}</span><span class="block text-[10px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</span></div>
           <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${String(o.status || '').toUpperCase() === 'DELIVERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">
           ${o.status}
         </span>
@@ -203,13 +406,14 @@ function renderRiderOrders() {
             ${o.payment_mode === 'COD' ? 'Collect Cash at Door' : 'Paid Online'}
           </span>
         </div>
+        ${Number(o.rider_tip || 0) > 0 ? `<p class="text-[11px] font-black text-amber-700 mt-1">🎁 Rider tip: ₹${Number(o.rider_tip)}</p>` : ''}
       </div>
 
       <div class="grid grid-cols-2 gap-2 pt-1">
         <a href="tel:${o.customer_phone}" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
           <i data-lucide="phone" class="w-3.5 h-3.5 text-brand-accent"></i> Call
         </a>
-        <a href="https://www.google.com/maps/search/?api=1&query=${encodedAddress}" target="_blank" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-brand-accent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+        <a href="${customerMapUrl}" target="_blank" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-brand-accent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
           <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Maps
         </a>
       </div>
@@ -307,12 +511,16 @@ async function confirmOtpAndDeliver() {
 document.addEventListener('DOMContentLoaded', () => {
   populateRiderSelector();
   const selectEl = document.getElementById('riderSelect');
-  if (!RIDER_NAMES.includes(currentActiveRider)) currentActiveRider = RIDER_NAMES[0];
+  const availableRiderNames = riderProfile?.name ? [...RIDER_NAMES, riderProfile.name] : RIDER_NAMES;
+  if (!availableRiderNames.includes(currentActiveRider)) currentActiveRider = riderProfile?.name || RIDER_NAMES[0];
   if (selectEl) selectEl.value = currentActiveRider;
   const titleEl = document.getElementById('currentRiderTitle');
   if (titleEl) titleEl.innerText = currentActiveRider;
 
+  updateRiderIdentity();
+  updateAvailabilityUi();
+  showRiderSection('home');
   startRiderOrdersListener();
-  startRiderGpsBroadcast();
+  if (riderIsAvailable && isWithinWorkingHours()) startRiderGpsBroadcast();
   if (window.lucide) lucide.createIcons();
 });

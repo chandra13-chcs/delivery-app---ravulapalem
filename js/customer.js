@@ -38,6 +38,19 @@ let riderTrackingMarker = null;
 let riderTrackingUnsubscribe = null;
 let suppressCategoryScrollOnInit = false;
 
+function formatOrderDateTime(order) {
+  let date = null;
+  if (Number.isFinite(Number(order?.created_at_ms))) {
+    date = new Date(Number(order.created_at_ms));
+  } else if (order?.created_at?.toDate) {
+    date = order.created_at.toDate();
+  } else if (order?.created_at?.seconds) {
+    date = new Date(Number(order.created_at.seconds) * 1000);
+  }
+  if (!date || Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
+
 function openCustomerRiderTracker(orderId, riderName) {
   const modal = document.getElementById("customerRiderTrackingModal");
   const status = document.getElementById("customerRiderTrackingStatus");
@@ -1998,6 +2011,7 @@ const categories = [
 let liveCatalog = [];
 
 let cartState = {};
+let riderTipAmount = 0;
 
 let activeCategory =
   "veggies";
@@ -2612,15 +2626,36 @@ function calculateCartTotals() {
 
   const grandTotal =
     sub > 0
-      ? sub + deliveryFee + 4
+      ? sub + deliveryFee + 4 + riderTipAmount
       : 0;
 
 
   return {
     sub,
     deliveryFee,
+    riderTip: riderTipAmount,
     grandTotal
   };
+}
+
+function setRiderTip(amount) {
+  riderTipAmount = Math.max(0, Number(amount) || 0);
+  updateRiderTipButtons();
+  renderCheckoutSummary();
+}
+
+function updateRiderTipButtons() {
+  document.querySelectorAll(".rider-tip-option").forEach(button => {
+    const selected = Number(button.dataset.tip) === riderTipAmount;
+    button.classList.toggle("border-2", selected);
+    button.classList.toggle("border-emerald-600", selected);
+    button.classList.toggle("bg-emerald-50", selected);
+    button.classList.toggle("text-emerald-700", selected);
+    button.classList.toggle("border", !selected);
+    button.classList.toggle("border-slate-200", !selected);
+    button.classList.toggle("bg-white", !selected);
+    button.classList.toggle("text-slate-700", !selected);
+  });
 }
 
 
@@ -2781,6 +2816,7 @@ function renderCheckoutSummary() {
   const {
     sub,
     deliveryFee,
+    riderTip,
     grandTotal
   } =
     calculateCartTotals();
@@ -2852,6 +2888,11 @@ function renderCheckoutSummary() {
     finalElement.innerText =
       `₹${grandTotal}`;
   }
+
+  const riderTipElement = document.getElementById("billRiderTip");
+  if (riderTipElement) riderTipElement.innerText = `₹${riderTip}`;
+
+  updateRiderTipButtons();
 }
 
 
@@ -3289,6 +3330,7 @@ async function finalizeOrderAndLaunch(
   const {
     sub,
     deliveryFee,
+    riderTip,
     grandTotal
   } =
     calculateCartTotals();
@@ -3447,6 +3489,9 @@ async function finalizeOrderAndLaunch(
     delivery_fee:
       deliveryFee,
 
+    rider_tip:
+      riderTip,
+
     total_amount:
       grandTotal,
 
@@ -3583,6 +3628,8 @@ alert(
 
   // Clear cart
   cartState = {};
+  riderTipAmount = 0;
+  updateRiderTipButtons();
 
 
   filterAndRender();
@@ -4117,9 +4164,7 @@ async function toggleOrdersView() {
             : "text-amber-600";
 
 
-        const orderDate = order.created_at_ms
-          ? new Date(order.created_at_ms).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
-          : (order.created_at && order.created_at.toDate ? order.created_at.toDate() : new Date()).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+        const orderDate = formatOrderDateTime(order);
 
         feed.innerHTML += `
           <div

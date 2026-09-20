@@ -58,56 +58,97 @@
         </div>
       </div>
 
-      <!-- Active Rider Switcher -->
-      <select id="riderSelect" onchange="switchRider(this.value)" class="text-xs font-bold bg-brand-navyLight border border-slate-700 text-white rounded-xl px-2.5 py-1.5 outline-none">
-        <option value="Chandu">Rider: Chandu</option>
-        <option value="Pranith">Rider: Pranith</option>
-        <option value="Dinesh">Rider: Dinesh</option>
-        <option value="Sunil">Rider: Sunil</option>
-        <option value="Raju">Rider: Raju</option>
-        <option value="Dhoni">Rider: Dhoni</option>
-        <option value="Sachin">Rider: Sachin</option>
-        <option value="Virat">Rider: Virat</option>
-        <option value="Rohit">Rider: Rohit</option>
-        <option value="Gambhie">Rider: Gambhie</option>
-      </select>
+      <div class="flex items-center gap-1.5">
+        <button onclick="openRiderRegistrationModal()" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">Register</button>
+        <button onclick="showRiderSection('account')" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
+      </div>
     </div>
   </header>
 
   <!-- MAIN CONTAINER -->
   <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
 
+    <div id="riderAlertBanner" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold"></div>
+
     <!-- RIDER STATUS CARD -->
     <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm flex items-center justify-between">
       <div>
         <span class="text-[10px] uppercase font-bold text-slate-400">Assigned Delivery Partner</span>
         <h2 id="currentRiderTitle" class="text-base font-extrabold text-slate-900 mt-0.5">Chandu</h2>
-        <p class="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> On-Duty (Express Hub)
+        <p id="riderDutyStatus" class="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
+          <span class="w-2 h-2 rounded-full bg-slate-400"></span> Off-duty
         </p>
       </div>
       <div class="text-right">
-        <span class="text-[10px] uppercase font-bold text-slate-400">Pending Orders</span>
+        <button onclick="toggleRiderAvailability()" id="riderAvailabilityToggle" class="px-3 py-1.5 rounded-xl bg-slate-200 text-slate-700 text-[10px] font-black">Go online</button>
+        <span class="block text-[10px] uppercase font-bold text-slate-400 mt-2">Pending Orders</span>
         <h3 id="pendingCount" class="text-2xl font-black text-brand-accent">0</h3>
       </div>
     </div>
 
-    <!-- TABS: PENDING vs DELIVERED -->
-    <div class="flex gap-2 bg-slate-200/70 p-1 rounded-xl">
-      <button id="tabPendingBtn" onclick="toggleRiderTab('pending')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition">
-        Active Orders
-      </button>
-      <button id="tabCompletedBtn" onclick="toggleRiderTab('completed')" class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition">
-        Delivered Today
-      </button>
-    </div>
+    <section id="riderHomeSection" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-black text-slate-900">Pickup Queue</h2>
+        <span class="text-[10px] text-slate-500">Next assigned pickups</span>
+      </div>
+      <div id="pickupQueueContainer" class="space-y-2">
+        <p class="text-center text-slate-400 py-8 text-xs">Your pickup queue will appear here.</p>
+      </div>
+    </section>
 
-    <!-- ORDERS FEED -->
-    <div id="riderOrdersContainer" class="space-y-3">
-      <p class="text-center text-slate-400 py-12 text-xs">Connecting to dispatch stream...</p>
-    </div>
+    <section id="riderOrdersSection" class="hidden space-y-3">
+      <div class="flex gap-2 bg-slate-200/70 p-1 rounded-xl">
+        <button id="tabPendingBtn" onclick="toggleRiderTab('pending')" class="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition">Active Orders</button>
+        <button id="tabCompletedBtn" onclick="toggleRiderTab('completed')" class="flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition">Past Orders</button>
+      </div>
+      <div id="riderOrdersContainer" class="space-y-3">
+        <p class="text-center text-slate-400 py-12 text-xs">Connecting to dispatch stream...</p>
+      </div>
+    </section>
+
+    <section id="riderAccountSection" class="hidden space-y-3">
+      <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm space-y-3">
+        <h2 class="text-sm font-black text-slate-900">My Account</h2>
+        <div class="text-xs space-y-1 text-slate-600">
+          <p><strong>Name:</strong> <span id="riderAccountName">Not registered</span></p>
+          <p><strong>Mobile:</strong> <span id="riderAccountMobile">-</span></p>
+          <p><strong>Email:</strong> <span id="riderAccountEmail">-</span></p>
+          <p><strong>Aadhaar:</strong> <span id="riderAccountAadhaar">-</span></p>
+        </div>
+        <button onclick="openRiderRegistrationModal()" class="w-full py-2.5 rounded-xl bg-brand-navy text-white text-xs font-black">Register / Update Profile</button>
+      </div>
+    </section>
 
   </main>
+
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
+    <div class="max-w-md mx-auto grid grid-cols-3 text-center">
+      <button onclick="showRiderSection('home')" class="py-2.5 text-[10px] font-black text-slate-600">🏠<span class="block">Home</span></button>
+      <button onclick="showRiderSection('orders')" class="py-2.5 text-[10px] font-black text-slate-600">📦<span class="block">Orders</span></button>
+      <button onclick="showRiderSection('account')" class="py-2.5 text-[10px] font-black text-slate-600">👤<span class="block">My Account</span></button>
+    </div>
+  </nav>
+
+  <!-- RIDER REGISTRATION MODAL -->
+  <div id="riderRegistrationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-black text-slate-900">Rider Registration</h3>
+        <button onclick="closeRiderRegistrationModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
+      </div>
+      <input id="riderNameInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Full name">
+      <input id="riderMobileInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="10-digit mobile" maxlength="10" inputmode="numeric">
+      <input id="riderEmailInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Email address" type="email">
+      <input id="riderAadhaarInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Aadhaar number" maxlength="12" inputmode="numeric">
+      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password" type="password">
+      <div class="flex gap-2">
+        <input id="riderOtpInput" class="flex-1 p-2.5 border rounded-xl text-xs" placeholder="OTP" maxlength="4" inputmode="numeric">
+        <button onclick="sendRiderRegistrationOtp()" class="px-3 rounded-xl bg-slate-900 text-white text-[10px] font-black">Send OTP</button>
+      </div>
+      <p class="text-[10px] text-slate-500">Demo OTP: 4821. In production, connect this flow to a server-side OTP provider.</p>
+      <button onclick="completeRiderRegistration()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Verify & Register</button>
+    </div>
+  </div>
 
   <!-- OTP VERIFICATION MODAL -->
   <div id="otpModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">

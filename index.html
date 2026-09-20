@@ -552,6 +552,19 @@
       <div class="p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50">
         <div id="cartItemsContainer" class="space-y-1.5"></div>
 
+        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] font-black text-slate-800 uppercase">Tip your rider</p>
+            <span class="text-[10px] text-slate-400">Optional</span>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button type="button" onclick="setRiderTip(0)" data-tip="0" class="rider-tip-option p-2 border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl text-[10px] font-black">No tip</button>
+            <button type="button" onclick="setRiderTip(10)" data-tip="10" class="rider-tip-option p-2 border border-slate-200 bg-white text-slate-700 rounded-xl text-[10px] font-black">₹10</button>
+            <button type="button" onclick="setRiderTip(20)" data-tip="20" class="rider-tip-option p-2 border border-slate-200 bg-white text-slate-700 rounded-xl text-[10px] font-black">₹20</button>
+            <button type="button" onclick="setRiderTip(30)" data-tip="30" class="rider-tip-option p-2 border border-slate-200 bg-white text-slate-700 rounded-xl text-[10px] font-black">₹30</button>
+          </div>
+        </div>
+
         <!-- 🌟 Multi-Address Selector (Added to your original checkout) -->
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
           <!-- 🌟 Multi-Address Selector -->
@@ -624,6 +637,7 @@
           <div class="flex justify-between text-slate-600"><span>Items Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
           <div class="flex justify-between text-slate-600"><span>10-Min Fast Delivery</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
           <div class="flex justify-between text-slate-600"><span>Handling & Bag Fee</span><span class="font-bold text-slate-900">₹4</span></div>
+          <div class="flex justify-between text-slate-600"><span>Rider Tip</span><span id="billRiderTip" class="font-bold text-slate-900">₹0</span></div>
           <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
             <span>To Pay</span><span id="billFinal" class="text-emerald-600">₹0</span>
           </div>
