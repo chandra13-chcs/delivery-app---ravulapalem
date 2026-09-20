@@ -2501,7 +2501,17 @@ function handleSearch(
   filterAndRender();
 }
 
-function startVoiceSearch() {
+function submitProductSearch(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  const input = document.getElementById("searchInputMobile");
+  handleSearch(input?.value || "");
+  document.getElementById("productsGrid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function startVoiceSearch(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     alert("Voice search is not supported in this browser.");
@@ -3776,10 +3786,12 @@ function syncAccountDashboard() {
       : "MyShopzy Customer";
 
 
-  const email =
-    phone
-      ? `${phone}@myshopzy.com`
-      : "Not logged in";
+  const savedCustomer = phone
+    ? JSON.parse(localStorage.getItem(`myshopzy_customer_${phone}`) || "null")
+    : null;
+  const email = phone
+    ? (savedCustomer?.email || "Not provided")
+    : "Not logged in";
 
 
   const nameDisp =

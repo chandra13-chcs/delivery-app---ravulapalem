@@ -10,8 +10,51 @@ const adminRiderLocations = {};
 const adminRiderLocationUnsubscribers = [];
 let adminOrderIdsInitialized = false;
 let adminCountdownTimer = null;
+let pendingAdminOrderAlerts = [];
 const ADMIN_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
 const ADMIN_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+ADMIN_ORDER_SOUND.loop = true;
+
+function stopAdminOrderSound() {
+  ADMIN_ORDER_SOUND.pause();
+  ADMIN_ORDER_SOUND.currentTime = 0;
+}
+
+function showNextAdminOrderAlert() {
+  const order = pendingAdminOrderAlerts[0];
+  const alertBox = document.getElementById("adminNewOrderAlert");
+  if (!order || !alertBox) {
+    if (alertBox) alertBox.classList.add("hidden");
+    return;
+  }
+
+  alertBox.classList.remove("hidden");
+  document.getElementById("adminAlertOrderId").innerText = order.id;
+  document.getElementById("adminAlertCustomer").innerText = order.customer_name || order.customer_phone || "Customer";
+  document.getElementById("adminAlertAmount").innerText = `₹${Number(order.total_amount || order.total || 0)}`;
+  ADMIN_ORDER_SOUND.play().catch(() => {});
+}
+
+function stopAdminOrderAlertSound() {
+  stopAdminOrderSound();
+}
+
+async function acceptAdminOrderAlert() {
+  const order = pendingAdminOrderAlerts[0];
+  if (!order) return;
+  try {
+    await db.collection("orders").doc(order.id).update({
+      status: "ACCEPTED",
+      accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    pendingAdminOrderAlerts.shift();
+    stopAdminOrderSound();
+    showNextAdminOrderAlert();
+  } catch (error) {
+    alert(`Unable to accept order: ${error.message}`);
+  }
+}
 
 function getAdminOrderDeadlineMs(order) {
   const deadline = Number(order?.delivery_deadline_ms);
@@ -652,6 +695,7 @@ async function handleCategoryDirectFile(event, catId) {
 function renderStatusPills(orderId, currentStatus) {
   const statuses = [
     { key: "PLACED", label: "Placed" },
+    { key: "ACCEPTED", label: "Accepted" },
     { key: "PICKING_UP", label: "Picking Up" },
     { key: "PACKED", label: "Packed" },
     { key: "DISPATCHED", label: "Dispatched" },
@@ -794,8 +838,14 @@ function startLiveOrderQueue() {
     allFetchedOrders = orders;
     renderAdminOrders(orders);
     if (hasNewOrder) {
-      ADMIN_ORDER_SOUND.currentTime = 0;
-      ADMIN_ORDER_SOUND.play().catch(() => {});
+      snapshot.docChanges()
+        .filter(change => change.type === "added")
+        .forEach(change => {
+          if (!pendingAdminOrderAlerts.some(order => order.id === change.doc.id)) {
+            pendingAdminOrderAlerts.push({ id: change.doc.id, ...change.doc.data() });
+          }
+        });
+      showNextAdminOrderAlert();
     }
     adminOrderIdsInitialized = true;
   }, error => {
