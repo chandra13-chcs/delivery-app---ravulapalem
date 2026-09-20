@@ -5,6 +5,104 @@
 const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
+const ADMIN_RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
+const adminRiderLocations = {};
+const adminRiderLocationUnsubscribers = [];
+
+function calculateDistanceKm(lat1, lng1, lat2, lng2) {
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180)
+    * Math.cos(lat2 * Math.PI / 180)
+    * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function startAdminRiderLocationListeners() {
+  renderAdminRiderStatus();
+  ADMIN_RIDER_NAMES.forEach(riderName => {
+    const unsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
+      if (doc.exists) adminRiderLocations[riderName] = doc.data();
+      else delete adminRiderLocations[riderName];
+      renderAdminRiderStatus();
+      if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
+    }, error => console.error(`Rider location listener error (${riderName}):`, error));
+    adminRiderLocationUnsubscribers.push(unsubscribe);
+  });
+}
+
+function renderAdminRiderStatus() {
+  const container = document.getElementById("adminRiderStatusList");
+  if (!container) return;
+  container.innerHTML = ADMIN_RIDER_NAMES.map(name => `
+    <span class="text-[10px] font-bold text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
+      🛵 ${name}: <strong class="${adminRiderLocations[name] ? "text-emerald-600" : "text-slate-400"}">${adminRiderLocations[name] ? "Online" : "Offline"}</strong>
+    </span>
+  `).join("");
+}
+
+function getNearestRider(order) {
+  const orderLat = Number(order.delivery_latitude);
+  const orderLng = Number(order.delivery_longitude);
+  const riders = ADMIN_RIDER_NAMES
+    .map(name => {
+      const location = adminRiderLocations[name];
+      if (!location || !Number.isFinite(orderLat) || !Number.isFinite(orderLng)) return null;
+      const distance = calculateDistanceKm(orderLat, orderLng, Number(location.lat), Number(location.lng));
+      return Number.isFinite(distance) ? { name, distance } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance);
+  return riders[0] || null;
+}
+
+function renderRiderAssignment(order) {
+  const nearest = getNearestRider(order);
+  const selectedRider = order.assigned_rider || "";
+  const options = ADMIN_RIDER_NAMES.map(name => {
+    const location = adminRiderLocations[name];
+    const distance = nearest && nearest.name === name ? ` (${nearest.distance.toFixed(1)} km)` : "";
+    const online = location ? "Online" : "GPS offline";
+    return `<option value="${name}" ${selectedRider === name ? "selected" : ""}>${name} - ${online}${distance}</option>`;
+  }).join("");
+
+  return `
+    <div class="flex flex-wrap items-center gap-2 mt-2">
+      <select onchange="assignOrderToRider('${order.id}', this.value)" class="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700">
+        <option value="">Assign rider...</option>
+        ${options}
+      </select>
+      ${nearest && !selectedRider ? `<button onclick="autoAssignOrderToRider('${order.id}')" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[11px] font-black">Use nearest (${nearest.name})</button>` : ""}
+      ${selectedRider ? `<button onclick="openAdminRiderTracker('${selectedRider}')" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold">Track ${selectedRider}</button>` : ""}
+    </div>
+  `;
+}
+
+async function assignOrderToRider(orderId, riderName) {
+  if (!riderName) return;
+  try {
+    await db.collection("orders").doc(orderId).update({
+      assigned_rider: riderName,
+      assigned_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Rider assignment failed:", error);
+    alert("Unable to assign rider: " + error.message);
+  }
+}
+
+async function autoAssignOrderToRider(orderId) {
+  const order = allFetchedOrders.find(item => item.id === orderId);
+  const nearest = order && getNearestRider(order);
+  if (!nearest) {
+    alert("No rider GPS location is available yet. Ask a rider to open the Rider Hub and start GPS.");
+    return;
+  }
+  await assignOrderToRider(orderId, nearest.name);
+}
 
 function verifyAdminAccess() {
   const entered = document.getElementById('adminPinInput').value;
@@ -93,6 +191,69 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
 }
 
 let selectedProductBase64 = "";
+let adminRestaurants = [];
+
+function toggleRestaurantProductFields() {
+  const category = document.getElementById('pCategory')?.value;
+  const source = document.getElementById('pPickupSource')?.value;
+  const fields = document.getElementById('restaurantProductFields');
+  if (fields) fields.classList.toggle('hidden', category !== 'restaurants' && source !== 'restaurant');
+}
+
+function loadAdminRestaurants() {
+  const select = document.getElementById('pRestaurant');
+  const list = document.getElementById('adminRestaurantsList');
+  if (!select && !list) return;
+
+  db.collection('restaurants').onSnapshot(snapshot => {
+    adminRestaurants = [];
+    snapshot.forEach(doc => adminRestaurants.push({ id: doc.id, ...doc.data() }));
+
+    if (select) {
+      select.innerHTML = adminRestaurants.length
+        ? '<option value="">Select restaurant...</option>'
+        : '<option value="">Add a restaurant first</option>';
+      adminRestaurants.forEach(restaurant => {
+        select.innerHTML += `<option value="${restaurant.id}">${restaurant.name}</option>`;
+      });
+    }
+    if (list) {
+      list.innerHTML = adminRestaurants.length ? adminRestaurants.map(restaurant => `
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+          <strong class="text-slate-900">${restaurant.name}</strong>
+          <span class="block text-slate-500 mt-1">${restaurant.cuisine || 'Restaurant'} · ${restaurant.distance_km} km</span>
+          <span class="block text-slate-400 mt-1">${restaurant.address || 'Ravulapalem'}</span>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-400">No restaurants added yet.</p>';
+    }
+  }, error => console.error('Restaurant listener error:', error));
+}
+
+async function handleAddRestaurant(event) {
+  event.preventDefault();
+  const name = document.getElementById('restaurantName').value.trim();
+  const distance = Number(document.getElementById('restaurantDistance').value);
+  if (!name || !Number.isFinite(distance) || distance > 25) return alert('Enter a restaurant name and distance up to 25 KM.');
+
+  const button = document.getElementById('saveRestaurantBtn');
+  if (button) button.disabled = true;
+  try {
+    await db.collection('restaurants').add({
+      name,
+      cuisine: document.getElementById('restaurantCuisine').value.trim(),
+      distance_km: distance,
+      image_url: document.getElementById('restaurantImage').value.trim(),
+      address: document.getElementById('restaurantAddress').value.trim(),
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    event.target.reset();
+    alert('Restaurant added. You can now add its food from Restaurant Menus.');
+  } catch (error) {
+    alert('Restaurant save failed: ' + error.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
 
 async function handleDirectFileSelect(event) {
   const file = event.target.files[0];
@@ -128,6 +289,22 @@ async function handleAddNewProduct(e) {
   
   const qtyValue = Number(document.getElementById('pQtyValue')?.value) || 1;
   const qtyUnit = document.getElementById('pQtyUnit')?.value || 'pcs';
+  const selectedSource = document.getElementById('pPickupSource')?.value || 'auto';
+  const categorySource = category === 'restaurants'
+    ? 'restaurant'
+    : category === 'veggies'
+      ? 'vegetable_partner'
+      : category === 'meat'
+        ? 'meat_partner'
+        : 'store';
+  const pickupSource = selectedSource === 'auto' ? categorySource : selectedSource;
+  const restaurantId = document.getElementById('pRestaurant')?.value || '';
+  const restaurant = adminRestaurants.find(item => item.id === restaurantId);
+
+  if (pickupSource === 'restaurant' && !restaurant) {
+    alert('Select a restaurant before adding menu food.');
+    return;
+  }
 
   const btn = document.getElementById('saveProdBtn');
   if (btn) { btn.innerText = "Saving to Storefront..."; btn.disabled = true; }
@@ -137,6 +314,12 @@ async function handleAddNewProduct(e) {
     category: category,
     qty_value: qtyValue,
     qty_unit: qtyUnit,
+    pickup_source: pickupSource,
+    pickup_source_name: restaurant?.name || (pickupSource === 'vegetable_partner' ? 'Local Vegetable Partner' : pickupSource === 'meat_partner' ? 'Fresh Meat Partner' : 'MyShopzy Store'),
+    pickup_source_address: restaurant?.address || (pickupSource === 'vegetable_partner' ? 'Assigned vegetable market partner' : pickupSource === 'meat_partner' ? 'Assigned meat partner' : 'Ravulapalem RTC Dark Store'),
+    restaurant_id: restaurantId || null,
+    restaurant_name: restaurant?.name || null,
+    restaurant_address: restaurant?.address || null,
     price: price,
     old_price: old_price,
     image_url: selectedProductBase64,
@@ -354,7 +537,8 @@ const adminCategoryDefaults = [
   { id: "cleaning", name: "Cleaning Essentials", img: "https://images.pexels.com/photos/5202925/pexels-photo-5202925.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "home", name: "Home & Office Needs", img: "https://images.pexels.com/photos/4198024/pexels-photo-4198024.jpeg?auto=compress&cs=tinysrgb&w=150" },
   { id: "personal", name: "Personal Care & Hygiene", img: "https://images.pexels.com/photos/6621376/pexels-photo-6621376.jpeg?auto=compress&cs=tinysrgb&w=150" },
-  { id: "pet", name: "Pet Care Supplies", img: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" }
+  { id: "pet", name: "Pet Care Supplies", img: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" },
+  { id: "restaurants", name: "Restaurant Menus", img: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" }
 ];
 
 async function loadCategoryManager() {
@@ -407,6 +591,7 @@ async function handleCategoryDirectFile(event, catId) {
 function renderStatusPills(orderId, currentStatus) {
   const statuses = [
     { key: "PLACED", label: "Placed" },
+    { key: "PICKING_UP", label: "Picking Up" },
     { key: "PACKED", label: "Packed" },
     { key: "DISPATCHED", label: "Dispatched" },
     { key: "DELIVERED", label: "Delivered" }
@@ -426,6 +611,26 @@ function renderStatusPills(orderId, currentStatus) {
           </button>
         `;
       }).join('')}
+    </div>
+  `;
+}
+
+function renderAdminPickupSummary(order) {
+  if (!Array.isArray(order.items)) return '';
+  const sources = {};
+  order.items.forEach(item => {
+    const key = item.pickup_source || 'store';
+    if (!sources[key]) sources[key] = { name: item.pickup_source_name || 'MyShopzy Store', count: 0 };
+    sources[key].count += Number(item.quantity || 0);
+  });
+  const progress = order.pickup_progress || {};
+  return `
+    <div class="mt-2 flex flex-wrap gap-1">
+      ${Object.entries(sources).map(([key, source]) => `
+        <span class="text-[10px] font-bold px-2 py-1 rounded-lg ${progress[key] ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}">
+          ${progress[key] ? '✓' : '○'} ${source.name} · ${source.count} item${source.count === 1 ? '' : 's'}
+        </span>
+      `).join('')}
     </div>
   `;
 }
@@ -459,41 +664,34 @@ async function quickSetStatus(orderId, newStatus) {
   }
 }
 
-function startLiveOrderQueue() {
+function renderAdminOrders(orders) {
   const container = document.getElementById('adminQueueContainer');
   if (!container) return;
 
-  db.collection("orders").onSnapshot((snapshot) => {
-    let orders = [];
-    snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+  const activeCount = orders.filter(o => String(o.status || '').toUpperCase() !== "DELIVERED").length;
+  const deliveredCount = orders.filter(o => String(o.status || '').toUpperCase() === "DELIVERED").length;
     
-    orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
-    allFetchedOrders = orders;
+  const mActive = document.getElementById('metricActiveOrders');
+  const mDel = document.getElementById('metricDelivered');
+  if (mActive) mActive.innerText = activeCount;
+  if (mDel) mDel.innerText = deliveredCount;
 
-    const activeCount = orders.filter(o => o.status !== "DELIVERED").length;
-    const deliveredCount = orders.filter(o => o.status === "DELIVERED").length;
-    
-    const mActive = document.getElementById('metricActiveOrders');
-    const mDel = document.getElementById('metricDelivered');
-    if (mActive) mActive.innerText = activeCount;
-    if (mDel) mDel.innerText = deliveredCount;
+  if (orders.length === 0) {
+    container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
+    return;
+  }
 
-    if (orders.length === 0) {
-      container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
-      return;
+  container.innerHTML = '';
+  orders.forEach(o => {
+    const row = document.createElement('div');
+    row.className = "p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-sm";
+      
+    let itemsSummary = "";
+    if (Array.isArray(o.items)) {
+      itemsSummary = o.items.map(i => `${i.quantity}x ${i.name} (${i.unit || ''})`).join(", ");
     }
 
-    container.innerHTML = '';
-    orders.forEach(o => {
-      const row = document.createElement('div');
-      row.className = "p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-sm";
-      
-      let itemsSummary = "";
-      if (Array.isArray(o.items)) {
-        itemsSummary = o.items.map(i => `${i.quantity}x ${i.name} (${i.unit || ''})`).join(", ");
-      }
-
-      row.innerHTML = `
+    row.innerHTML = `
         <div class="space-y-1 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-extrabold text-[#0B132B] text-sm">${o.id}</span>
@@ -502,20 +700,35 @@ function startLiveOrderQueue() {
           </div>
           <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
           ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
+          ${renderAdminPickupSummary(o)}
+          ${renderRiderAssignment(o)}
         </div>
 
         <div class="flex items-center justify-between xl:justify-end gap-3 shrink-0">
           <span class="text-sm font-black text-emerald-600">₹${o.total_amount || o.total}</span>
           ${renderStatusPills(o.id, o.status)}
         </div>
-      `;
-      container.appendChild(row);
-    });
+    `;
+    container.appendChild(row);
+  });
 
-    const analyticsSec = document.getElementById('analyticsViewSection');
-    if (analyticsSec && !analyticsSec.classList.contains('hidden')) {
-      calculateAndRenderAnalytics();
-    }
+  const analyticsSec = document.getElementById('analyticsViewSection');
+  if (analyticsSec && !analyticsSec.classList.contains('hidden')) calculateAndRenderAnalytics();
+}
+
+function startLiveOrderQueue() {
+  const container = document.getElementById('adminQueueContainer');
+  if (!container) return;
+
+  db.collection("orders").onSnapshot((snapshot) => {
+    const orders = [];
+    snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
+    orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
+    allFetchedOrders = orders;
+    renderAdminOrders(orders);
+  }, error => {
+    console.error("Admin orders listener error:", error);
+    container.innerHTML = `<p class="text-center text-rose-500 py-10">Unable to load orders. Check Firestore permissions.</p>`;
   });
 }
 
@@ -627,5 +840,64 @@ document.addEventListener('DOMContentLoaded', () => {
     switchView('orders');
   }
   startLiveOrderQueue();
+  startAdminRiderLocationListeners();
+  loadAdminRestaurants();
+  toggleRestaurantProductFields();
   loadAdminInventory();
+  // ==========================================
+// 🗺️ ZOMATO STYLE LIVE RIDER TRACKING (Admin Side)
+// ==========================================
+
+let adminMap = null;
+let riderLiveMarker = null;
+
+function openAdminRiderTracker(riderName) {
+  const mapModal = document.getElementById('adminMapModal');
+  if (mapModal) {
+    mapModal.classList.remove('hidden');
+  } else {
+    alert("Map modal HTML element missing in admin.html!");
+    return;
+  }
+
+  if (!adminMap) {
+    adminMap = L.map('adminMapContainer').setView([16.5062, 80.6480], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(adminMap);
+  } else {
+    setTimeout(() => { adminMap.invalidateSize(); }, 200);
+  }
+
+  db.collection("riders_location").doc(riderName).onSnapshot((doc) => {
+    if (doc.exists) {
+      const data = doc.data();
+      const lat = data.lat;
+      const lng = data.lng;
+
+      if (lat && lng) {
+        if (riderLiveMarker) {
+          riderLiveMarker.setLatLng([lat, lng]);
+        } else {
+          riderLiveMarker = L.marker([lat, lng], {
+            icon: L.divIcon({ 
+              className: 'custom-rider-icon', 
+              html: '<div style="font-size: 24px;">🛵</div>', 
+              iconSize: [30, 30] 
+            })
+          }).addTo(adminMap).bindPopup(`<b>${riderName}</b> (On the way)`).openPopup();
+        }
+        adminMap.setView([lat, lng], 16);
+      }
+    }
+  });
+}
+
+function closeAdminRiderTracker() {
+  const mapModal = document.getElementById('adminMapModal');
+  if (mapModal) mapModal.classList.add('hidden');
+}
+
+window.openAdminRiderTracker = openAdminRiderTracker;
+window.closeAdminRiderTracker = closeAdminRiderTracker;
 });

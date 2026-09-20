@@ -189,6 +189,31 @@
     </div>
   </section>
 
+  <!-- RESTAURANTS WITHIN 25 KM -->
+  <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+    <div class="flex items-end justify-between gap-3 mb-3.5">
+      <div>
+        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Restaurants near Ravulapalem</h3>
+        <p class="text-[11px] text-slate-400 font-semibold">Fresh meals delivered from restaurants within 25 KM</p>
+      </div>
+      <button onclick="selectCategory('restaurants', this)" class="shrink-0 px-3 py-1.5 bg-[#0B132B] text-white rounded-xl text-[10px] font-black">Browse menus</button>
+    </div>
+    <div id="restaurantDirectory" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
+        <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" alt="RTC Family Restaurant" class="w-20 h-20 rounded-xl object-cover">
+        <span><strong class="block text-sm font-black text-slate-900">RTC Family Restaurant</strong><span class="block text-[11px] text-slate-500 mt-1">South Indian · Meals · Biryani</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">1.8 km · 25-35 min</span></span>
+      </button>
+      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
+        <img src="https://images.unsplash.com/photo-1552566626-52f8b3c0f8b5?auto=format&fit=crop&w=300&q=80" alt="Godavari Spice Kitchen" class="w-20 h-20 rounded-xl object-cover">
+        <span><strong class="block text-sm font-black text-slate-900">Godavari Spice Kitchen</strong><span class="block text-[11px] text-slate-500 mt-1">Andhra meals · Seafood · Tiffins</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">4.6 km · 30-40 min</span></span>
+      </button>
+      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
+        <img src="https://images.unsplash.com/photo-1515003197022-e8f33b6c9f2b?auto=format&fit=crop&w=300&q=80" alt="Riverbank Cafe" class="w-20 h-20 rounded-xl object-cover">
+        <span><strong class="block text-sm font-black text-slate-900">Riverbank Cafe</strong><span class="block text-[11px] text-slate-500 mt-1">Chinese · Snacks · Beverages</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">8.2 km · 35-45 min</span></span>
+      </button>
+    </div>
+  </section>
+
   <!-- 20 VISUAL CATEGORIES GRID -->
   <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div class="flex items-center justify-between mb-3.5">
@@ -292,6 +317,13 @@
           <img src="https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&w=150" class="max-h-full object-contain group-hover:scale-105 transition" alt="Meat">
         </div>
         <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Chicken, Meat & Fish</p>
+      </div>
+
+      <div onclick="selectCategory('restaurants', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-amber-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
+        <div class="w-full h-16 rounded-xl bg-slate-50 flex items-center justify-center p-1 overflow-hidden">
+          <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" class="max-h-full object-cover rounded-lg group-hover:scale-105 transition" alt="Restaurants">
+        </div>
+        <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Restaurants Nearby</p>
       </div>
 
       <div onclick="selectCategory('organic', this)" class="cat-card group flex flex-col items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-md cursor-pointer transition text-center min-h-[125px]">
@@ -767,13 +799,15 @@
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Status</span><span id="receiptStatus" class="font-extrabold text-emerald-600">Delivered</span></div>
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Address</span><span id="receiptAddress" class="font-bold text-slate-800 truncate max-w-[200px]">RTC Complex</span></div>
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Payment</span><span id="receiptPayment" class="font-bold text-slate-800">UPI (Paid)</span></div>
-          <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Suresh</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Waiting for assignment</span></div>
         </div>
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2">
           <p class="font-black text-slate-800 uppercase text-[10px]">Live Order Pipeline</p>
           <div id="orderTimelineBox" class="space-y-1.5"></div>
         </div>
+
+        <div id="customerRiderTrackingBox" class="p-3 bg-white rounded-2xl border border-slate-200"></div>
 
         <div>
           <h4 class="font-extrabold text-slate-800 mb-1.5 uppercase text-[10px] tracking-wider">Ordered Items</h4>
@@ -796,6 +830,20 @@
         </button>
         <button onclick="closeOrderDetailReceipt()" class="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER LIVE RIDER MAP -->
+  <div id="customerRiderTrackingModal" class="hidden fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
+      <div class="p-4 bg-[#0B132B] text-white flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-black">Live Rider Location</h3>
+          <p id="customerRiderTrackingStatus" class="text-[10px] text-cyan-300 font-bold mt-1">Connecting...</p>
+        </div>
+        <button onclick="closeCustomerRiderTracker()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 font-bold">✕</button>
+      </div>
+      <div id="customerRiderTrackingMap" class="w-full h-80"></div>
     </div>
   </div>
 

@@ -33,6 +33,60 @@ let currentCustomerCoords = {
 
 let leafletMap = null;
 let customerMarker = null;
+let riderTrackingMap = null;
+let riderTrackingMarker = null;
+let riderTrackingUnsubscribe = null;
+
+function openCustomerRiderTracker(orderId, riderName) {
+  const modal = document.getElementById("customerRiderTrackingModal");
+  const status = document.getElementById("customerRiderTrackingStatus");
+  if (!modal || !riderName) return;
+
+  modal.classList.remove("hidden");
+  if (status) status.innerText = `Connecting to ${riderName}'s live location...`;
+
+  if (riderTrackingUnsubscribe) riderTrackingUnsubscribe();
+  if (!riderTrackingMap) {
+    riderTrackingMap = L.map("customerRiderTrackingMap").setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(riderTrackingMap);
+  } else {
+    setTimeout(() => riderTrackingMap.invalidateSize(), 200);
+  }
+
+  riderTrackingUnsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
+    if (!doc.exists || !Number.isFinite(Number(doc.data().lat)) || !Number.isFinite(Number(doc.data().lng))) {
+      if (status) status.innerText = `${riderName} has not started live GPS yet.`;
+      return;
+    }
+
+    const location = doc.data();
+    const position = [Number(location.lat), Number(location.lng)];
+    if (riderTrackingMarker) {
+      riderTrackingMarker.setLatLng(position);
+    } else {
+      riderTrackingMarker = L.marker(position, {
+        icon: L.divIcon({ className: "customer-rider-icon", html: "<div style=\"font-size: 28px\">🛵</div>", iconSize: [32, 32] })
+      }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(riderName)}</b><br>Live delivery partner`).openPopup();
+    }
+    riderTrackingMap.setView(position, 16);
+    if (status) status.innerText = `${riderName} is live. Last update: ${location.updated_at ? "just now" : "location received"}`;
+  }, error => {
+    console.error("Customer rider tracking error:", error);
+    if (status) status.innerText = "Live location is temporarily unavailable.";
+  });
+}
+
+function closeCustomerRiderTracker() {
+  const modal = document.getElementById("customerRiderTrackingModal");
+  if (modal) modal.classList.add("hidden");
+  if (riderTrackingUnsubscribe) {
+    riderTrackingUnsubscribe();
+    riderTrackingUnsubscribe = null;
+  }
+}
 
 
 // ==========================================
@@ -1930,6 +1984,11 @@ const categories = [
   {
     id: "pet",
     name: "Pet Care Supplies"
+  },
+
+  {
+    id: "restaurants",
+    name: "Restaurants Around Ravulapalem"
   }
 
 ];
@@ -1942,8 +2001,27 @@ let cartState = {};
 let activeCategory =
   "veggies";
 
+let activeRestaurantId = "";
+
 let currentSearch =
   "";
+
+function loadCustomerRestaurants() {
+  const directory = document.getElementById('restaurantDirectory');
+  if (!directory) return;
+  db.collection('restaurants').onSnapshot(snapshot => {
+    const restaurants = [];
+    snapshot.forEach(doc => restaurants.push({ id: doc.id, ...doc.data() }));
+    const nearby = restaurants.filter(item => Number(item.distance_km) <= 25);
+    if (!nearby.length) return;
+    directory.innerHTML = nearby.map(item => `
+      <button onclick="selectRestaurant('${escapeAttribute(item.id)}', '${escapeAttribute(item.name)}')" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
+        <img src="${escapeAttribute(item.image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80')}" alt="${escapeAttribute(item.name)}" class="w-20 h-20 rounded-xl object-cover">
+        <span><strong class="block text-sm font-black text-slate-900">${escapeHtml(item.name)}</strong><span class="block text-[11px] text-slate-500 mt-1">${escapeHtml(item.cuisine || 'Restaurant menu')}</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">${Number(item.distance_km).toFixed(1)} km · 25-45 min</span></span>
+      </button>
+    `).join('');
+  }, error => console.error('Restaurant directory error:', error));
+}
 
 
 // ==========================================
@@ -2008,6 +2086,10 @@ function filterAndRender() {
         item.category ===
         activeCategory
     );
+
+  if (activeCategory === "restaurants" && activeRestaurantId) {
+    filtered = filtered.filter(item => item.restaurant_id === activeRestaurantId);
+  }
 
 
   if (currentSearch) {
@@ -2109,6 +2191,7 @@ function filterAndRender() {
 
             </div>
 
+            ${p.restaurant_name ? `<span class="text-[9px] font-black uppercase text-amber-700">${escapeHtml(p.restaurant_name)}</span>` : ''}
             <h4 class="text-xs font-bold text-slate-900 line-clamp-2">
               ${escapeHtml(
                 p.name || "Product"
@@ -2204,6 +2287,7 @@ function selectCategory(
 
   activeCategory =
     catId;
+  activeRestaurantId = "";
 
 
   const obj =
@@ -2228,6 +2312,19 @@ function selectCategory(
 
 
   filterAndRender();
+
+  const productsGrid = document.getElementById("productsGrid");
+  if (productsGrid) productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function selectRestaurant(restaurantId, restaurantName) {
+  activeCategory = "restaurants";
+  activeRestaurantId = restaurantId;
+  const heading = document.getElementById("categoryHeading");
+  if (heading) heading.innerText = `${restaurantName} Menu`;
+  filterAndRender();
+  const productsGrid = document.getElementById("productsGrid");
+  if (productsGrid) productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 
@@ -3119,7 +3216,37 @@ async function finalizeOrderAndLaunch(
           cartState[id],
 
         price:
-          Number(item.price || 0)
+          Number(item.price || 0),
+
+        pickup_source:
+          item.pickup_source ||
+          (item.category === "restaurants"
+            ? "restaurant"
+            : item.category === "veggies"
+              ? "vegetable_partner"
+              : item.category === "meat"
+                ? "meat_partner"
+                : "store"),
+
+        pickup_source_name:
+          item.pickup_source_name ||
+          item.restaurant_name ||
+          (item.category === "veggies"
+            ? "Local Vegetable Partner"
+            : item.category === "meat"
+              ? "Fresh Meat Partner"
+              : "MyShopzy Store"),
+
+        pickup_source_address:
+          item.pickup_source_address ||
+          item.restaurant_address ||
+          (item.category === "restaurants"
+            ? "Restaurant partner address"
+            : item.category === "veggies"
+              ? "Assigned vegetable market partner"
+              : item.category === "meat"
+                ? "Assigned meat partner"
+                : "Ravulapalem RTC Dark Store")
       });
     }
   );
@@ -3176,12 +3303,12 @@ async function finalizeOrderAndLaunch(
 
     delivery_latitude:
       chosenAddr.latitude ||
-      currentCustomerCoords.latitude ||
+      currentCustomerCoords.lat ||
       null,
 
     delivery_longitude:
       chosenAddr.longitude ||
-      currentCustomerCoords.longitude ||
+      currentCustomerCoords.lng ||
       null,
 
     delivery_accuracy:
@@ -4271,9 +4398,23 @@ function renderReceipt(
 
 
   if (receiptRider) {
-
     receiptRider.innerText =
-      "Suresh (Assigned Hub Rider)";
+      targetOrder.assigned_rider || "Waiting for rider assignment";
+  }
+
+  const trackingBox = document.getElementById("customerRiderTrackingBox");
+  if (trackingBox) {
+    if (targetOrder.assigned_rider && targetOrder.status !== "DELIVERED" && targetOrder.status !== "Delivered") {
+      trackingBox.innerHTML = `
+        <button onclick="openCustomerRiderTracker('${escapeAttribute(orderId)}', '${escapeAttribute(targetOrder.assigned_rider)}')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2">
+          <span>🛵</span> Track ${escapeHtml(targetOrder.assigned_rider)} live
+        </button>
+      `;
+    } else {
+      trackingBox.innerHTML = targetOrder.status === "DELIVERED" || targetOrder.status === "Delivered"
+        ? `<p class="text-[11px] text-emerald-700 font-bold text-center">Delivery completed</p>`
+        : `<p class="text-[11px] text-slate-500 font-bold text-center">A rider will be assigned soon.</p>`;
+    }
   }
 
 
@@ -4499,6 +4640,7 @@ document.addEventListener(
 
 
     fetchProducts();
+    loadCustomerRestaurants();
 
 
     syncCustomerAuthUI();

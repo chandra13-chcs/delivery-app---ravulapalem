@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
   <meta name="theme-color" content="#0B132B">
 
@@ -121,10 +123,7 @@
       </div>
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <p class="text-[11px] font-bold text-slate-400 uppercase">Active Hub Riders</p>
-        <div class="flex items-center gap-3 mt-2">
-          <span class="text-xs font-bold text-slate-800">🛵 Suresh: <strong class="text-emerald-600">Active</strong></span>
-          <span class="text-xs font-bold text-slate-800">🛵 Ramesh: <strong class="text-emerald-600">Active</strong></span>
-        </div>
+        <div id="adminRiderStatusList" class="flex flex-wrap items-center gap-2 mt-2"></div>
       </div>
     </div>
 
@@ -215,7 +214,7 @@
           </div>
           <div>
             <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
-            <select id="pCategory" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+            <select id="pCategory" onchange="toggleRestaurantProductFields()" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
               <option value="paan">Paan Corner & Refreshers</option>
               <option value="dairy">Dairy, Bread & Eggs</option>
               <option value="veggies">Fruits & Fresh Vegetables</option>
@@ -236,6 +235,23 @@
               <option value="home">Home & Office Needs</option>
               <option value="personal">Personal Care & Hygiene</option>
               <option value="pet">Pet Care Supplies</option>
+              <option value="restaurants">Restaurant Menus</option>
+            </select>
+          </div>
+          <div id="restaurantProductFields" class="hidden">
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Restaurant *</label>
+            <select id="pRestaurant" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+              <option value="">Loading restaurants...</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-500 uppercase">Pickup Source *</label>
+            <select id="pPickupSource" onchange="toggleRestaurantProductFields()" required class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none bg-white font-bold">
+              <option value="auto">Auto from category</option>
+              <option value="store">MyShopzy Store</option>
+              <option value="vegetable_partner">Vegetable Partner</option>
+              <option value="meat_partner">Meat Partner</option>
+              <option value="restaurant">Restaurant Partner</option>
             </select>
           </div>
         </div>
@@ -291,6 +307,22 @@
           + Add Product to Storefront
         </button>
       </form>
+    </div>
+
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="pb-3 border-b border-slate-100 mb-4">
+        <h3 class="text-base font-extrabold text-slate-900">Add Restaurant for Ravulapalem</h3>
+        <p class="text-xs text-slate-500">Create a restaurant first, then add its food using the Restaurant Menus category.</p>
+      </div>
+      <form onsubmit="handleAddRestaurant(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <div><label class="text-[11px] font-bold text-slate-500 uppercase">Restaurant Name *</label><input id="restaurantName" required class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold" placeholder="e.g. Godavari Spice Kitchen"></div>
+        <div><label class="text-[11px] font-bold text-slate-500 uppercase">Cuisine</label><input id="restaurantCuisine" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold" placeholder="Andhra, Biryani"></div>
+        <div><label class="text-[11px] font-bold text-slate-500 uppercase">Distance KM *</label><input id="restaurantDistance" type="number" min="0" max="25" step="0.1" required class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold" placeholder="4.5"></div>
+        <div><label class="text-[11px] font-bold text-slate-500 uppercase">Image URL</label><input id="restaurantImage" type="url" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold" placeholder="https://..."></div>
+        <div class="sm:col-span-2 lg:col-span-4"><label class="text-[11px] font-bold text-slate-500 uppercase">Address</label><input id="restaurantAddress" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold" placeholder="Ravulapalem main road"></div>
+        <button type="submit" id="saveRestaurantBtn" class="lg:col-span-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black">+ Add Restaurant</button>
+      </form>
+      <div id="adminRestaurantsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-4"></div>
     </div>
 
     <!-- Inventory Table -->
@@ -395,5 +427,16 @@
 
   <script src="js/firebase-config.js"></script>
   <script src="js/admin.js"></script>
+  <!-- Live Map Modal / Container for Admin -->
+<div id="adminMapModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-2xl p-4 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">🛵 Live Rider Tracking (Zomato Style)</h3>
+      <button onclick="closeAdminRiderTracker()" class="text-slate-500 hover:text-red-600 font-bold text-sm cursor-pointer">✕ Close</button>
+    </div>
+    <!-- Leaflet Map Div -->
+    <div id="adminMapContainer" class="w-full h-96 rounded-xl z-10"></div>
+  </div>
+</div>
 </body>
 </html>
