@@ -2,7 +2,6 @@
 // 🛵 DELIVERY PARTNER ENGINE (rider.js)
 // ==========================================
 
-const RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
 let riderProfile = JSON.parse(localStorage.getItem('rider_profile') || 'null');
 let currentActiveRider = riderProfile?.name || localStorage.getItem('active_rider_name') || '';
 let currentTab = 'pending';
@@ -57,6 +56,15 @@ function closeRiderRegistrationModal() {
   document.getElementById('riderRegistrationModal')?.classList.add('hidden');
 }
 
+function openRiderLoginModal() {
+  document.getElementById('riderLoginModal')?.classList.remove('hidden');
+  document.getElementById('riderLoginIdentityInput')?.focus();
+}
+
+function closeRiderLoginModal() {
+  document.getElementById('riderLoginModal')?.classList.add('hidden');
+}
+
 function sendRiderRegistrationOtp() {
   const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
   if (mobile.length !== 10) {
@@ -76,7 +84,7 @@ async function hashRiderPassword(password) {
 async function completeRiderRegistration() {
   const name = document.getElementById('riderNameInput')?.value.trim();
   const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
-  const email = document.getElementById('riderEmailInput')?.value.trim();
+  const email = document.getElementById('riderEmailInput')?.value.trim().toLowerCase();
   const aadhaar = document.getElementById('riderAadhaarInput')?.value.replace(/\D/g, '');
   const password = document.getElementById('riderPasswordInput')?.value;
   const otp = document.getElementById('riderOtpInput')?.value.trim();
@@ -107,6 +115,47 @@ async function completeRiderRegistration() {
   alert(`Welcome ${name}. Rider registration completed.`);
 }
 
+async function loginRider() {
+  const identity = document.getElementById('riderLoginIdentityInput')?.value.trim();
+  const password = document.getElementById('riderLoginPasswordInput')?.value || '';
+  const errorElement = document.getElementById('riderLoginError');
+  if (!identity || !password) {
+    if (errorElement) {
+      errorElement.innerText = 'Enter your mobile/email and password.';
+      errorElement.classList.remove('hidden');
+    }
+    return;
+  }
+
+  try {
+    const normalizedMobile = identity.replace(/\D/g, '');
+    let profileDoc = normalizedMobile.length === 10
+      ? await db.collection('rider_profiles').doc(normalizedMobile).get()
+      : null;
+    if (!profileDoc?.exists) {
+      const snapshot = await db.collection('rider_profiles').where('email', '==', identity.toLowerCase()).limit(1).get();
+      profileDoc = snapshot.docs[0] || null;
+    }
+    const profile = profileDoc?.exists ? profileDoc.data() : null;
+    const passwordHash = await hashRiderPassword(password);
+    if (!profile || profile.password_hash !== passwordHash) throw new Error('Invalid rider credentials.');
+
+    riderProfile = profile;
+    currentActiveRider = profile.name;
+    localStorage.setItem('rider_profile', JSON.stringify(profile));
+    localStorage.setItem('active_rider_name', profile.name);
+    closeRiderLoginModal();
+    updateRiderIdentity();
+    alert(`Welcome back, ${profile.name}.`);
+  } catch (error) {
+    console.error('Rider login failed:', error);
+    if (errorElement) {
+      errorElement.innerText = error.message || 'Unable to sign in.';
+      errorElement.classList.remove('hidden');
+    }
+  }
+}
+
 function syncRiderAccount() {
   const fields = {
     riderAccountName: riderProfile?.name || currentActiveRider,
@@ -127,9 +176,21 @@ function updateRiderIdentity() {
   updateAvailabilityUi();
 }
 
-function logoutRider() {
+async function logoutRider() {
+  const riderName = currentActiveRider;
   stopRiderGpsBroadcast();
   riderIsAvailable = false;
+  if (riderName) {
+    try {
+      await db.collection('riders_location').doc(riderName).set({
+        rider_name: riderName,
+        available: false,
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn('Rider offline status sync failed:', error);
+    }
+  }
   riderProfile = null;
   currentActiveRider = '';
   localStorage.removeItem('rider_profile');
@@ -144,7 +205,9 @@ function logoutRider() {
 
 function updateAvailabilityUi() {
   const button = document.getElementById('riderAvailabilityToggle');
+  const loginButton = document.getElementById('riderLoginButton');
   const status = document.getElementById('riderDutyStatus');
+  if (loginButton) loginButton.classList.toggle('hidden', Boolean(riderProfile?.name));
   if (button) {
     button.innerText = riderIsAvailable ? 'Go offline' : 'Go online';
     button.className = riderIsAvailable
@@ -185,21 +248,6 @@ async function toggleRiderAvailability() {
   } catch (error) {
     console.error('Rider availability update failed:', error);
   }
-}
-
-function populateRiderSelector() {
-  const select = document.getElementById('riderSelect');
-  if (!select) return;
-  select.innerHTML = RIDER_NAMES.map(name => `<option value="${name}">Rider: ${name}</option>`).join('');
-}
-
-function switchRider(name) {
-  if (!riderProfile?.name) return;
-  currentActiveRider = name;
-  localStorage.setItem('active_rider_name', name);
-  knownAssignedOrderIds = new Set();
-  updateRiderIdentity();
-  renderRiderOrders();
 }
 
 function toggleRiderTab(tab) {
@@ -574,12 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
       RIDER_TAB_SOUND.play().catch(() => {});
     }
   });
-  populateRiderSelector();
-  const selectEl = document.getElementById('riderSelect');
-  const availableRiderNames = riderProfile?.name ? [...RIDER_NAMES, riderProfile.name] : RIDER_NAMES;
   if (!riderProfile?.name) currentActiveRider = '';
-  else if (!availableRiderNames.includes(currentActiveRider)) currentActiveRider = riderProfile.name;
-  if (selectEl) selectEl.value = currentActiveRider;
   const titleEl = document.getElementById('currentRiderTitle');
   if (titleEl) titleEl.innerText = currentActiveRider;
 

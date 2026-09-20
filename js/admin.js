@@ -5,7 +5,7 @@
 const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
-let ADMIN_RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
+let ADMIN_RIDER_NAMES = [];
 const adminRiderLocations = {};
 const adminRiderLocationUnsubscribers = [];
 let adminOrderIdsInitialized = false;
@@ -136,7 +136,7 @@ function startRegisteredRiderListener() {
       const name = doc.data()?.name;
       if (name) registeredNames.push(name);
     });
-    ADMIN_RIDER_NAMES = [...new Set([...ADMIN_RIDER_NAMES, ...registeredNames])];
+    ADMIN_RIDER_NAMES = [...new Set(registeredNames)];
     ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
     renderAdminRiderStatus();
     if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
@@ -148,7 +148,7 @@ function renderAdminRiderStatus() {
   if (!container) return;
   container.innerHTML = ADMIN_RIDER_NAMES.map(name => `
     <span class="text-[10px] font-bold text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
-      🛵 ${name}: <strong class="${adminRiderLocations[name] ? "text-emerald-600" : "text-slate-400"}">${adminRiderLocations[name] ? "Online" : "Offline"}</strong>
+      🛵 ${name}: <strong class="${adminRiderLocations[name]?.available === true ? "text-emerald-600" : "text-slate-400"}">${adminRiderLocations[name]?.available === true ? "Online" : "Offline"}</strong>
     </span>
   `).join("");
 }
@@ -158,7 +158,7 @@ function getNearestRider(order) {
   const orderLng = Number(order.delivery_longitude);
   const riders = ADMIN_RIDER_NAMES
     .map(name => {
-      const location = adminRiderLocations[name];
+      const location = adminRiderLocations[name]?.available === true ? adminRiderLocations[name] : null;
       if (!location || !Number.isFinite(orderLat) || !Number.isFinite(orderLng)) return null;
       const distance = calculateDistanceKm(orderLat, orderLng, Number(location.lat), Number(location.lng));
       return Number.isFinite(distance) ? { name, distance } : null;
@@ -172,7 +172,7 @@ function renderRiderAssignment(order) {
   const nearest = getNearestRider(order);
   const selectedRider = order.assigned_rider || "";
   const options = ADMIN_RIDER_NAMES.map(name => {
-    const location = adminRiderLocations[name];
+    const location = adminRiderLocations[name]?.available === true ? adminRiderLocations[name] : null;
     const distance = nearest && nearest.name === name ? ` (${nearest.distance.toFixed(1)} km)` : "";
     const online = location ? "Online" : "GPS offline";
     return `<option value="${name}" ${selectedRider === name ? "selected" : ""}>${name} - ${online}${distance}</option>`;

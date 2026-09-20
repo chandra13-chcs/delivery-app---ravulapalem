@@ -60,6 +60,7 @@
 
       <div class="flex items-center gap-1.5">
         <button onclick="openRiderRegistrationModal()" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">Register</button>
+        <button onclick="openRiderLoginModal()" id="riderLoginButton" class="px-2 py-1.5 rounded-xl bg-emerald-400 text-slate-950 text-[10px] font-black">Login</button>
         <button onclick="showRiderSection('account')" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
       </div>
     </div>
@@ -148,6 +149,20 @@
       </div>
       <p class="text-[10px] text-slate-500">Demo OTP: 4821. In production, connect this flow to a server-side OTP provider.</p>
       <button onclick="completeRiderRegistration()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Verify & Register</button>
+    </div>
+  </div>
+
+  <!-- RIDER LOGIN MODAL -->
+  <div id="riderLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-black text-slate-900">Rider Login</h3>
+        <button onclick="closeRiderLoginModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
+      </div>
+      <input id="riderLoginIdentityInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Mobile number or email" autocomplete="username">
+      <input id="riderLoginPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password" type="password" autocomplete="current-password">
+      <p id="riderLoginError" class="hidden text-xs font-bold text-rose-600"></p>
+      <button onclick="loginRider()" class="w-full py-3 rounded-xl bg-brand-navy text-white text-xs font-black">Sign in</button>
     </div>
   </div>
 
