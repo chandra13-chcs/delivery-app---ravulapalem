@@ -314,6 +314,35 @@ function persistCustomerAddresses() {
     getCustomerStorageKey(phone),
     JSON.stringify(savedAddresses)
   );
+
+  db.collection("customer_profiles").doc(phone).set({
+    phone,
+    addresses: savedAddresses,
+    updated_at_ms: Date.now()
+  }, { merge: true }).catch(error => {
+    console.warn("Cloud address sync failed:", error);
+  });
+}
+
+async function syncCustomerAddressesFromCloud() {
+  const phone = getCurrentCustomerPhone();
+  if (!phone) return;
+
+  try {
+    const profileDoc = await db.collection("customer_profiles").doc(phone).get();
+    const cloudAddresses = profileDoc.exists ? profileDoc.data()?.addresses : null;
+    if (Array.isArray(cloudAddresses)) {
+      savedAddresses = cloudAddresses;
+      localStorage.setItem(getCustomerStorageKey(phone), JSON.stringify(savedAddresses));
+      renderSavedAddressesList();
+      populateCheckoutAddressDropdown();
+      return;
+    }
+
+    if (savedAddresses.length) persistCustomerAddresses();
+  } catch (error) {
+    console.warn("Cloud address load failed; using local addresses:", error);
+  }
 }
 
 
@@ -4020,6 +4049,7 @@ function verifyCustomerLoginOtp() {
   localStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
 
   savedAddresses = loadCustomerAddresses();
+  syncCustomerAddressesFromCloud();
 
   closeLoginModal();
   syncCustomerAuthUI();
@@ -4815,6 +4845,7 @@ document.addEventListener(
     // logged-in customer only.
     savedAddresses =
       loadCustomerAddresses();
+    syncCustomerAddressesFromCloud();
 
 
     fetchProducts();

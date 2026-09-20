@@ -11,6 +11,7 @@ const adminRiderLocationUnsubscribers = [];
 let adminOrderIdsInitialized = false;
 let adminCountdownTimer = null;
 let pendingAdminOrderAlerts = [];
+let adminAlertSoundStopped = false;
 const ADMIN_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
 const ADMIN_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
 ADMIN_ORDER_SOUND.loop = true;
@@ -32,27 +33,32 @@ function showNextAdminOrderAlert() {
   document.getElementById("adminAlertOrderId").innerText = order.id;
   document.getElementById("adminAlertCustomer").innerText = order.customer_name || order.customer_phone || "Customer";
   document.getElementById("adminAlertAmount").innerText = `₹${Number(order.total_amount || order.total || 0)}`;
-  ADMIN_ORDER_SOUND.play().catch(() => {});
+  if (!adminAlertSoundStopped) ADMIN_ORDER_SOUND.play().catch(() => {});
 }
 
 function stopAdminOrderAlertSound() {
+  adminAlertSoundStopped = true;
   stopAdminOrderSound();
 }
 
 async function acceptAdminOrderAlert() {
   const order = pendingAdminOrderAlerts[0];
   if (!order) return;
-  try {
-    await db.collection("orders").doc(order.id).update({
-      status: "ACCEPTED",
-      accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    pendingAdminOrderAlerts.shift();
-    stopAdminOrderSound();
-    showNextAdminOrderAlert();
-  } catch (error) {
-    alert(`Unable to accept order: ${error.message}`);
+  const nearestRider = getNearestRider(order);
+    try {
+    const acceptanceUpdate = {
+        status: "ACCEPTED",
+        accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (nearestRider) acceptanceUpdate.assigned_rider = nearestRider.name;
+    await db.collection("orders").doc(order.id).update(acceptanceUpdate);
+      pendingAdminOrderAlerts.shift();
+      adminAlertSoundStopped = false;
+      stopAdminOrderSound();
+      showNextAdminOrderAlert();
+    } catch (error) {
+      alert(`Unable to accept order: ${error.message}`);
   }
 }
 
@@ -834,6 +840,10 @@ function startLiveOrderQueue() {
     const orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
+    const activeOrderIds = new Set(orders
+      .filter(order => !["ACCEPTED", "DELIVERED"].includes(String(order.status || "").toUpperCase()))
+      .map(order => order.id));
+    pendingAdminOrderAlerts = pendingAdminOrderAlerts.filter(order => activeOrderIds.has(order.id));
     const hasNewOrder = adminOrderIdsInitialized && snapshot.docChanges().some(change => change.type === "added");
     allFetchedOrders = orders;
     renderAdminOrders(orders);
@@ -843,10 +853,13 @@ function startLiveOrderQueue() {
         .forEach(change => {
           if (!pendingAdminOrderAlerts.some(order => order.id === change.doc.id)) {
             pendingAdminOrderAlerts.push({ id: change.doc.id, ...change.doc.data() });
+            adminAlertSoundStopped = false;
           }
         });
       showNextAdminOrderAlert();
     }
+    if (!pendingAdminOrderAlerts.length) stopAdminOrderSound();
+    showNextAdminOrderAlert();
     adminOrderIdsInitialized = true;
   }, error => {
     console.error("Admin orders listener error:", error);

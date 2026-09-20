@@ -14,6 +14,7 @@ let knownAssignedOrderIds = new Set();
 let riderOtpSent = false;
 const RIDER_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+RIDER_ORDER_SOUND.loop = true;
 
 function formatOrderDateTime(order) {
   let date = null;
@@ -221,7 +222,7 @@ function startRiderOrdersListener() {
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     const assignedNow = orders.filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED');
     const newlyAssigned = assignedNow.filter(order => !knownAssignedOrderIds.has(order.id));
-    if (knownAssignedOrderIds.size > 0 && newlyAssigned.length > 0) {
+    if (newlyAssigned.length > 0) {
       notifyNewAssignment(newlyAssigned[0]);
     }
     knownAssignedOrderIds = new Set(assignedNow.map(order => order.id));
@@ -236,14 +237,23 @@ function notifyNewAssignment(order) {
   RIDER_ORDER_SOUND.play().catch(() => {});
   const banner = document.getElementById('riderAlertBanner');
   if (banner) {
-    banner.innerText = `New delivery assigned: ${order.id}. Check your pickup queue.`;
+    banner.innerHTML = `New delivery assigned: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button> <button type="button" onclick="stopRiderOrderAlertSound()" class="ml-2 px-2 py-1 rounded bg-amber-200 text-amber-950">Stop sound</button>`;
     banner.classList.remove('hidden');
-    setTimeout(() => banner.classList.add('hidden'), 8000);
   }
   if ('Notification' in window && Notification.permission === 'granted') {
     new Notification('New MyShopzy delivery', { body: `Order ${order.id} is ready in your queue.` });
   }
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+
+function openRiderOrderAlert() {
+  stopRiderOrderAlertSound();
+  showRiderSection('orders');
+}
+
+function stopRiderOrderAlertSound() {
+  RIDER_ORDER_SOUND.pause();
+  RIDER_ORDER_SOUND.currentTime = 0;
 }
 
 // --- REAL-TIME GPS STREAMING TO FIRESTORE ---
