@@ -37,6 +37,38 @@ let riderTrackingMap = null;
 let riderTrackingMarker = null;
 let riderTrackingUnsubscribe = null;
 let suppressCategoryScrollOnInit = false;
+let customerCountdownTimer = null;
+
+const CUSTOMER_ORDER_PLACED_SOUND = new Audio("assets/audio/order-placed-user.mpeg");
+const CUSTOMER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+
+function getOrderDeadlineMs(order) {
+  const explicitDeadline = Number(order?.delivery_deadline_ms);
+  if (Number.isFinite(explicitDeadline)) return explicitDeadline;
+  const createdAt = Number(order?.created_at_ms);
+  return Number.isFinite(createdAt) ? createdAt + (25 * 60 * 1000) : null;
+}
+
+function formatDeliveryCountdown(deadlineMs, status) {
+  if (String(status || "").toUpperCase() === "DELIVERED") return "Delivered";
+  if (!Number.isFinite(Number(deadlineMs))) return "25 min delivery";
+  const remaining = Math.max(0, Number(deadlineMs) - Date.now());
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000).toString().padStart(2, "0");
+  return remaining > 0 ? `${minutes}:${seconds} left` : "Arriving now";
+}
+
+function updateCustomerCountdowns() {
+  document.querySelectorAll("[data-delivery-deadline]").forEach(element => {
+    element.innerText = formatDeliveryCountdown(element.dataset.deliveryDeadline, element.dataset.orderStatus);
+  });
+}
+
+function startCustomerCountdowns() {
+  if (customerCountdownTimer) clearInterval(customerCountdownTimer);
+  updateCustomerCountdowns();
+  customerCountdownTimer = setInterval(updateCustomerCountdowns, 1000);
+}
 
 function formatOrderDateTime(order) {
   let date = null;
@@ -2108,12 +2140,14 @@ function filterAndRender() {
 
 
   if (currentSearch) {
-    const normalized = currentSearch.trim();
+    const normalized = currentSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     filtered = liveCatalog.filter(item => {
-      const matchesCategory = !activeCategory || item.category === activeCategory;
       const matchesRestaurant = activeCategory !== "restaurants" || !activeRestaurantId || item.restaurant_id === activeRestaurantId;
-      const haystack = `${item.name || ""} ${item.category || ""} ${item.restaurant_name || ""}`.toLowerCase();
-      return matchesCategory && matchesRestaurant && haystack.includes(normalized);
+      const haystack = `${item.name || ""} ${item.category || ""} ${item.restaurant_name || ""} ${item.desc || ""} ${item.qty_unit || ""}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      return matchesRestaurant && haystack.includes(normalized);
     });
   }
 
@@ -2196,7 +2230,7 @@ function filterAndRender() {
               >
 
               <span class="absolute bottom-1 left-1 bg-slate-900 text-amber-300 text-[8px] font-black px-1 rounded">
-                ⚡ 10 MINS
+                ⚡ 25 MINS
               </span>
 
             </div>
@@ -2496,19 +2530,23 @@ const accountTranslations = {
     myAccount: "My Account", savedAddress: "Saved Address", manageLocations: "Manage family / other locations",
     paymentModes: "Payment Modes", paymentDescription: "UPI, QR & Cash on Delivery", preferences: "Preferences",
     language: "Language", pastOrders: "Past Orders & Tracking", accountSecurity: "Account Security",
-    securityDescription: "Secure OTP-based passwordless authentication active."
+    securityDescription: "Secure OTP-based passwordless authentication active.", searchPlaceholder: "Search groceries & essentials...",
+    orders: "Orders", account: "Account", deliveryLocation: "Delivery Location", exploreCategories: "Explore Categories",
+    cartOrders: "Cart/Orders"
   },
   hi: {
     myAccount: "मेरा खाता", savedAddress: "सहेजा हुआ पता", manageLocations: "परिवार या अन्य स्थान प्रबंधित करें",
     paymentModes: "भुगतान के तरीके", paymentDescription: "UPI, QR और कैश ऑन डिलीवरी", preferences: "प्राथमिकताएं",
     language: "भाषा", pastOrders: "पिछले ऑर्डर और ट्रैकिंग", accountSecurity: "खाता सुरक्षा",
-    securityDescription: "सुरक्षित OTP पासवर्ड-रहित प्रमाणीकरण सक्रिय है।"
+    securityDescription: "सुरक्षित OTP पासवर्ड-रहित प्रमाणीकरण सक्रिय है।", searchPlaceholder: "किराना और जरूरी सामान खोजें...",
+    orders: "ऑर्डर", account: "खाता", deliveryLocation: "डिलीवरी स्थान", exploreCategories: "श्रेणियां देखें", cartOrders: "कार्ट/ऑर्डर"
   },
   te: {
     myAccount: "నా ఖాతా", savedAddress: "సేవ్ చేసిన చిరునామా", manageLocations: "కుటుంబం / ఇతర ప్రదేశాలను నిర్వహించండి",
     paymentModes: "చెల్లింపు విధానాలు", paymentDescription: "UPI, QR మరియు క్యాష్ ఆన్ డెలివరీ", preferences: "ప్రాధాన్యతలు",
     language: "భాష", pastOrders: "గత ఆర్డర్లు & ట్రాకింగ్", accountSecurity: "ఖాతా భద్రత",
-    securityDescription: "సురక్షిత OTP పాస్‌వర్డ్ రహిత ధృవీకరణ యాక్టివ్‌గా ఉంది."
+    securityDescription: "సురక్షిత OTP పాస్‌వర్డ్ రహిత ధృవీకరణ యాక్టివ్‌గా ఉంది.", searchPlaceholder: "కిరాణా మరియు అవసరమైన వస్తువులను వెతకండి...",
+    orders: "ఆర్డర్లు", account: "ఖాతా", deliveryLocation: "డెలివరీ స్థలం", exploreCategories: "వర్గాలను చూడండి", cartOrders: "కార్ట్/ఆర్డర్లు"
   }
 };
 
@@ -2536,6 +2574,11 @@ function setUserLanguage(value) {
     const key = element.dataset.i18n;
     if (translations[key]) element.textContent = translations[key];
   });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(element => {
+    const key = element.dataset.i18nPlaceholder;
+    if (translations[key]) element.placeholder = translations[key];
+  });
+  document.documentElement.lang = language;
   const select = document.getElementById("accountLanguageSelect");
   if (select) select.value = language;
 }
@@ -3498,6 +3541,9 @@ async function finalizeOrderAndLaunch(
     status:
       "PLACED",
 
+    delivery_deadline_ms:
+      Date.now() + (25 * 60 * 1000),
+
     payment_mode:
       selectedPaymentMode,
 
@@ -3654,6 +3700,13 @@ alert(
   alert(
     `🎉 Order Placed Successfully (${orderId})!`
   );
+
+  try {
+    CUSTOMER_ORDER_PLACED_SOUND.currentTime = 0;
+    CUSTOMER_ORDER_PLACED_SOUND.play().catch(() => {});
+  } catch (error) {
+    console.warn("Order placed sound could not play:", error);
+  }
 
 
   toggleOrdersView();
@@ -4195,6 +4248,11 @@ async function toggleOrdersView() {
               </span>
             </div>
 
+            <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
+              <span>Dedicated delivery time</span>
+              <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
+            </div>
+
             <p class="text-[11px] text-slate-500">
 
               OTP:
@@ -4282,6 +4340,11 @@ async function toggleOrdersView() {
 
                 </div>
 
+                <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
+                  <span>Dedicated delivery time</span>
+                  <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
+                </div>
+
                 <p class="text-[10px] text-slate-400">
                   📍
                   ${escapeHtml(
@@ -4303,7 +4366,10 @@ async function toggleOrdersView() {
         </div>
       `;
     }
+
   }
+
+  startCustomerCountdowns();
 }
 
 
@@ -4483,6 +4549,13 @@ function renderReceipt(
   if (receiptRider) {
     receiptRider.innerText =
       targetOrder.assigned_rider || "Waiting for rider assignment";
+  }
+
+  const receiptCountdown = document.getElementById("receiptDeliveryCountdown");
+  if (receiptCountdown) {
+    receiptCountdown.dataset.deliveryDeadline = getOrderDeadlineMs(targetOrder) || "";
+    receiptCountdown.dataset.orderStatus = targetOrder.status || "PLACED";
+    receiptCountdown.innerText = formatDeliveryCountdown(getOrderDeadlineMs(targetOrder), targetOrder.status);
   }
 
   const trackingBox = document.getElementById("customerRiderTrackingBox");
@@ -4712,6 +4785,12 @@ function escapeAttribute(value) {
 document.addEventListener(
   "DOMContentLoaded",
   () => {
+    document.addEventListener("click", event => {
+      if (event.target.closest("button, [onclick], .cat-card")) {
+        CUSTOMER_TAB_SOUND.currentTime = 0;
+        CUSTOMER_TAB_SOUND.play().catch(() => {});
+      }
+    });
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 
     applyThemeMode(localStorage.getItem("myshopzy_theme") === "dark");

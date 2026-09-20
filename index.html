@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MyShopzy | 10-Min Fast Delivery Ravulapalem</title>
+  <title>MyShopzy | 25-Min Fast Delivery Ravulapalem</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,12 +86,12 @@
           <!-- Separate Order Control -->
           <button onclick="toggleOrdersView()" class="px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1 transition shadow-sm">
             <span>📦</span>
-            <span class="text-[11px]">Orders</span>
+            <span class="text-[11px]" data-i18n="orders">Orders</span>
           </button>
 
           <button onclick="openAccountModal()" class="hidden sm:flex px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 items-center gap-1 transition shadow-sm">
             <span>⚙️</span>
-            <span class="text-[11px]">Account</span>
+            <span class="text-[11px]" data-i18n="account">Account</span>
           </button>
 
           <!-- Separate Login / Account Control -->
@@ -117,7 +117,7 @@
         <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1.5 bg-[#1C2541] hover:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shrink-0 transition">
           <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
           <div class="text-left">
-            <p class="text-[8px] font-bold text-slate-400 uppercase leading-none">Delivery Location</p>
+            <p class="text-[8px] font-bold text-slate-400 uppercase leading-none" data-i18n="deliveryLocation">Delivery Location</p>
             <p id="currentAddressHeader" class="text-[11px] font-black text-slate-200 truncate max-w-[120px] leading-tight mt-0.5">RTC Complex</p>
           </div>
           <span class="text-[10px] text-slate-400">▼</span>
@@ -130,6 +130,7 @@
             oninput="handleSearch(this.value)" 
             type="text" 
             placeholder='Search groceries & essentials...' 
+            data-i18n-placeholder="searchPlaceholder"
             class="w-full px-3 py-1.5 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
           >
           <button type="button" onclick="startVoiceSearch()" aria-label="Voice search" class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shrink-0">🎙️</button>
@@ -225,11 +226,11 @@
   <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div class="flex items-center justify-between mb-3.5">
       <div>
-        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Explore Categories</h3>
-        <p class="text-[11px] text-slate-400 font-semibold">Tap any category to view instant 10-min essentials</p>
+        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight" data-i18n="exploreCategories">Explore Categories</h3>
+        <p class="text-[11px] text-slate-400 font-semibold">Tap any category to view 25-minute delivery essentials</p>
       </div>
       <span class="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shadow-sm">
-        ⚡ 10-Min Fast Delivery
+        ⚡ 25-Min Fast Delivery
       </span>
     </div>
 
@@ -413,7 +414,7 @@
             <h4 class="text-xl font-black text-white tracking-tight leading-none">
               MyShopzy<span class="text-amber-400">.</span>
             </h4>
-            <p class="text-[11px] text-cyan-400 font-bold mt-1">Ravulapalem's 10-Minute Dark Store Network</p>
+            <p class="text-[11px] text-cyan-400 font-bold mt-1">Ravulapalem's 25-Minute Dark Store Network</p>
           </div>
         </div>
 
@@ -478,7 +479,7 @@
         <div class="space-y-3">
           <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Ravulapalem SLA</h5>
           <p class="text-[11px] text-slate-300 leading-relaxed">
-            ⚡ <strong>10-Minute Dispatch:</strong> Direct deliveries from RTC Hub Centre across Ravulapalem 6KM Radius.
+            ⚡ <strong>25-Minute Dispatch:</strong> Direct deliveries from RTC Hub Centre across Ravulapalem 6KM Radius.
           </p>
           <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl">
             <span class="block text-[10px] uppercase font-black text-amber-400">Dark Store Hub:</span>
@@ -527,7 +528,7 @@
         </div>
 
         <div id="serviceStatusBox" class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between font-bold">
-          <span>⚡ 10-Min Fast Delivery</span>
+          <span>⚡ 25-Min Fast Delivery</span>
           <span id="distanceBadge" class="font-black">0.5 KM</span>
         </div>
 
@@ -544,7 +545,7 @@
       <div class="p-4 bg-[#0B132B] text-white flex items-center justify-between shrink-0">
         <div>
           <h3 class="text-sm font-black text-white">Review & Place Order</h3>
-          <p class="text-[10px] text-cyan-400 font-bold">Ravulapalem 10-Min Express Dispatch</p>
+          <p class="text-[10px] text-cyan-400 font-bold">Ravulapalem 25-Min Express Dispatch</p>
         </div>
         <button onclick="closeCheckout()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold">✕</button>
       </div>
@@ -635,7 +636,7 @@
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-600"><span>Items Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
-          <div class="flex justify-between text-slate-600"><span>10-Min Fast Delivery</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
+          <div class="flex justify-between text-slate-600"><span>25-Min Fast Delivery</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
           <div class="flex justify-between text-slate-600"><span>Handling & Bag Fee</span><span class="font-bold text-slate-900">₹4</span></div>
           <div class="flex justify-between text-slate-600"><span>Rider Tip</span><span id="billRiderTip" class="font-bold text-slate-900">₹0</span></div>
           <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
@@ -790,7 +791,7 @@
         <img id="detailImg" src="" alt="Product" class="max-h-full max-w-full object-contain">
         <button onclick="closeProductDetailModal()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-950 text-white flex items-center justify-center font-bold text-sm transition">✕</button>
         <span class="absolute bottom-2 left-2 bg-slate-900/90 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-lg">
-          ⚡ 10 MINS DELIVERY
+          ⚡ 25 MINS DELIVERY
         </span>
       </div>
 
@@ -836,6 +837,7 @@
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Address</span><span id="receiptAddress" class="font-bold text-slate-800 truncate max-w-[200px]">RTC Complex</span></div>
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Payment</span><span id="receiptPayment" class="font-bold text-slate-800">UPI (Paid)</span></div>
           <div class="flex justify-between"><span class="text-slate-500 font-medium">Rider</span><span id="receiptRider" class="font-bold text-slate-800">Waiting for assignment</span></div>
+          <div class="flex justify-between"><span class="text-slate-500 font-medium">Dedicated delivery</span><span id="receiptDeliveryCountdown" class="font-black text-blue-700">25 min delivery</span></div>
         </div>
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2">

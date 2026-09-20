@@ -8,6 +8,34 @@ let selectedFilterDate = ""; // Empty means today
 let ADMIN_RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
 const adminRiderLocations = {};
 const adminRiderLocationUnsubscribers = [];
+let adminOrderIdsInitialized = false;
+let adminCountdownTimer = null;
+const ADMIN_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
+const ADMIN_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+
+function getAdminOrderDeadlineMs(order) {
+  const deadline = Number(order?.delivery_deadline_ms);
+  if (Number.isFinite(deadline)) return deadline;
+  const createdAt = Number(order?.created_at_ms);
+  return Number.isFinite(createdAt) ? createdAt + (25 * 60 * 1000) : null;
+}
+
+function formatAdminCountdown(order) {
+  if (String(order?.status || "").toUpperCase() === "DELIVERED") return "Delivered";
+  const deadline = getAdminOrderDeadlineMs(order);
+  if (!Number.isFinite(deadline)) return "25 min delivery";
+  const remaining = Math.max(0, deadline - Date.now());
+  return remaining > 0
+    ? `${Math.floor(remaining / 60000)}:${Math.floor((remaining % 60000) / 1000).toString().padStart(2, "0")} left`
+    : "Arriving now";
+}
+
+function updateAdminCountdowns() {
+  document.querySelectorAll("[data-admin-delivery-deadline]").forEach(element => {
+    const order = allFetchedOrders.find(item => item.id === element.dataset.orderId);
+    if (order) element.innerText = formatAdminCountdown(order);
+  });
+}
 
 function formatOrderDateTime(order) {
   let date = null;
@@ -732,6 +760,10 @@ function renderAdminOrders(orders) {
             <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
           </div>
           <p class="text-[11px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</p>
+          <p class="text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 inline-flex gap-1.5">
+            <span>Dedicated delivery:</span>
+            <span data-admin-delivery-deadline="${getAdminOrderDeadlineMs(o) || ""}" data-order-id="${String(o.id)}">${formatAdminCountdown(o)}</span>
+          </p>
           <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
           ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
           ${renderAdminPickupSummary(o)}
@@ -758,8 +790,14 @@ function startLiveOrderQueue() {
     const orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
+    const hasNewOrder = adminOrderIdsInitialized && snapshot.docChanges().some(change => change.type === "added");
     allFetchedOrders = orders;
     renderAdminOrders(orders);
+    if (hasNewOrder) {
+      ADMIN_ORDER_SOUND.currentTime = 0;
+      ADMIN_ORDER_SOUND.play().catch(() => {});
+    }
+    adminOrderIdsInitialized = true;
   }, error => {
     console.error("Admin orders listener error:", error);
     container.innerHTML = `<p class="text-center text-rose-500 py-10">Unable to load orders. Check Firestore permissions.</p>`;
@@ -868,6 +906,13 @@ function exportDailyOrdersCSV() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', event => {
+    if (event.target.closest('button, [onclick]')) {
+      ADMIN_TAB_SOUND.currentTime = 0;
+      ADMIN_TAB_SOUND.play().catch(() => {});
+    }
+  });
+  adminCountdownTimer = setInterval(updateAdminCountdowns, 1000);
   if (sessionStorage.getItem('hub_session_unlocked') === 'true') {
     const lock = document.getElementById('adminAuthLock');
     if (lock) lock.classList.add('hidden');

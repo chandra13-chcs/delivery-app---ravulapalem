@@ -74,7 +74,7 @@
     <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm flex items-center justify-between">
       <div>
         <span class="text-[10px] uppercase font-bold text-slate-400">Assigned Delivery Partner</span>
-        <h2 id="currentRiderTitle" class="text-base font-extrabold text-slate-900 mt-0.5">Chandu</h2>
+        <h2 id="currentRiderTitle" class="text-base font-extrabold text-slate-900 mt-0.5">Not registered</h2>
         <p id="riderDutyStatus" class="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
           <span class="w-2 h-2 rounded-full bg-slate-400"></span> Off-duty
         </p>
@@ -116,6 +116,7 @@
           <p><strong>Aadhaar:</strong> <span id="riderAccountAadhaar">-</span></p>
         </div>
         <button onclick="openRiderRegistrationModal()" class="w-full py-2.5 rounded-xl bg-brand-navy text-white text-xs font-black">Register / Update Profile</button>
+        <button onclick="logoutRider()" class="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black">Logout</button>
       </div>
     </section>
 

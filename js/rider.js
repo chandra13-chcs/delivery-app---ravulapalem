@@ -3,15 +3,17 @@
 // ==========================================
 
 const RIDER_NAMES = ["Chandu", "Pranith", "Dinesh", "Sunil", "Raju", "Dhoni", "Sachin", "Virat", "Rohit", "Gambhie"];
-let currentActiveRider = localStorage.getItem('active_rider_name') || RIDER_NAMES[0];
+let riderProfile = JSON.parse(localStorage.getItem('rider_profile') || 'null');
+let currentActiveRider = riderProfile?.name || localStorage.getItem('active_rider_name') || '';
 let currentTab = 'pending';
 let allRiderOrders = [];
 let currentVerifyingOrderId = null;
 let gpsWatchId = null;
 let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
-let riderProfile = JSON.parse(localStorage.getItem('rider_profile') || 'null');
 let knownAssignedOrderIds = new Set();
 let riderOtpSent = false;
+const RIDER_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
+const RIDER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
 
 function formatOrderDateTime(order) {
   let date = null;
@@ -118,9 +120,24 @@ function syncRiderAccount() {
 
 function updateRiderIdentity() {
   const titleEl = document.getElementById('currentRiderTitle');
-  if (titleEl) titleEl.innerText = currentActiveRider;
+  if (titleEl) titleEl.innerText = currentActiveRider || 'Not registered';
   syncRiderAccount();
   updateAvailabilityUi();
+}
+
+function logoutRider() {
+  stopRiderGpsBroadcast();
+  riderIsAvailable = false;
+  riderProfile = null;
+  currentActiveRider = '';
+  localStorage.removeItem('rider_profile');
+  localStorage.removeItem('active_rider_name');
+  localStorage.removeItem('rider_available');
+  updateRiderIdentity();
+  allRiderOrders = [];
+  renderPickupQueue();
+  renderRiderOrders();
+  showRiderSection('account');
 }
 
 function updateAvailabilityUi() {
@@ -143,6 +160,10 @@ function updateAvailabilityUi() {
 }
 
 async function toggleRiderAvailability() {
+  if (!riderProfile?.name || !currentActiveRider) {
+    alert('Register your rider profile before going online.');
+    return;
+  }
   if (!riderIsAvailable && !isWithinWorkingHours()) {
     alert('Rider availability is open only from 7:00 AM to 10:00 PM.');
     return;
@@ -171,6 +192,7 @@ function populateRiderSelector() {
 }
 
 function switchRider(name) {
+  if (!riderProfile?.name) return;
   currentActiveRider = name;
   localStorage.setItem('active_rider_name', name);
   knownAssignedOrderIds = new Set();
@@ -210,6 +232,8 @@ function startRiderOrdersListener() {
 }
 
 function notifyNewAssignment(order) {
+  RIDER_ORDER_SOUND.currentTime = 0;
+  RIDER_ORDER_SOUND.play().catch(() => {});
   const banner = document.getElementById('riderAlertBanner');
   if (banner) {
     banner.innerText = `New delivery assigned: ${order.id}. Check your pickup queue.`;
@@ -509,10 +533,17 @@ async function confirmOtpAndDeliver() {
 
 // --- BOOTSTRAP ---
 document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', event => {
+    if (event.target.closest('button, [onclick]')) {
+      RIDER_TAB_SOUND.currentTime = 0;
+      RIDER_TAB_SOUND.play().catch(() => {});
+    }
+  });
   populateRiderSelector();
   const selectEl = document.getElementById('riderSelect');
   const availableRiderNames = riderProfile?.name ? [...RIDER_NAMES, riderProfile.name] : RIDER_NAMES;
-  if (!availableRiderNames.includes(currentActiveRider)) currentActiveRider = riderProfile?.name || RIDER_NAMES[0];
+  if (!riderProfile?.name) currentActiveRider = '';
+  else if (!availableRiderNames.includes(currentActiveRider)) currentActiveRider = riderProfile.name;
   if (selectEl) selectEl.value = currentActiveRider;
   const titleEl = document.getElementById('currentRiderTitle');
   if (titleEl) titleEl.innerText = currentActiveRider;
