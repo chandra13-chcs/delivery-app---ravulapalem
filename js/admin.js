@@ -44,14 +44,12 @@ function stopAdminOrderAlertSound() {
 async function acceptAdminOrderAlert() {
   const order = pendingAdminOrderAlerts[0];
   if (!order) return;
-  const nearestRider = getNearestRider(order);
-    try {
+  try {
     const acceptanceUpdate = {
         status: "ACCEPTED",
         accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
         updated_at: firebase.firestore.FieldValue.serverTimestamp()
     };
-    if (nearestRider) acceptanceUpdate.assigned_rider = nearestRider.name;
     await db.collection("orders").doc(order.id).update(acceptanceUpdate);
       pendingAdminOrderAlerts.shift();
       adminAlertSoundStopped = false;
@@ -136,7 +134,7 @@ function subscribeToAdminRiderLocation(riderName) {
     if (doc.exists) adminRiderLocations[riderName] = doc.data();
     else delete adminRiderLocations[riderName];
     renderAdminRiderStatus();
-    if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
+    refreshAdminRiderAssignmentFields();
   }, error => console.error(`Rider location listener error (${riderName}):`, error));
   adminRiderLocations[`${riderName}_listener`] = unsubscribe;
   adminRiderLocationUnsubscribers.push(unsubscribe);
@@ -152,7 +150,7 @@ function startRegisteredRiderListener() {
     ADMIN_RIDER_NAMES = [...new Set(registeredNames)];
     ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
     renderAdminRiderStatus();
-    if (allFetchedOrders.length) renderAdminOrders(allFetchedOrders);
+    refreshAdminRiderAssignmentFields();
   }, error => console.error("Registered rider listener error:", error));
 }
 
@@ -166,41 +164,33 @@ function renderAdminRiderStatus() {
   `).join("");
 }
 
-function getNearestRider(order) {
-  const orderLat = Number(order.delivery_latitude);
-  const orderLng = Number(order.delivery_longitude);
-  const riders = ADMIN_RIDER_NAMES
-    .map(name => {
-      const location = adminRiderLocations[name]?.available === true ? adminRiderLocations[name] : null;
-      if (!location || !Number.isFinite(orderLat) || !Number.isFinite(orderLng)) return null;
-      const distance = calculateDistanceKm(orderLat, orderLng, Number(location.lat), Number(location.lng));
-      return Number.isFinite(distance) ? { name, distance } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.distance - b.distance);
-  return riders[0] || null;
-}
-
 function renderRiderAssignment(order) {
-  const nearest = getNearestRider(order);
   const selectedRider = order.assigned_rider || "";
-  const options = ADMIN_RIDER_NAMES.map(name => {
-    const location = adminRiderLocations[name]?.available === true ? adminRiderLocations[name] : null;
-    const distance = nearest && nearest.name === name ? ` (${nearest.distance.toFixed(1)} km)` : "";
-    const online = location ? "Online" : "GPS offline";
-    return `<option value="${name}" ${selectedRider === name ? "selected" : ""}>${name} - ${online}${distance}</option>`;
-  }).join("");
 
   return `
     <div class="flex flex-wrap items-center gap-2 mt-2">
-      <select onchange="assignOrderToRider('${order.id}', this.value)" class="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700">
+      <select data-admin-rider-select="true" data-order-id="${order.id}" onchange="assignOrderToRider('${order.id}', this.value)" class="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700">
         <option value="">Assign rider...</option>
-        ${options}
+        ${renderAdminRiderOptions(selectedRider)}
       </select>
-      ${nearest && !selectedRider ? `<button onclick="autoAssignOrderToRider('${order.id}')" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[11px] font-black">Use nearest (${nearest.name})</button>` : ""}
       ${selectedRider ? `<button onclick="openAdminRiderTracker('${selectedRider}')" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold">Track ${selectedRider}</button>` : ""}
     </div>
   `;
+}
+
+function renderAdminRiderOptions(selectedRider = "") {
+  return ADMIN_RIDER_NAMES.map(name => {
+    const online = adminRiderLocations[name]?.available === true ? "Online" : "GPS offline";
+    return `<option value="${name}" ${selectedRider === name ? "selected" : ""}>${name} - ${online}</option>`;
+  }).join("");
+}
+
+function refreshAdminRiderAssignmentFields() {
+  document.querySelectorAll("[data-admin-rider-select]").forEach(select => {
+    const selectedRider = select.value;
+    select.innerHTML = `<option value="">Assign rider...</option>${renderAdminRiderOptions(selectedRider)}`;
+    select.value = selectedRider;
+  });
 }
 
 async function assignOrderToRider(orderId, riderName) {
@@ -215,16 +205,6 @@ async function assignOrderToRider(orderId, riderName) {
     console.error("Rider assignment failed:", error);
     alert("Unable to assign rider: " + error.message);
   }
-}
-
-async function autoAssignOrderToRider(orderId) {
-  const order = allFetchedOrders.find(item => item.id === orderId);
-  const nearest = order && getNearestRider(order);
-  if (!nearest) {
-    alert("No rider GPS location is available yet. Ask a rider to open the Rider Hub and start GPS.");
-    return;
-  }
-  await assignOrderToRider(orderId, nearest.name);
 }
 
 function verifyAdminAccess() {
