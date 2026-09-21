@@ -289,7 +289,13 @@ function notifyNewAssignment(order) {
   RIDER_ORDER_SOUND.play().catch(() => {});
   const banner = document.getElementById('riderAlertBanner');
   if (banner) {
-    banner.innerHTML = `New delivery assigned: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button> <button type="button" onclick="stopRiderOrderAlertSound()" class="ml-2 px-2 py-1 rounded bg-amber-200 text-amber-950">Stop sound</button>`;
+    banner.innerHTML = `
+      <div>New delivery assigned: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button></div>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <button type="button" onclick="acceptRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-black">Accept</button>
+        <button type="button" onclick="rejectRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 font-black">Reject</button>
+        <button type="button" onclick="stopRiderOrderAlertSound()" class="px-3 py-1.5 rounded-lg bg-amber-200 text-amber-950">Stop sound</button>
+      </div>`;
     banner.classList.remove('hidden');
   }
   if ('Notification' in window && Notification.permission === 'granted') {
@@ -320,6 +326,23 @@ async function acceptRiderOrder(orderId) {
     if (banner) banner.classList.add('hidden');
   } catch (error) {
     alert(`Unable to accept delivery: ${error.message}`);
+  }
+}
+
+async function rejectRiderOrder(orderId) {
+  try {
+    await db.collection("orders").doc(orderId).update({
+      status: "REJECTED_BY_RIDER",
+      assigned_rider: firebase.firestore.FieldValue.delete(),
+      rejected_by_rider: currentActiveRider,
+      rider_rejected_at: firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    stopRiderOrderAlertSound();
+    const banner = document.getElementById('riderAlertBanner');
+    if (banner) banner.classList.add('hidden');
+  } catch (error) {
+    alert(`Unable to reject delivery: ${error.message}`);
   }
 }
 
