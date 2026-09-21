@@ -2392,8 +2392,29 @@ function selectCategory(
 
   const productsGrid = document.getElementById("productsGrid");
   if (productsGrid && targetEl !== null && targetEl !== undefined) {
-    productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToProducts(productsGrid);
   }
+}
+
+function scrollToProducts(productsGrid) {
+  const productSection = productsGrid.parentElement || productsGrid;
+  const headerOffset = (document.querySelector("header")?.getBoundingClientRect().height || 0) + 16;
+  const startPosition = window.scrollY;
+  const targetPosition = Math.max(0, startPosition + productSection.getBoundingClientRect().top - headerOffset);
+  const distance = targetPosition - startPosition;
+  const duration = 900;
+  const startTime = performance.now();
+
+  function animateScroll(currentTime) {
+    const progress = Math.min((currentTime - startTime) / duration, 1);
+    const easedProgress = progress < 0.5
+      ? 2 * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+    window.scrollTo(0, startPosition + distance * easedProgress);
+    if (progress < 1) requestAnimationFrame(animateScroll);
+  }
+
+  requestAnimationFrame(animateScroll);
 }
 
 function selectRestaurant(restaurantId, restaurantName) {
@@ -2403,7 +2424,7 @@ function selectRestaurant(restaurantId, restaurantName) {
   if (heading) heading.innerText = `${restaurantName} Menu`;
   filterAndRender();
   const productsGrid = document.getElementById("productsGrid");
-  if (productsGrid) productsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (productsGrid) scrollToProducts(productsGrid);
 }
 
 

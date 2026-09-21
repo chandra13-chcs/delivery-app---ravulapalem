@@ -99,6 +99,19 @@ function formatOrderDateTime(order) {
   return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function getAdminLocalDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getAdminOrderDateKey(order) {
+  if (Number.isFinite(Number(order?.created_at_ms))) {
+    return getAdminLocalDateKey(new Date(Number(order.created_at_ms)));
+  }
+  if (order?.created_at?.toDate) return getAdminLocalDateKey(order.created_at.toDate());
+  if (order?.created_at?.seconds) return getAdminLocalDateKey(new Date(Number(order.created_at.seconds) * 1000));
+  return "";
+}
+
 function calculateDistanceKm(lat1, lng1, lat2, lng2) {
   const earthRadiusKm = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -779,6 +792,9 @@ function renderAdminOrders(orders) {
   const container = document.getElementById('adminQueueContainer');
   if (!container) return;
 
+  const today = getAdminLocalDateKey(new Date());
+  orders = orders.filter(order => getAdminOrderDateKey(order) === today);
+
   const activeCount = orders.filter(o => String(o.status || '').toUpperCase() !== "DELIVERED").length;
   const deliveredCount = orders.filter(o => String(o.status || '').toUpperCase() === "DELIVERED").length;
     
@@ -846,7 +862,8 @@ function startLiveOrderQueue() {
     pendingAdminOrderAlerts = pendingAdminOrderAlerts.filter(order => activeOrderIds.has(order.id));
     const hasNewOrder = adminOrderIdsInitialized && snapshot.docChanges().some(change => change.type === "added");
     allFetchedOrders = orders;
-    renderAdminOrders(orders);
+    const today = getAdminLocalDateKey(new Date());
+    renderAdminOrders(orders.filter(order => getAdminOrderDateKey(order) === today));
     if (hasNewOrder) {
       snapshot.docChanges()
         .filter(change => change.type === "added")

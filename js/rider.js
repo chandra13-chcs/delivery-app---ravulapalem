@@ -206,8 +206,10 @@ async function logoutRider() {
 function updateAvailabilityUi() {
   const button = document.getElementById('riderAvailabilityToggle');
   const loginButton = document.getElementById('riderLoginButton');
+  const registerButton = document.getElementById('riderRegisterButton');
   const status = document.getElementById('riderDutyStatus');
   if (loginButton) loginButton.classList.toggle('hidden', Boolean(riderProfile?.name));
+  if (registerButton) registerButton.classList.toggle('hidden', Boolean(riderProfile?.name));
   if (button) {
     button.innerText = riderIsAvailable ? 'Go offline' : 'Go online';
     button.className = riderIsAvailable
