@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyShopzy Service</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="../backend/firebase-config.js"></script>
+</head>
+<body class="bg-[#FCFCFC] text-slate-900 font-sans antialiased min-h-screen pb-10">
+  <header class="bg-[#0B132B] text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <a href="index.html" class="flex items-center gap-2"><span class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">⚡</span><span class="text-sm font-black">MyShopzy<span class="text-amber-400">.</span></span></a>
+      <a href="index.html" class="px-3 py-1.5 rounded-xl bg-[#1C2541] border border-slate-700 text-xs font-bold">← Home</a>
+    </div>
+  </header>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div class="flex items-end justify-between gap-3 mb-5"><div><p id="serviceEyebrow" class="text-[10px] uppercase font-black tracking-wider text-amber-600">MyShopzy Service</p><h1 id="serviceTitle" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">Loading...</h1><p id="serviceDescription" class="text-xs text-slate-500 mt-1"></p></div></div>
+    <section id="restaurantServiceView" class="hidden space-y-4"><div id="serviceRestaurantList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div></section>
+    <section id="meatServiceView" class="hidden"><div id="serviceMeatProducts" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div></section>
+    <section id="parcelServiceView" class="hidden max-w-xl"><form id="serviceParcelForm" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3"><input id="serviceParcelPickup" required placeholder="Pickup location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><input id="serviceParcelDrop" required placeholder="Drop location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><textarea id="serviceParcelDescription" required placeholder="What are you sending?" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl" rows="3"></textarea><button class="w-full py-3 bg-[#0B132B] text-white rounded-xl text-xs font-black">Request parcel pickup</button><p id="serviceParcelStatus" class="hidden text-xs font-bold text-emerald-700"></p></form></section>
+  </main>
+  <script src="js/service.js"></script>
+</body>
+</html>

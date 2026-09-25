@@ -1,7 +1,7 @@
 {
   "name": "MyShopzy Express Ravulapalem",
   "short_name": "MyShopzy",
-  "start_url": "/index.html",
+  "start_url": "/frontend/index.html",
   "display": "standalone",
   "background_color": "#0B132B",
   "theme_color": "#0B132B",

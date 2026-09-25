@@ -12,8 +12,8 @@ let adminOrderIdsInitialized = false;
 let adminCountdownTimer = null;
 let pendingAdminOrderAlerts = [];
 let adminAlertSoundStopped = false;
-const ADMIN_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
-const ADMIN_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+const ADMIN_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
+const ADMIN_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 ADMIN_ORDER_SOUND.loop = true;
 
 function stopAdminOrderSound() {
@@ -300,7 +300,9 @@ function toggleRestaurantProductFields() {
   const category = document.getElementById('pCategory')?.value;
   const source = document.getElementById('pPickupSource')?.value;
   const fields = document.getElementById('restaurantProductFields');
+  const partnerFields = document.getElementById('partnerProductFields');
   if (fields) fields.classList.toggle('hidden', category !== 'restaurants' && source !== 'restaurant');
+  if (partnerFields) partnerFields.classList.toggle('hidden', source !== 'meat_partner' && source !== 'store_partner');
 }
 
 function loadAdminRestaurants() {
@@ -403,6 +405,8 @@ async function handleAddNewProduct(e) {
   const pickupSource = selectedSource === 'auto' ? categorySource : selectedSource;
   const restaurantId = document.getElementById('pRestaurant')?.value || '';
   const restaurant = adminRestaurants.find(item => item.id === restaurantId);
+  const partnerId = document.getElementById('pPartner')?.value || '';
+  const partnerName = document.getElementById('pPartner')?.selectedOptions[0]?.textContent || '';
 
   if (pickupSource === 'restaurant' && !restaurant) {
     alert('Select a restaurant before adding menu food.');
@@ -412,14 +416,24 @@ async function handleAddNewProduct(e) {
   const btn = document.getElementById('saveProdBtn');
   if (btn) { btn.innerText = "Saving to Storefront..."; btn.disabled = true; }
 
+  const isPartnerProduct = pickupSource === 'meat_partner' || pickupSource === 'store_partner';
+  const resolvedPartnerId = pickupSource === 'restaurant' ? restaurantId : isPartnerProduct ? partnerId : null;
+  const resolvedPartnerName = pickupSource === 'restaurant'
+    ? restaurant?.name || null
+    : isPartnerProduct
+      ? partnerName
+      : null;
+
   const newProd = {
     name: name,
     category: category,
     qty_value: qtyValue,
     qty_unit: qtyUnit,
     pickup_source: pickupSource,
-    pickup_source_name: restaurant?.name || (pickupSource === 'vegetable_partner' ? 'Local Vegetable Partner' : pickupSource === 'meat_partner' ? 'Fresh Meat Partner' : 'MyShopzy Store'),
-    pickup_source_address: restaurant?.address || (pickupSource === 'vegetable_partner' ? 'Assigned vegetable market partner' : pickupSource === 'meat_partner' ? 'Assigned meat partner' : 'Ravulapalem RTC Dark Store'),
+    pickup_source_name: resolvedPartnerName || (pickupSource === 'vegetable_partner' ? 'Local Vegetable Partner' : pickupSource === 'meat_partner' ? 'Fresh Meat Partner' : 'MyShopzy Store'),
+    pickup_source_address: restaurant?.address || (isPartnerProduct ? `${resolvedPartnerName} pickup desk` : pickupSource === 'vegetable_partner' ? 'Assigned vegetable market partner' : 'Ravulapalem RTC Dark Store'),
+    partner_id: resolvedPartnerId,
+    partner_name: resolvedPartnerName,
     restaurant_id: restaurantId || null,
     restaurant_name: restaurant?.name || null,
     restaurant_address: restaurant?.address || null,
@@ -695,6 +709,7 @@ function renderStatusPills(orderId, currentStatus) {
   const statuses = [
     { key: "PLACED", label: "Placed" },
     { key: "ACCEPTED", label: "Accepted" },
+    { key: "PREPARING", label: "Preparing" },
     { key: "PICKING_UP", label: "Picking Up" },
     { key: "PACKED", label: "Packed" },
     { key: "DISPATCHED", label: "Dispatched" },
@@ -811,6 +826,7 @@ function renderAdminOrders(orders) {
             <span data-admin-delivery-deadline="${getAdminOrderDeadlineMs(o) || ""}" data-order-id="${String(o.id)}">${formatAdminCountdown(o)}</span>
           </p>
           <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
+          ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 inline-block font-bold">📍 Parcel pickup: ${o.parcel_pickup_address || 'Pickup address pending'} → Drop: ${o.parcel_drop_address || o.delivery_address}</p>` : ''}
           ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
           ${renderAdminPickupSummary(o)}
           ${renderRiderAssignment(o)}

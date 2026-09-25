@@ -36,11 +36,12 @@ let customerMarker = null;
 let riderTrackingMap = null;
 let riderTrackingMarker = null;
 let riderTrackingUnsubscribe = null;
+let riderTrackingDestination = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
 
-const CUSTOMER_ORDER_PLACED_SOUND = new Audio("assets/audio/order-placed-user.mpeg");
-const CUSTOMER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
+const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 
 function getOrderDeadlineMs(order) {
   const explicitDeadline = Number(order?.delivery_deadline_ms);
@@ -92,6 +93,18 @@ function openCustomerRiderTracker(orderId, riderName) {
   if (status) status.innerText = `Connecting to ${riderName}'s live location...`;
 
   if (riderTrackingUnsubscribe) riderTrackingUnsubscribe();
+  riderTrackingDestination = null;
+  db.collection("orders").doc(orderId).get().then(orderDoc => {
+    if (orderDoc.exists) {
+      const order = orderDoc.data();
+      if (Number.isFinite(Number(order.delivery_latitude)) && Number.isFinite(Number(order.delivery_longitude))) {
+        riderTrackingDestination = {
+          lat: Number(order.delivery_latitude),
+          lng: Number(order.delivery_longitude)
+        };
+      }
+    }
+  }).catch(error => console.warn("Tracking destination load failed:", error));
   if (!riderTrackingMap) {
     riderTrackingMap = L.map("customerRiderTrackingMap").setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -118,7 +131,13 @@ function openCustomerRiderTracker(orderId, riderName) {
       }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(riderName)}</b><br>Live delivery partner`).openPopup();
     }
     riderTrackingMap.setView(position, 16);
-    if (status) status.innerText = `${riderName} is live. Last update: ${location.updated_at ? "just now" : "location received"}`;
+    let etaText = "";
+    if (riderTrackingDestination) {
+      const distance = calculateDistanceKm(position[0], position[1], riderTrackingDestination.lat, riderTrackingDestination.lng);
+      const etaMinutes = Math.max(1, Math.ceil((distance / 25) * 60));
+      etaText = ` · Approx. ${etaMinutes} min (${distance.toFixed(1)} km)`;
+    }
+    if (status) status.innerText = `${riderName} is live. Last update: ${location.updated_at ? "just now" : "location received"}${etaText}`;
   }, error => {
     console.error("Customer rider tracking error:", error);
     if (status) status.innerText = "Live location is temporarily unavailable.";
@@ -2071,6 +2090,17 @@ const categories = [
 
 let liveCatalog = [];
 
+const shopServiceCategories = [
+  { id: "staples", name: "Groceries", icon: "🌾" },
+  { id: "veggies", name: "Vegetables", icon: "🥦" },
+  { id: "organic", name: "Fruits", icon: "🍎" },
+  { id: "dairy", name: "Dairy & Eggs", icon: "🥛" },
+  { id: "cleaning", name: "Household", icon: "🧽" },
+  { id: "personal", name: "Personal Care", icon: "🧴" }
+];
+
+let serviceRestaurants = [];
+
 let cartState = {};
 let riderTipAmount = 0;
 
@@ -2089,6 +2119,8 @@ function loadCustomerRestaurants() {
     const restaurants = [];
     snapshot.forEach(doc => restaurants.push({ id: doc.id, ...doc.data() }));
     const nearby = restaurants.filter(item => Number(item.distance_km) <= 25);
+    serviceRestaurants = nearby;
+    renderServiceRestaurantList();
     if (!nearby.length) return;
     directory.innerHTML = nearby.map(item => `
       <button onclick="selectRestaurant('${escapeAttribute(item.id)}', '${escapeAttribute(item.name)}')" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
@@ -2097,6 +2129,156 @@ function loadCustomerRestaurants() {
       </button>
     `).join('');
   }, error => console.error('Restaurant directory error:', error));
+}
+
+function showServiceSection(section) {
+  if (["restaurant", "meat", "parcel"].includes(section)) {
+    window.location.href = `service.html?type=${encodeURIComponent(section)}`;
+    return;
+  }
+  hideServiceSections();
+  const panel = document.getElementById(`service${section.charAt(0).toUpperCase()}${section.slice(1)}Panel`);
+  if (!panel) return;
+  panel.classList.remove("hidden");
+  if (section === "shop") renderServiceShopCategories();
+  if (section === "restaurant") renderServiceRestaurantList();
+  document.getElementById("serviceDirectory")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function hideServiceSections() {
+  document.querySelectorAll("#serviceDirectory > div[id$='Panel']").forEach(panel => panel.classList.add("hidden"));
+}
+
+function renderServiceShopCategories() {
+  const container = document.getElementById("serviceShopCategories");
+  if (!container) return;
+  container.innerHTML = shopServiceCategories.map(category => `
+    <button type="button" onclick="selectCategory('${escapeAttribute(category.id)}', this)" class="min-w-[104px] p-3 rounded-xl bg-white border border-slate-200 hover:border-emerald-400 text-center transition">
+      <span class="block text-xl">${category.icon}</span>
+      <span class="block mt-1 text-[10px] font-black text-slate-800">${escapeHtml(category.name)}</span>
+    </button>
+  `).join("");
+}
+
+function renderServiceRestaurantList() {
+  const container = document.getElementById("serviceRestaurantList");
+  if (!container) return;
+  if (!serviceRestaurants.length) {
+    container.innerHTML = '<p class="p-4 bg-white rounded-xl border border-slate-200 text-xs text-slate-500">Restaurant menus will appear here when available.</p>';
+    return;
+  }
+
+  container.innerHTML = serviceRestaurants.map(restaurant => {
+    const dishes = liveCatalog.filter(product => product.category === "restaurants" && product.restaurant_id === restaurant.id);
+    const dishMarkup = dishes.length ? dishes.map(dish => `
+      <button type="button" onclick="openServiceDish('${escapeAttribute(dish.id)}')" class="min-w-[138px] text-left bg-white border border-slate-200 rounded-xl p-2 shadow-sm">
+        <img src="${escapeAttribute(dish.image_url || "")}" alt="${escapeAttribute(dish.name || "Dish")}" class="w-full h-20 rounded-lg object-contain bg-slate-50" onerror="this.style.display='none'">
+        <span class="block mt-1 text-[10px] font-bold text-slate-800 line-clamp-2">${escapeHtml(dish.name || "Dish")}</span>
+        <span class="block mt-1 text-[10px] font-black text-slate-900">₹${Number(dish.price || 0)}</span>
+      </button>
+    `).join("") : '<p class="text-[11px] text-slate-400 py-3">Menu items are being updated.</p>';
+    return `
+      <article class="bg-white border border-slate-200 rounded-2xl p-3">
+        <button type="button" onclick="selectRestaurant('${escapeAttribute(restaurant.id)}', '${escapeAttribute(restaurant.name || "Restaurant")}')" class="flex items-center gap-3 text-left">
+          <img src="${escapeAttribute(restaurant.image_url || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80")}" alt="${escapeAttribute(restaurant.name || "Restaurant")}" class="w-16 h-16 rounded-xl object-cover">
+          <span><strong class="block text-sm font-black text-slate-900">${escapeHtml(restaurant.name || "Restaurant")}</strong><span class="block text-[11px] text-slate-500 mt-1">${escapeHtml(restaurant.cuisine || "Restaurant menu")}</span><span class="block text-[10px] font-black text-emerald-700 mt-1">${Number(restaurant.distance_km || 0).toFixed(1)} km · 25-45 min</span></span>
+        </button>
+        <div class="relative mt-3">
+          <button type="button" onclick="scrollServiceDishes(this, -1)" aria-label="Previous dishes" class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[#0B132B] text-white text-xs font-black">‹</button>
+          <div class="service-dish-slider flex gap-2 overflow-x-auto no-scrollbar px-8 pb-1">${dishMarkup}</div>
+          <button type="button" onclick="scrollServiceDishes(this, 1)" aria-label="Next dishes" class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[#0B132B] text-white text-xs font-black">›</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function scrollServiceDishes(button, direction) {
+  button.parentElement.querySelector(".service-dish-slider")?.scrollBy({ left: direction * 190, behavior: "smooth" });
+}
+
+function openServiceDish(productId) {
+  const product = liveCatalog.find(item => item.id === productId);
+  if (product) openProductDetailModal(product);
+}
+
+async function submitParcelRequest(event) {
+  event.preventDefault();
+  const pickup = document.getElementById("parcelPickupInput")?.value.trim();
+  const drop = document.getElementById("parcelDropInput")?.value.trim();
+  const description = document.getElementById("parcelDescriptionInput")?.value.trim();
+  const orderId = `PX-${Math.floor(100000 + Math.random() * 900000)}`;
+  const [pickupLocation, dropLocation] = await Promise.all([geocodeParcelAddress(pickup), geocodeParcelAddress(drop)]);
+  const dropLatitude = dropLocation?.lat ?? currentCustomerCoords.lat;
+  const dropLongitude = dropLocation?.lng ?? currentCustomerCoords.lng;
+  const parcelFee = 50;
+  const order = {
+    id: orderId,
+    order_type: "PARCEL",
+    customer_phone: getCurrentCustomerPhone() || "guest",
+    customer_name: getCustomerDisplayName(),
+    delivery_address: drop,
+    parcel_pickup_address: pickup,
+    parcel_drop_address: drop,
+    parcel_description: description,
+    pickup_latitude: pickupLocation?.lat || null,
+    pickup_longitude: pickupLocation?.lng || null,
+    delivery_latitude: dropLatitude,
+    delivery_longitude: dropLongitude,
+    items: [{
+      id: `parcel-item-${orderId}`,
+      name: `Parcel: ${description}`,
+      unit: "1 parcel",
+      quantity: 1,
+      price: parcelFee,
+      pickup_source: "parcel",
+      pickup_source_name: "Parcel Pickup",
+      pickup_source_address: pickup
+    }],
+    subtotal: parcelFee,
+    delivery_fee: 0,
+    total_amount: parcelFee,
+    status: "PLACED",
+    delivery_deadline_ms: Date.now() + (60 * 60 * 1000),
+    payment_mode: "COD",
+    delivery_otp: Math.floor(1000 + Math.random() * 9000).toString(),
+    created_at_ms: Date.now()
+  };
+
+  try {
+    await db.collection("orders").doc(orderId).set({
+      ...order,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Parcel order creation failed:", error);
+    localStorage.setItem("myshopzy_last_parcel_request", JSON.stringify(order));
+    alert("Parcel request could not sync online. It was saved on this device for retry.");
+    return;
+  }
+
+  const status = document.getElementById("parcelRequestStatus");
+  if (status) {
+    status.innerText = `Parcel ${orderId} created. A rider will be assigned shortly.`;
+    status.classList.remove("hidden");
+  }
+  event.target.reset();
+}
+
+async function geocodeParcelAddress(address) {
+  if (!address) return null;
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(`${address}, Ravulapalem`)}`, {
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) return null;
+    const results = await response.json();
+    if (!results[0]) return null;
+    return { lat: Number(results[0].lat), lng: Number(results[0].lon) };
+  } catch (error) {
+    console.warn("Parcel address geocoding failed:", error);
+    return null;
+  }
 }
 
 
@@ -2136,6 +2318,7 @@ async function fetchProducts() {
         liveCatalog =
           cloudProducts;
 
+        renderServiceRestaurantList();
         filterAndRender();
       },
 
@@ -2359,6 +2542,11 @@ function selectCategory(
   catId,
   targetEl = null
 ) {
+
+  if (catId === "meat") {
+    window.location.href = "service.html?type=meat";
+    return;
+  }
 
   activeCategory =
     catId;
@@ -3513,7 +3701,19 @@ async function finalizeOrderAndLaunch(
               ? "Assigned vegetable market partner"
               : item.category === "meat"
                 ? "Assigned meat partner"
-                : "Ravulapalem RTC Dark Store")
+                : "Ravulapalem RTC Dark Store"),
+
+        restaurant_id:
+          item.restaurant_id || null,
+
+        restaurant_name:
+          item.restaurant_name || null,
+
+        partner_id:
+          item.partner_id || item.restaurant_id || null,
+
+        partner_name:
+          item.partner_name || item.restaurant_name || item.pickup_source_name || null
       });
     }
   );

@@ -1,0 +1,107 @@
+body { 
+  font-family: 'Plus Jakarta Sans', sans-serif; 
+}
+
+body.theme-dark #accountModal > div {
+  background-color: #111827;
+  color: #f8fafc;
+}
+
+body.theme-dark #accountModal .bg-white,
+body.theme-dark #accountModal .bg-slate-50 {
+  background-color: #1f2937;
+}
+
+body.theme-dark #accountModal .bg-amber-50 {
+  background-color: #422006;
+}
+
+body.theme-dark #accountModal .text-slate-900,
+body.theme-dark #accountModal .text-slate-800,
+body.theme-dark #accountModal .text-slate-700,
+body.theme-dark #accountModal .text-slate-600,
+body.theme-dark #accountModal .text-slate-500,
+body.theme-dark #accountModal .text-slate-400 {
+  color: #e5e7eb;
+}
+
+body.theme-dark #accountModal .text-amber-900 {
+  color: #fde68a;
+}
+
+body.theme-dark #accountModal .border,
+body.theme-dark #accountModal .border-slate-200,
+body.theme-dark #accountModal .border-amber-200 {
+  border-color: #374151;
+}
+
+body.theme-dark #accountModal select {
+  background-color: #111827;
+  color: #f8fafc;
+  border-color: #4b5563;
+}
+
+.no-scrollbar::-webkit-scrollbar { 
+  display: none; 
+}
+
+.no-scrollbar { 
+  -ms-overflow-style: none; 
+  scrollbar-width: none; 
+}
+
+#deliveryMap { 
+  height: 260px; 
+  width: 100%; 
+  border-radius: 1rem; 
+  z-index: 10; 
+}
+
+@keyframes myshopzyRiseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes myshopzySoftPulse {
+  0%, 100% { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
+  50% { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.10); }
+}
+
+#serviceDirectory > div:first-child > button,
+#serviceDirectory > div[id$="Panel"],
+#restaurantDirectory > button,
+#productsGrid > div,
+.cat-card {
+  animation: myshopzyRiseIn 0.45s ease both;
+}
+
+#serviceDirectory > div:first-child > button:nth-child(2),
+#restaurantDirectory > button:nth-child(2),
+#productsGrid > div:nth-child(2),
+.cat-card:nth-child(2) { animation-delay: 0.06s; }
+
+#serviceDirectory > div:first-child > button:nth-child(3),
+#restaurantDirectory > button:nth-child(3),
+#productsGrid > div:nth-child(3),
+.cat-card:nth-child(3) { animation-delay: 0.12s; }
+
+#serviceDirectory > div:first-child > button:hover,
+#restaurantDirectory > button:hover,
+#productsGrid > div:hover,
+.cat-card:hover {
+  animation: myshopzySoftPulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #serviceDirectory > div:first-child > button,
+  #serviceDirectory > div[id$="Panel"],
+  #restaurantDirectory > button,
+  #productsGrid > div,
+  .cat-card,
+  #serviceDirectory > div:first-child > button:hover,
+  #restaurantDirectory > button:hover,
+  #productsGrid > div:hover,
+  .cat-card:hover {
+    animation: none;
+  }
+}

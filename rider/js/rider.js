@@ -11,9 +11,22 @@ let gpsWatchId = null;
 let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
 let knownAssignedOrderIds = new Set();
 let riderOrdersInitialized = false;
+let riderNearbyOrderIds = new Set();
+let riderOrdersUnsubscribe = null;
+const RIDER_DISPATCH_RADIUS_KM = 3;
+const RIDER_DEFAULT_PICKUP = { lat: 16.7483, lng: 81.8488 };
+
+function calculateDistanceKm(lat1, lng1, lat2, lng2) {
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 let riderOtpSent = false;
-const RIDER_ORDER_SOUND = new Audio("assets/audio/admin-rider-order.mpeg");
-const RIDER_TAB_SOUND = new Audio("assets/audio/tab-click.wav");
+const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
+const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 RIDER_ORDER_SOUND.loop = true;
 
 function formatOrderDateTime(order) {
@@ -237,8 +250,11 @@ async function toggleRiderAvailability() {
   }
   riderIsAvailable = !riderIsAvailable;
   localStorage.setItem('rider_available', String(riderIsAvailable));
-  if (riderIsAvailable) startRiderGpsBroadcast();
-  else stopRiderGpsBroadcast();
+  if (riderIsAvailable) {
+    startRiderGpsBroadcast();
+    riderNearbyOrderIds = new Set();
+    startRiderOrdersListener();
+  } else stopRiderGpsBroadcast();
   updateAvailabilityUi();
   try {
     await db.collection('riders_location').doc(currentActiveRider).set({
@@ -268,15 +284,22 @@ function toggleRiderTab(tab) {
 }
 
 function startRiderOrdersListener() {
-  db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
+  riderOrdersUnsubscribe?.();
+  riderOrdersUnsubscribe = db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
     const assignedNow = orders.filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED');
+    const nearbyNow = riderIsAvailable
+      ? orders.filter(order => isNearbyUnassignedOrder(order))
+      : [];
     const newlyAssigned = assignedNow.filter(order => !knownAssignedOrderIds.has(order.id));
+    const newlyNearby = nearbyNow.filter(order => !riderNearbyOrderIds.has(`${order.id}:${String(order.status || "PLACED").toUpperCase()}`));
     if (riderOrdersInitialized && newlyAssigned.length > 0) {
       notifyNewAssignment(newlyAssigned[0]);
     }
+    if (riderOrdersInitialized && newlyNearby.length > 0) notifyNewAssignment(newlyNearby[0], true);
     knownAssignedOrderIds = new Set(assignedNow.map(order => order.id));
+    riderNearbyOrderIds = new Set(nearbyNow.map(order => `${order.id}:${String(order.status || "PLACED").toUpperCase()}`));
     riderOrdersInitialized = true;
     allRiderOrders = orders;
     renderPickupQueue();
@@ -284,13 +307,29 @@ function startRiderOrdersListener() {
   });
 }
 
-function notifyNewAssignment(order) {
+function getOrderPickupPoint(order) {
+  if (Number.isFinite(Number(order.pickup_latitude)) && Number.isFinite(Number(order.pickup_longitude))) {
+    return { lat: Number(order.pickup_latitude), lng: Number(order.pickup_longitude) };
+  }
+  return RIDER_DEFAULT_PICKUP;
+}
+
+function isNearbyUnassignedOrder(order) {
+  const status = String(order.status || "PLACED").toUpperCase();
+  if (!currentActiveRider || !riderIsAvailable || order.assigned_rider || !["PLACED", "REJECTED_BY_RIDER"].includes(status)) return false;
+  const riderLocation = window.currentRiderLocation;
+  if (!riderLocation) return false;
+  const pickup = getOrderPickupPoint(order);
+  return calculateDistanceKm(riderLocation.lat, riderLocation.lng, pickup.lat, pickup.lng) <= RIDER_DISPATCH_RADIUS_KM;
+}
+
+function notifyNewAssignment(order, nearby = false) {
   RIDER_ORDER_SOUND.currentTime = 0;
   RIDER_ORDER_SOUND.play().catch(() => {});
   const banner = document.getElementById('riderAlertBanner');
   if (banner) {
     banner.innerHTML = `
-      <div>New delivery assigned: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button></div>
+      <div>${nearby ? 'Nearby order available' : 'New delivery assigned'}: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button></div>
       <div class="flex flex-wrap gap-2 mt-2">
         <button type="button" onclick="acceptRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-black">Accept</button>
         <button type="button" onclick="rejectRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 font-black">Reject</button>
@@ -316,10 +355,18 @@ function stopRiderOrderAlertSound() {
 
 async function acceptRiderOrder(orderId) {
   try {
-    await db.collection("orders").doc(orderId).update({
-      status: "ACCEPTED_BY_RIDER",
-      rider_accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    const orderRef = db.collection("orders").doc(orderId);
+    await db.runTransaction(async transaction => {
+      const orderSnapshot = await transaction.get(orderRef);
+      if (!orderSnapshot.exists) throw new Error("Order is no longer available.");
+      const order = orderSnapshot.data();
+      if (order.assigned_rider && order.assigned_rider !== currentActiveRider) throw new Error("Another rider already accepted this order.");
+      transaction.update(orderRef, {
+        assigned_rider: currentActiveRider,
+        status: "ACCEPTED_BY_RIDER",
+        rider_accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
     });
     stopRiderOrderAlertSound();
     const banner = document.getElementById('riderAlertBanner');
@@ -338,6 +385,7 @@ async function rejectRiderOrder(orderId) {
       rider_rejected_at: firebase.firestore.FieldValue.serverTimestamp(),
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
+    riderNearbyOrderIds = new Set([...riderNearbyOrderIds].filter(key => !key.startsWith(`${orderId}:`)));
     stopRiderOrderAlertSound();
     const banner = document.getElementById('riderAlertBanner');
     if (banner) banner.classList.add('hidden');
@@ -354,6 +402,7 @@ function startRiderGpsBroadcast() {
   gpsWatchId = navigator.geolocation.watchPosition(
     async (position) => {
       const { latitude, longitude } = position.coords;
+      window.currentRiderLocation = { lat: latitude, lng: longitude };
       try {
         await db.collection("riders_location").doc(currentActiveRider).set({
           rider_name: currentActiveRider,
@@ -522,6 +571,7 @@ function renderRiderOrders() {
 
       <div>
         <p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>
+        ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 mt-1 font-bold">📍 Pickup: ${o.parcel_pickup_address || 'Pickup address pending'} → Drop: ${o.parcel_drop_address || o.delivery_address}</p>` : ''}
         ${itemsText ? `<p class="text-[11px] text-slate-500 mt-1">📦 ${itemsText}</p>` : ''}
         ${String(o.status || '').toUpperCase() === 'ACCEPTED'
           ? '<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-800">Accept this delivery before starting pickup.</div>'
