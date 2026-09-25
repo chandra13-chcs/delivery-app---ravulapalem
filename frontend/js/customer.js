@@ -19,15 +19,15 @@
 // ==========================================
 
 const DARK_STORE_COORDS = {
-  lat: 16.7483,
-  lng: 81.8488,
-  name: "Ravulapalem RTC Dark Store"
+  lat: 16.8625,
+  lng: 82.0570,
+  name: "Mandapeta Dark Store"
 };
 
 let currentCustomerCoords = {
   lat: DARK_STORE_COORDS.lat,
   lng: DARK_STORE_COORDS.lng,
-  address: "RTC Complex, Ravulapalem",
+  address: "Mandapeta, Andhra Pradesh",
   accuracy: null
 };
 
@@ -39,6 +39,7 @@ let riderTrackingUnsubscribe = null;
 let riderTrackingDestination = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
+const delaySupportShownFor = new Set();
 
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
@@ -62,7 +63,29 @@ function formatDeliveryCountdown(deadlineMs, status) {
 function updateCustomerCountdowns() {
   document.querySelectorAll("[data-delivery-deadline]").forEach(element => {
     element.innerText = formatDeliveryCountdown(element.dataset.deliveryDeadline, element.dataset.orderStatus);
+    const deadline = Number(element.dataset.deliveryDeadline);
+    if (deadline > 0 && deadline <= Date.now() && element.dataset.orderStatus !== "DELIVERED") {
+      const orderId = element.dataset.orderId || "unknown";
+      if (!delaySupportShownFor.has(orderId)) {
+        delaySupportShownFor.add(orderId);
+        openCustomerSupport(orderId);
+      }
+    }
   });
+}
+
+function openCustomerSupport(orderId = "") {
+  const modal = document.getElementById("customerSupportModal");
+  const message = document.getElementById("customerSupportMessage");
+  if (message) message.innerText = orderId && orderId !== "unknown"
+    ? `Order ${orderId} has crossed the promised 25-minute window. Our support team can help right away.`
+    : "Your delivery has crossed the promised 25-minute window. Our support team can help right away.";
+  if (modal) modal.classList.remove("hidden");
+}
+
+function closeCustomerSupport() {
+  const modal = document.getElementById("customerSupportModal");
+  if (modal) modal.classList.add("hidden");
 }
 
 function startCustomerCountdowns() {
@@ -498,7 +521,7 @@ function initLeafletMap() {
       )
         .addTo(leafletMap)
         .bindPopup(
-          "<b>⚡ Ravulapalem RTC Dark Store</b>"
+          "<b>⚡ Mandapeta Dark Store</b>"
         );
 
 
@@ -1798,7 +1821,7 @@ function saveCurrentGpsAddress() {
       parts[1] || "Current Location",
 
     city:
-      parts[2] || "Ravulapalem",
+      parts[2] || "Mandapeta",
 
     district:
       parts[3] || "East Godavari",
@@ -2082,7 +2105,7 @@ const categories = [
 
   {
     id: "restaurants",
-    name: "Restaurants Around Ravulapalem"
+    name: "Restaurants Around Mandapeta"
   }
 
 ];
@@ -2102,6 +2125,8 @@ const shopServiceCategories = [
 let serviceRestaurants = [];
 
 let cartState = {};
+const selectedProductWeights = {};
+const WEIGHT_OPTION_CATEGORIES = new Set(["meat", "veggies", "bakery", "organic"]);
 let riderTipAmount = 0;
 
 let activeCategory =
@@ -2111,6 +2136,47 @@ let activeRestaurantId = "";
 
 let currentSearch =
   "";
+
+function supportsWeightOptions(product) {
+  return WEIGHT_OPTION_CATEGORIES.has(String(product?.category || "").toLowerCase());
+}
+
+function getProductBaseWeightGrams(product) {
+  const value = Number(product?.qty_value);
+  const unit = String(product?.qty_unit || product?.unit || "").toLowerCase();
+  if (!Number.isFinite(value) || value <= 0) return 500;
+  if (unit.includes("kg") || unit.includes("kilo")) return value * 1000;
+  if (unit.includes("g") || unit.includes("gram")) return value;
+  return 500;
+}
+
+function getSelectedProductWeight(product) {
+  return selectedProductWeights[product.id] || getProductBaseWeightGrams(product);
+}
+
+function getProductPrice(product, weightGrams = getSelectedProductWeight(product)) {
+  const baseWeight = getProductBaseWeightGrams(product);
+  const basePrice = Number(product?.price || 0);
+  return supportsWeightOptions(product) ? Math.round(basePrice * (weightGrams / baseWeight)) : basePrice;
+}
+
+function formatWeight(grams) {
+  return grams >= 1000 ? `${grams / 1000} kg` : `${grams} g`;
+}
+
+function selectProductWeight(productId, weightGrams) {
+  selectedProductWeights[productId] = Number(weightGrams);
+  filterAndRender();
+  syncCartBar();
+}
+
+function renderWeightOptions(product) {
+  if (!supportsWeightOptions(product)) return "";
+  const selectedWeight = getSelectedProductWeight(product);
+  return `<div class="mt-2 flex flex-wrap gap-1" onclick="event.stopPropagation()">
+    ${[500, 1000, 2000].map(weight => `<button type="button" onclick="selectProductWeight('${escapeAttribute(product.id)}', ${weight})" class="weight-option ${selectedWeight === weight ? "weight-option-selected" : ""}">${formatWeight(weight)}</button>`).join("")}
+  </div>`;
+}
 
 function loadCustomerRestaurants() {
   const directory = document.getElementById('restaurantDirectory');
@@ -2268,7 +2334,7 @@ async function submitParcelRequest(event) {
 async function geocodeParcelAddress(address) {
   if (!address) return null;
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(`${address}, Ravulapalem`)}`, {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(`${address}, Mandapeta`)}`, {
       headers: { Accept: "application/json" }
     });
     if (!response.ok) return null;
@@ -2441,6 +2507,8 @@ function filterAndRender() {
         p.unit ||
         "pc";
 
+      const selectedWeight = getSelectedProductWeight(p);
+      const displayPrice = getProductPrice(p, selectedWeight);
 
       const qty =
         cartState[p.id] ||
@@ -2478,8 +2546,10 @@ function filterAndRender() {
             </button>
 
             <span class="text-[10px] text-slate-500 font-bold">
-              ${qtyVal} ${escapeHtml(qtyUnit)}
+              ${supportsWeightOptions(p) ? formatWeight(selectedWeight) : `${qtyVal} ${escapeHtml(qtyUnit)}`}
             </span>
+
+            ${renderWeightOptions(p)}
 
           </div>
 
@@ -2487,7 +2557,7 @@ function filterAndRender() {
           <div class="mt-2 flex items-center justify-between pt-2 border-t">
 
             <span class="text-xs font-black">
-              ₹${Number(p.price || 0)}
+              ₹${displayPrice}
             </span>
 
 
@@ -2665,6 +2735,19 @@ function modifyCart(
   filterAndRender();
 
   syncCartBar();
+
+  if (delta > 0) showCartAddToast();
+}
+
+let cartToastTimer = null;
+
+function showCartAddToast() {
+  const toast = document.getElementById("cartAddToast");
+  if (!toast) return;
+  toast.innerText = "Added to cart - keep shopping";
+  toast.classList.remove("hidden");
+  clearTimeout(cartToastTimer);
+  cartToastTimer = setTimeout(() => toast.classList.add("hidden"), 1800);
 }
 
 
@@ -2701,7 +2784,7 @@ function syncCartBar() {
           cartState[id];
 
         sum +=
-          Number(item.price || 0) *
+          getProductPrice(item) *
           cartState[id];
       }
     }
@@ -2923,7 +3006,7 @@ function calculateCartTotals() {
       if (item) {
 
         sub +=
-          Number(item.price || 0) *
+          getProductPrice(item) *
           cartState[id];
       }
     }
@@ -2935,16 +3018,18 @@ function calculateCartTotals() {
       ? 0
       : 25;
 
+  const offerDiscount = sub >= 499 ? 50 : 0;
 
   const grandTotal =
     sub > 0
-      ? sub + deliveryFee + 4 + riderTipAmount
+      ? Math.max(0, sub + deliveryFee + 4 + riderTipAmount - offerDiscount)
       : 0;
 
 
   return {
     sub,
     deliveryFee,
+    offerDiscount,
     riderTip: riderTipAmount,
     grandTotal
   };
@@ -3115,7 +3200,7 @@ function renderCheckoutSummary() {
             </span>
 
             <span class="font-bold">
-              ₹${Number(item.price || 0) * qty}
+              ₹${getProductPrice(item) * qty}
             </span>
 
           </div>
@@ -3128,6 +3213,7 @@ function renderCheckoutSummary() {
   const {
     sub,
     deliveryFee,
+    offerDiscount,
     riderTip,
     grandTotal
   } =
@@ -3203,6 +3289,8 @@ function renderCheckoutSummary() {
 
   const riderTipElement = document.getElementById("billRiderTip");
   if (riderTipElement) riderTipElement.innerText = `₹${riderTip}`;
+  const offerDiscountElement = document.getElementById("billOfferDiscount");
+  if (offerDiscountElement) offerDiscountElement.innerText = `-₹${offerDiscount}`;
 
   updateRiderTipButtons();
 }
@@ -3497,8 +3585,7 @@ function triggerDirectUpiPay(
   );
 
 
-  window.location.href =
-    upiUrl;
+  window.open(upiUrl, "_blank", "noopener");
 }
 
 
@@ -3642,6 +3729,7 @@ async function finalizeOrderAndLaunch(
   const {
     sub,
     deliveryFee,
+    offerDiscount,
     riderTip,
     grandTotal
   } =
@@ -3692,7 +3780,10 @@ async function finalizeOrderAndLaunch(
           cartState[id],
 
         price:
-          Number(item.price || 0),
+          getProductPrice(item),
+
+        selected_weight:
+          supportsWeightOptions(item) ? formatWeight(getSelectedProductWeight(item)) : null,
 
         pickup_source:
           item.pickup_source ||
@@ -3722,7 +3813,7 @@ async function finalizeOrderAndLaunch(
               ? "Assigned vegetable market partner"
               : item.category === "meat"
                 ? "Assigned meat partner"
-                : "Ravulapalem RTC Dark Store"),
+                : "Mandapeta Dark Store"),
 
         restaurant_id:
           item.restaurant_id || null,
@@ -3815,6 +3906,9 @@ async function finalizeOrderAndLaunch(
 
     rider_tip:
       riderTip,
+
+    offer_discount:
+      offerDiscount,
 
     total_amount:
       grandTotal,
@@ -4534,7 +4628,7 @@ async function toggleOrdersView() {
 
             <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
               <span>Dedicated delivery time</span>
-              <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
+              <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
             </div>
 
             <p class="text-[11px] text-slate-500">
@@ -4559,6 +4653,8 @@ async function toggleOrdersView() {
               )}
 
             </p>
+
+            ${renderCustomerRiderContact(order)}
 
           </div>
         `;
@@ -4654,6 +4750,24 @@ async function toggleOrdersView() {
   }
 
   startCustomerCountdowns();
+}
+
+function renderCustomerRiderContact(order) {
+  const status = String(order.status || "").toUpperCase();
+  const riderPhone = String(order.rider_phone || "").replace(/\D/g, "");
+  if (!riderPhone || !["PICKING_UP", "OUT FOR DELIVERY", "DELIVERED"].includes(status)) return "";
+  const riderName = escapeHtml(order.rider_name || order.assigned_rider || "Delivery partner");
+  const whatsapp = `https://wa.me/${riderPhone}?text=${encodeURIComponent(`Hi ${order.rider_name || "rider"}, I am contacting you about order ${order.id}.`)}`;
+  return `<div class="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-2.5">
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-[10px] font-black text-emerald-900">🛵 ${riderName} is handling your order</span>
+      <span class="text-[10px] font-bold text-emerald-700">Rider assigned</span>
+    </div>
+    <div class="mt-2 grid grid-cols-2 gap-2">
+      <a href="tel:${riderPhone}" onclick="event.stopPropagation()" class="rounded-xl bg-white px-2 py-2 text-center text-[10px] font-black text-slate-800 border border-emerald-200">📞 Call rider</a>
+      <a href="${whatsapp}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="rounded-xl bg-emerald-600 px-2 py-2 text-center text-[10px] font-black text-white">💬 Chat</a>
+    </div>
+  </div>`;
 }
 
 
@@ -4806,7 +4920,7 @@ function renderReceipt(
 
     receiptAddress.innerText =
       targetOrder.delivery_address ||
-      "Ravulapalem";
+      "Mandapeta";
   }
 
 
@@ -5061,6 +5175,23 @@ function escapeAttribute(value) {
   );
 }
 
+function openDailyOffer() {
+  const modal = document.getElementById("dailyOfferModal");
+  if (modal) modal.classList.remove("hidden");
+}
+
+function closeDailyOffer() {
+  const modal = document.getElementById("dailyOfferModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function showDailyOfferOnce() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem("myshopzy_offer_seen") === today) return;
+  localStorage.setItem("myshopzy_offer_seen", today);
+  setTimeout(openDailyOffer, 700);
+}
+
 
 // ==========================================
 // 49. INITIALIZATION
@@ -5081,6 +5212,7 @@ document.addEventListener(
     setUserLanguage(localStorage.getItem("myshopzy_language") || "en");
 
     checkStoreWorkingHours();
+    showDailyOfferOnce();
 
 
     // Load addresses for current

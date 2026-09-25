@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyShopzy Rider Hub | Ravulapalem</title>
+  <title>MyShopzy Rider Hub | Mandapeta</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,6 +14,7 @@
   <!-- FIREBASE SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
   <script>
     tailwind.config = {
@@ -38,7 +39,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg failed: ', err));
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('Rider app SW registration failed: ', err));
       });
     }
   </script>
@@ -54,13 +55,13 @@
         </div>
         <div>
           <h1 class="text-xs font-black uppercase tracking-wider text-cyan-300">MyShopzy Express</h1>
-          <p class="text-[11px] text-slate-300">Ravulapalem Delivery Console</p>
+          <p class="text-[11px] text-slate-300">Mandapeta Delivery Console</p>
         </div>
       </div>
 
       <div class="flex items-center gap-1.5">
-        <button onclick="openRiderRegistrationModal()" id="riderRegisterButton" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">Register</button>
-        <button onclick="openRiderLoginModal()" id="riderLoginButton" class="px-2 py-1.5 rounded-xl bg-emerald-400 text-slate-950 text-[10px] font-black">Login</button>
+        <button onclick="openRiderRegistrationModal()" id="riderRegisterButton" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">New rider · Register</button>
+        <button onclick="openRiderLoginModal()" id="riderLoginButton" class="px-2 py-1.5 rounded-xl bg-emerald-400 text-slate-950 text-[10px] font-black">Existing rider · Login</button>
         <button onclick="showRiderSection('account')" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
       </div>
     </div>
@@ -68,6 +69,25 @@
 
   <!-- MAIN CONTAINER -->
   <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
+
+    <section id="riderWelcomeScreen" class="rider-welcome-screen rounded-[2rem] p-6 text-center shadow-xl">
+      <div class="rider-welcome-logo mx-auto flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-cyan-400 text-4xl shadow-lg shadow-cyan-950/20">🛵</div>
+      <p class="mt-5 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">MyShopzy Express</p>
+      <h2 class="mt-2 text-3xl font-black tracking-tight text-white">Ride. Deliver. Earn.</h2>
+      <p class="mx-auto mt-2 max-w-xs text-xs font-semibold leading-relaxed text-slate-300">Join Mandapeta's fast delivery network and manage every order from one simple rider app.</p>
+      <div class="mt-6 grid grid-cols-3 gap-2 text-left">
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">⚡</span><strong class="mt-1 block text-[10px] text-white">Fast dispatch</strong></div>
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">📍</span><strong class="mt-1 block text-[10px] text-white">Live GPS</strong></div>
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">💰</span><strong class="mt-1 block text-[10px] text-white">Track earnings</strong></div>
+      </div>
+      <div class="mt-6 space-y-2">
+        <button onclick="openRiderRegistrationModal()" class="w-full rounded-2xl bg-amber-400 px-4 py-3.5 text-xs font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300">Create rider account</button>
+        <button onclick="openRiderLoginModal()" class="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-white/20">Login to rider app</button>
+      </div>
+      <p class="mt-4 text-[10px] font-semibold text-slate-400">Secure profile verification · Quick order alerts · Customer details after pickup</p>
+    </section>
+
+    <div id="riderAppShell" class="hidden space-y-4">
 
     <div id="riderAlertBanner" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold"></div>
 
@@ -121,9 +141,11 @@
       </div>
     </section>
 
+    </div>
+
   </main>
 
-  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
+  <nav id="riderBottomNav" class="hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
     <div class="max-w-md mx-auto grid grid-cols-3 text-center">
       <button onclick="showRiderSection('home')" class="py-2.5 text-[10px] font-black text-slate-600">🏠<span class="block">Home</span></button>
       <button onclick="showRiderSection('orders')" class="py-2.5 text-[10px] font-black text-slate-600">📦<span class="block">Orders</span></button>
@@ -142,13 +164,30 @@
       <input id="riderMobileInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="10-digit mobile" maxlength="10" inputmode="numeric">
       <input id="riderEmailInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Email address" type="email">
       <input id="riderAadhaarInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Aadhaar number" maxlength="12" inputmode="numeric">
-      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password" type="password">
+      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password (min 6 characters)" type="password" autocomplete="new-password">
+      <input id="riderConfirmPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Confirm password" type="password" autocomplete="new-password">
       <div class="flex gap-2">
         <input id="riderOtpInput" class="flex-1 p-2.5 border rounded-xl text-xs" placeholder="OTP" maxlength="4" inputmode="numeric">
         <button onclick="sendRiderRegistrationOtp()" class="px-3 rounded-xl bg-slate-900 text-white text-[10px] font-black">Send OTP</button>
       </div>
-      <p class="text-[10px] text-slate-500">Demo OTP: 4821. In production, connect this flow to a server-side OTP provider.</p>
+      <p class="text-[10px] text-slate-500">Demo OTP: 4821. Production deployment should connect this flow to a server-side OTP provider.</p>
       <button onclick="completeRiderRegistration()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Verify & Register</button>
+    </div>
+  </div>
+
+  <!-- RIDER DOCUMENT VERIFICATION MODAL -->
+  <div id="riderVerificationModal" class="hidden fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-3">
+        <div><p class="text-[10px] uppercase tracking-wider font-black text-amber-600">Step 2 of 2</p><h3 class="text-base font-black text-slate-900">Verify rider identity</h3><p class="text-[11px] text-slate-500 mt-1">Upload clear original photos for admin verification.</p></div>
+        <button onclick="closeRiderVerificationModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
+      </div>
+      <input id="riderPanInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="PAN card number" maxlength="10" autocomplete="off">
+      <label class="block text-[10px] font-black uppercase text-slate-500">Original selfie<input id="riderSelfieFile" type="file" accept="image/*" capture="user" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <label class="block text-[10px] font-black uppercase text-slate-500">Aadhaar photo<input id="riderAadhaarFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <label class="block text-[10px] font-black uppercase text-slate-500">PAN card photo<input id="riderPanFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <p id="riderVerificationStatus" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-2 text-[11px] font-bold text-amber-800"></p>
+      <button onclick="submitRiderVerification()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Submit for admin verification</button>
     </div>
   </div>
 

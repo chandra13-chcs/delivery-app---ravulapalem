@@ -14,7 +14,7 @@ let riderOrdersInitialized = false;
 let riderNearbyOrderIds = new Set();
 let riderOrdersUnsubscribe = null;
 const RIDER_DISPATCH_RADIUS_KM = 3;
-const RIDER_DEFAULT_PICKUP = { lat: 16.7483, lng: 81.8488 };
+const RIDER_DEFAULT_PICKUP = { lat: 16.8625, lng: 82.0570 };
 
 function calculateDistanceKm(lat1, lng1, lat2, lng2) {
   const earthRadiusKm = 6371;
@@ -25,6 +25,7 @@ function calculateDistanceKm(lat1, lng1, lat2, lng2) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 let riderOtpSent = false;
+let pendingRiderRegistration = null;
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 RIDER_ORDER_SOUND.loop = true;
@@ -78,6 +79,14 @@ function closeRiderLoginModal() {
   document.getElementById('riderLoginModal')?.classList.add('hidden');
 }
 
+function openRiderVerificationModal() {
+  document.getElementById('riderVerificationModal')?.classList.remove('hidden');
+}
+
+function closeRiderVerificationModal() {
+  document.getElementById('riderVerificationModal')?.classList.add('hidden');
+}
+
 function sendRiderRegistrationOtp() {
   const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
   if (mobile.length !== 10) {
@@ -100,10 +109,11 @@ async function completeRiderRegistration() {
   const email = document.getElementById('riderEmailInput')?.value.trim().toLowerCase();
   const aadhaar = document.getElementById('riderAadhaarInput')?.value.replace(/\D/g, '');
   const password = document.getElementById('riderPasswordInput')?.value;
+  const confirmPassword = document.getElementById('riderConfirmPasswordInput')?.value;
   const otp = document.getElementById('riderOtpInput')?.value.trim();
 
-  if (!name || mobile.length !== 10 || !email || aadhaar.length !== 12 || !password || password.length < 6) {
-    alert('Complete name, mobile, email, 12-digit Aadhaar, and a 6-character password.');
+  if (!name || mobile.length !== 10 || !email || aadhaar.length !== 12 || !password || password.length < 6 || password !== confirmPassword) {
+    alert('Complete all details and make sure both passwords match.');
     return;
   }
   if (!riderOtpSent || otp !== '4821') {
@@ -112,11 +122,8 @@ async function completeRiderRegistration() {
   }
 
   const passwordHash = await hashRiderPassword(password);
-  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: passwordHash, registered_at_ms: Date.now() };
-  riderProfile = profile;
-  currentActiveRider = name;
-  localStorage.setItem('rider_profile', JSON.stringify(profile));
-  localStorage.setItem('active_rider_name', name);
+  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: passwordHash, verification_status: 'PENDING', registered_at_ms: Date.now() };
+  pendingRiderRegistration = profile;
   try {
     await db.collection('rider_profiles').doc(mobile).set(profile, { merge: true });
   } catch (error) {
@@ -124,8 +131,62 @@ async function completeRiderRegistration() {
     alert('Profile saved on this device. Firebase profile sync failed.');
   }
   closeRiderRegistrationModal();
-  updateRiderIdentity();
-  alert(`Welcome ${name}. Rider registration completed.`);
+  document.getElementById('riderPanInput').value = '';
+  document.getElementById('riderSelfieFile').value = '';
+  document.getElementById('riderAadhaarFile').value = '';
+  document.getElementById('riderPanFile').value = '';
+  openRiderVerificationModal();
+}
+
+async function uploadRiderVerificationFile(file, mobile, type) {
+  if (!file || !firebase.storage) return null;
+  const storageRef = firebase.storage().ref(`rider_verification/${mobile}/${type}_${Date.now()}_${file.name}`);
+  await storageRef.put(file);
+  return storageRef.fullPath;
+}
+
+async function submitRiderVerification() {
+  if (!pendingRiderRegistration) {
+    alert('Please complete registration first.');
+    return;
+  }
+  const panNumber = document.getElementById('riderPanInput')?.value.trim().toUpperCase();
+  const selfie = document.getElementById('riderSelfieFile')?.files?.[0];
+  const aadhaarPhoto = document.getElementById('riderAadhaarFile')?.files?.[0];
+  const panPhoto = document.getElementById('riderPanFile')?.files?.[0];
+  const status = document.getElementById('riderVerificationStatus');
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNumber || '') || !selfie || !aadhaarPhoto || !panPhoto) {
+    if (status) { status.innerText = 'Enter a valid PAN and choose all three original photos.'; status.classList.remove('hidden'); }
+    return;
+  }
+  try {
+    const { mobile } = pendingRiderRegistration;
+    const [selfiePath, aadhaarPath, panPath] = await Promise.all([
+      uploadRiderVerificationFile(selfie, mobile, 'selfie'),
+      uploadRiderVerificationFile(aadhaarPhoto, mobile, 'aadhaar'),
+      uploadRiderVerificationFile(panPhoto, mobile, 'pan')
+    ]);
+    const verification = {
+      pan_last4: panNumber.slice(-4),
+      selfie_file: selfie.name,
+      aadhaar_file: aadhaarPhoto.name,
+      pan_file: panPhoto.name,
+      selfie_path: selfiePath,
+      aadhaar_path: aadhaarPath,
+      pan_path: panPath,
+      verification_status: 'SUBMITTED',
+      verification_submitted_at_ms: Date.now()
+    };
+    await db.collection('rider_profiles').doc(mobile).set(verification, { merge: true });
+    closeRiderVerificationModal();
+    document.getElementById('riderLoginIdentityInput').value = mobile;
+    openRiderLoginModal();
+    alert('Verification submitted. Login with your registered details after admin approval.');
+    pendingRiderRegistration = null;
+  } catch (error) {
+    console.error('Rider verification upload failed:', error);
+    if (status) { status.innerText = 'Upload failed. Check Firebase Storage rules and try again.'; status.classList.remove('hidden'); }
+  }
 }
 
 async function loginRider() {
@@ -152,6 +213,7 @@ async function loginRider() {
     const profile = profileDoc?.exists ? profileDoc.data() : null;
     const passwordHash = await hashRiderPassword(password);
     if (!profile || profile.password_hash !== passwordHash) throw new Error('Invalid rider credentials.');
+    if (profile.verification_status !== 'APPROVED') throw new Error('Admin approval is required before rider login.');
 
     riderProfile = profile;
     currentActiveRider = profile.name;
@@ -159,6 +221,7 @@ async function loginRider() {
     localStorage.setItem('active_rider_name', profile.name);
     closeRiderLoginModal();
     updateRiderIdentity();
+    startRiderOrdersListener();
     alert(`Welcome back, ${profile.name}.`);
   } catch (error) {
     console.error('Rider login failed:', error);
@@ -185,6 +248,13 @@ function syncRiderAccount() {
 function updateRiderIdentity() {
   const titleEl = document.getElementById('currentRiderTitle');
   if (titleEl) titleEl.innerText = currentActiveRider || 'Not registered';
+  const welcomeScreen = document.getElementById('riderWelcomeScreen');
+  const appShell = document.getElementById('riderAppShell');
+  const bottomNav = document.getElementById('riderBottomNav');
+  const isAuthenticated = Boolean(riderProfile?.name && currentActiveRider);
+  welcomeScreen?.classList.toggle('hidden', isAuthenticated);
+  appShell?.classList.toggle('hidden', !isAuthenticated);
+  bottomNav?.classList.toggle('hidden', !isAuthenticated);
   syncRiderAccount();
   updateAvailabilityUi();
 }
@@ -206,6 +276,8 @@ async function logoutRider() {
   }
   riderProfile = null;
   currentActiveRider = '';
+  riderOrdersUnsubscribe?.();
+  riderOrdersUnsubscribe = null;
   localStorage.removeItem('rider_profile');
   localStorage.removeItem('active_rider_name');
   localStorage.removeItem('rider_available');
@@ -285,6 +357,12 @@ function toggleRiderTab(tab) {
 
 function startRiderOrdersListener() {
   riderOrdersUnsubscribe?.();
+  if (!currentActiveRider) {
+    allRiderOrders = [];
+    renderPickupQueue();
+    renderRiderOrders();
+    return;
+  }
   riderOrdersUnsubscribe = db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
     let orders = [];
     snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
@@ -363,6 +441,9 @@ async function acceptRiderOrder(orderId) {
       if (order.assigned_rider && order.assigned_rider !== currentActiveRider) throw new Error("Another rider already accepted this order.");
       transaction.update(orderRef, {
         assigned_rider: currentActiveRider,
+        rider_name: riderProfile?.name || currentActiveRider,
+        rider_phone: riderProfile?.mobile || "",
+        pickup_otp: order.pickup_otp || String(Math.floor(1000 + Math.random() * 9000)),
         status: "ACCEPTED_BY_RIDER",
         rider_accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
         updated_at: firebase.firestore.FieldValue.serverTimestamp()
@@ -435,7 +516,7 @@ function getPickupGroups(order) {
       groups[key] = {
         key,
         name: item.pickup_source_name || "MyShopzy Store",
-        address: item.pickup_source_address || "Ravulapalem RTC Dark Store",
+        address: item.pickup_source_address || "Mandapeta Dark Store",
         items: []
       };
     }
@@ -446,7 +527,7 @@ function getPickupGroups(order) {
     groups.store = {
       key: "store",
       name: "MyShopzy Store",
-      address: "Ravulapalem RTC Dark Store",
+      address: "Mandapeta Dark Store",
       items: []
     };
   }
@@ -469,13 +550,14 @@ function renderPickupChecklist(order) {
       </div>
       ${!hasSourceMetadata ? '<p class="text-[10px] font-bold text-rose-700">Older order: source details were not saved. Recreate the order after assigning product pickup sources in Admin.</p>' : ''}
       ${groups.map(group => `
-        <button ${!completed[group.key] && nextGroup?.key !== group.key ? 'disabled' : ''} onclick="markPickupComplete('${order.id}', '${group.key}')" class="w-full text-left p-2 bg-white border ${completed[group.key] ? 'border-emerald-300' : 'border-amber-200'} rounded-lg flex items-center gap-2 ${!completed[group.key] && nextGroup?.key !== group.key ? 'opacity-50 cursor-not-allowed' : ''}">
+        <button ${!completed[group.key] && nextGroup?.key !== group.key ? 'disabled' : ''} onclick="${completed[group.key] ? '' : order.pickup_reached?.[group.key] ? `markPickupComplete('${order.id}', '${group.key}')` : `markPickupReached('${order.id}', '${group.key}')`}" class="w-full text-left p-2 bg-white border ${completed[group.key] ? 'border-emerald-300' : 'border-amber-200'} rounded-lg flex items-center gap-2 ${!completed[group.key] && nextGroup?.key !== group.key ? 'opacity-50 cursor-not-allowed' : ''}">
           <span class="w-5 h-5 rounded-full ${completed[group.key] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center text-[10px] font-black">${completed[group.key] ? '✓' : '○'}</span>
           <span class="min-w-0 flex-1"><strong class="block text-[11px] text-slate-900">${group.name}</strong><span class="block text-[10px] text-slate-500 truncate">${group.address}</span><span class="block text-[10px] text-slate-500">${group.items.map(item => `${item.quantity}x ${item.name}`).join(', ') || 'Legacy order items'}</span></span>
-          <span class="text-[10px] font-black ${completed[group.key] ? 'text-emerald-600' : 'text-amber-700'}">${completed[group.key] ? 'Picked' : nextGroup?.key === group.key ? 'Mark picked' : 'Next'}</span>
+          <span class="text-[10px] font-black ${completed[group.key] ? 'text-emerald-600' : 'text-amber-700'}">${completed[group.key] ? 'Picked' : nextGroup?.key !== group.key ? 'Next' : order.pickup_reached?.[group.key] ? 'Pickup OTP' : 'Reached'}</span>
         </button>
         <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(group.address)}" target="_blank" class="block text-[10px] text-blue-600 font-bold text-right -mt-1">Open pickup location ↗</a>
       `).join('')}
+      ${order.pickup_otp && nextGroup ? `<p class="rounded-lg bg-slate-900 px-2 py-1.5 text-[10px] font-black text-amber-300">Pickup OTP: ${order.pickup_otp} · Tell the store after reaching</p>` : ''}
       ${!allPicked ? '<p class="text-[10px] font-bold text-amber-800">Complete every pickup before starting delivery.</p>' : ''}
     </div>
   `;
@@ -505,14 +587,39 @@ function renderPickupQueue() {
   }).join('');
 }
 
+async function markPickupReached(orderId, sourceKey) {
+  const order = allRiderOrders.find(item => item.id === orderId);
+  if (!order) return;
+  try {
+    await db.collection("orders").doc(orderId).update({
+      pickup_reached: { ...(order.pickup_reached || {}), [sourceKey]: true },
+      status: "PICKING_UP",
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    alert("Reached update failed: " + error.message);
+  }
+}
+
 async function markPickupComplete(orderId, sourceKey) {
   const order = allRiderOrders.find(item => item.id === orderId);
   if (!order) return;
+  if (!order.pickup_reached?.[sourceKey]) {
+    alert("Tap Reached after arriving at the pickup location first.");
+    return;
+  }
+  const pickupOtp = prompt("Enter the pickup OTP shown in the order card:");
+  if (pickupOtp !== order.pickup_otp) {
+    alert("Pickup OTP mismatch. Ask the store for the correct code.");
+    return;
+  }
   const pickupProgress = { ...(order.pickup_progress || {}), [sourceKey]: true };
   try {
     await db.collection("orders").doc(orderId).update({
       pickup_progress: pickupProgress,
       status: "PICKING_UP",
+      rider_name: riderProfile?.name || currentActiveRider,
+      rider_phone: riderProfile?.mobile || "",
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
   } catch (error) {
@@ -556,7 +663,9 @@ function renderRiderOrders() {
     let itemsText = "";
     if (Array.isArray(o.items)) itemsText = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
 
-    const encodedAddress = encodeURIComponent(o.delivery_address || 'Ravulapalem');
+    const encodedAddress = encodeURIComponent(o.delivery_address || 'Mandapeta');
+    const normalizedStatus = String(o.status || '').toUpperCase();
+    const customerDetailsUnlocked = ['OUT FOR DELIVERY', 'DELIVERED'].includes(normalizedStatus);
     const customerMapUrl = Number.isFinite(Number(o.delivery_latitude)) && Number.isFinite(Number(o.delivery_longitude))
       ? `https://www.google.com/maps/search/?api=1&query=${o.delivery_latitude},${o.delivery_longitude}`
       : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
@@ -570,7 +679,7 @@ function renderRiderOrders() {
       </div>
 
       <div>
-        <p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>
+        ${customerDetailsUnlocked ? `<p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>` : '<p class="rounded-xl bg-amber-50 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-800">Customer delivery details unlock after pickup is complete.</p>'}
         ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 mt-1 font-bold">📍 Pickup: ${o.parcel_pickup_address || 'Pickup address pending'} → Drop: ${o.parcel_drop_address || o.delivery_address}</p>` : ''}
         ${itemsText ? `<p class="text-[11px] text-slate-500 mt-1">📦 ${itemsText}</p>` : ''}
         ${String(o.status || '').toUpperCase() === 'ACCEPTED'
@@ -585,14 +694,14 @@ function renderRiderOrders() {
         ${Number(o.rider_tip || 0) > 0 ? `<p class="text-[11px] font-black text-amber-700 mt-1">🎁 Rider tip: ₹${Number(o.rider_tip)}</p>` : ''}
       </div>
 
-      <div class="grid grid-cols-2 gap-2 pt-1">
+      ${customerDetailsUnlocked ? `<div class="grid grid-cols-2 gap-2 pt-1">
         <a href="tel:${o.customer_phone}" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
-          <i data-lucide="phone" class="w-3.5 h-3.5 text-brand-accent"></i> Call
+          <i data-lucide="phone" class="w-3.5 h-3.5 text-brand-accent"></i> Call customer
         </a>
         <a href="${customerMapUrl}" target="_blank" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-brand-accent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
-          <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Maps
+          <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Start route
         </a>
-      </div>
+      </div>` : ''}
 
       ${String(o.status || '').toUpperCase() !== 'DELIVERED' ? `
         <div class="pt-1 flex gap-2">
@@ -632,6 +741,9 @@ async function setOutForDelivery(orderId) {
     startRiderGpsBroadcast();
     await db.collection("orders").doc(orderId).update({ 
       status: "Out for Delivery",
+      rider_name: riderProfile?.name || currentActiveRider,
+      rider_phone: riderProfile?.mobile || "",
+      customer_details_unlocked_at: firebase.firestore.FieldValue.serverTimestamp(),
       dispatched_at: firebase.firestore.FieldValue.serverTimestamp()
     });
   } catch(e) {
@@ -704,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateRiderIdentity();
   updateAvailabilityUi();
   showRiderSection('home');
-  startRiderOrdersListener();
+  if (currentActiveRider) startRiderOrdersListener();
   if (riderIsAvailable && isWithinWorkingHours()) startRiderGpsBroadcast();
   if (window.lucide) lucide.createIcons();
 });

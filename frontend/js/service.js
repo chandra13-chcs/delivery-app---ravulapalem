@@ -14,9 +14,9 @@ function serviceProductCard(product) {
 
 function setupServicePage() {
   const settings = {
-    restaurant: ["Restaurants", "Restaurant menus near Ravulapalem", "Choose a restaurant and browse its available dishes."],
+    restaurant: ["Restaurants", "Restaurant menus near Mandapeta", "Choose a restaurant and browse its available dishes."],
     meat: ["Fresh Meat", "Chicken, meat & fish", "Fresh meat products available from partner stores."],
-    parcel: ["Parcel Delivery", "Send a parcel across Ravulapalem", "Add pickup and drop details to request a delivery rider."]
+    parcel: ["Parcel Delivery", "Send a parcel across Mandapeta", "Add pickup and drop details to request a delivery rider."]
   }[serviceType] || [];
   document.getElementById("serviceEyebrow").innerText = settings[0] || "MyShopzy Service";
   document.getElementById("serviceTitle").innerText = settings[1] || "Service";
@@ -51,7 +51,7 @@ function renderRestaurants() {
 }
 
 function openRestaurantMenu(id) {
-  window.open(`service.html?type=restaurant&restaurantId=${encodeURIComponent(id)}`, "_blank", "noopener");
+  window.location.href = `service.html?type=restaurant&restaurantId=${encodeURIComponent(id)}`;
 }
 
 function renderRestaurantMenu() {

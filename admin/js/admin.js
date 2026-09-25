@@ -6,6 +6,7 @@ const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
 let ADMIN_RIDER_NAMES = [];
+let ADMIN_RIDER_PROFILES = [];
 const adminRiderLocations = {};
 const adminRiderLocationUnsubscribers = [];
 let adminOrderIdsInitialized = false;
@@ -143,15 +144,79 @@ function subscribeToAdminRiderLocation(riderName) {
 function startRegisteredRiderListener() {
   db.collection("rider_profiles").onSnapshot(snapshot => {
     const registeredNames = [];
+    ADMIN_RIDER_PROFILES = [];
     snapshot.forEach(doc => {
-      const name = doc.data()?.name;
+      const profile = { id: doc.id, ...doc.data() };
+      ADMIN_RIDER_PROFILES.push(profile);
+      const name = profile.name;
       if (name) registeredNames.push(name);
     });
     ADMIN_RIDER_NAMES = [...new Set(registeredNames)];
     ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
     renderAdminRiderStatus();
+    renderRiderVerificationQueue();
     refreshAdminRiderAssignmentFields();
   }, error => console.error("Registered rider listener error:", error));
+}
+
+function renderRiderVerificationQueue() {
+  const container = document.getElementById("riderVerificationQueue");
+  if (!container) return;
+  const pending = ADMIN_RIDER_PROFILES.filter(profile => ["PENDING", "SUBMITTED"].includes(String(profile.verification_status || "PENDING").toUpperCase()));
+  if (!pending.length) {
+    container.innerHTML = '<p class="text-xs font-bold text-emerald-700">No pending rider verification requests.</p>';
+    return;
+  }
+  container.innerHTML = pending.map(profile => `
+    <article class="rounded-2xl border border-amber-200 bg-white p-3 shadow-sm">
+      <div class="flex items-start justify-between gap-2">
+        <div><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(profile.name || "Unnamed rider")}</h3><p class="text-[11px] text-slate-500">${escapeAdminHtml(profile.mobile || "-")} · ${escapeAdminHtml(profile.email || "-")}</p></div>
+        <span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">${escapeAdminHtml(profile.verification_status || "PENDING")}</span>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
+        <span>Aadhaar: ****${escapeAdminHtml(profile.aadhaar_last4 || "----")}</span>
+        <span>PAN: ****${escapeAdminHtml(profile.pan_last4 || "----")}</span>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-1.5">
+        ${profile.selfie_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.selfie_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">Selfie</button>` : ""}
+        ${profile.aadhaar_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.aadhaar_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">Aadhaar photo</button>` : ""}
+        ${profile.pan_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.pan_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">PAN photo</button>` : ""}
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-2">
+        <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'APPROVED')" class="rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black text-white">Approve rider</button>
+        <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'REJECTED')" class="rounded-xl bg-rose-50 px-3 py-2 text-[10px] font-black text-rose-700 border border-rose-200">Reject</button>
+      </div>
+    </article>
+  `).join("");
+}
+
+function escapeAdminHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character]));
+}
+
+async function openRiderVerificationDocument(encodedPath) {
+  try {
+    const path = decodeURIComponent(encodedPath);
+    const url = await firebase.storage().ref(path).getDownloadURL();
+    window.open(url, "_blank", "noopener");
+  } catch (error) {
+    alert("Unable to open document. Check Firebase Storage rules.");
+  }
+}
+
+async function reviewRiderVerification(encodedId, status) {
+  const riderId = decodeURIComponent(encodedId);
+  const reason = status === "REJECTED" ? prompt("Reason for rejecting this rider:") : "";
+  if (status === "REJECTED" && !reason) return;
+  try {
+    await db.collection("rider_profiles").doc(riderId).set({
+      verification_status: status,
+      verification_review_reason: reason,
+      reviewed_at_ms: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    alert(`Rider review failed: ${error.message}`);
+  }
 }
 
 function renderAdminRiderStatus() {
@@ -327,7 +392,7 @@ function loadAdminRestaurants() {
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
           <strong class="text-slate-900">${restaurant.name}</strong>
           <span class="block text-slate-500 mt-1">${restaurant.cuisine || 'Restaurant'} · ${restaurant.distance_km} km</span>
-          <span class="block text-slate-400 mt-1">${restaurant.address || 'Ravulapalem'}</span>
+          <span class="block text-slate-400 mt-1">${restaurant.address || 'Mandapeta'}</span>
         </div>
       `).join('') : '<p class="text-xs text-slate-400">No restaurants added yet.</p>';
     }
@@ -431,7 +496,7 @@ async function handleAddNewProduct(e) {
     qty_unit: qtyUnit,
     pickup_source: pickupSource,
     pickup_source_name: resolvedPartnerName || (pickupSource === 'vegetable_partner' ? 'Local Vegetable Partner' : pickupSource === 'meat_partner' ? 'Fresh Meat Partner' : 'MyShopzy Store'),
-    pickup_source_address: restaurant?.address || (isPartnerProduct ? `${resolvedPartnerName} pickup desk` : pickupSource === 'vegetable_partner' ? 'Assigned vegetable market partner' : 'Ravulapalem RTC Dark Store'),
+    pickup_source_address: restaurant?.address || (isPartnerProduct ? `${resolvedPartnerName} pickup desk` : pickupSource === 'vegetable_partner' ? 'Assigned vegetable market partner' : 'Mandapeta Dark Store'),
     partner_id: resolvedPartnerId,
     partner_name: resolvedPartnerName,
     restaurant_id: restaurantId || null,
@@ -440,7 +505,7 @@ async function handleAddNewProduct(e) {
     price: price,
     old_price: old_price,
     image_url: selectedProductBase64,
-    desc: document.getElementById('pDesc')?.value.trim() || '100% Genuine product directly fulfilled from Ravulapalem dark store.',
+    desc: document.getElementById('pDesc')?.value.trim() || '100% Genuine product directly fulfilled from Mandapeta dark store.',
     created_at: firebase.firestore.FieldValue.serverTimestamp()
   };
 
@@ -940,7 +1005,7 @@ function calculateAndRenderAnalytics() {
         <td class="py-2.5 px-3 font-bold text-slate-900">${o.id}</td>
         <td class="py-2.5 px-3 text-slate-500">${selectedFilterDate} ${timeStr}</td>
         <td class="py-2.5 px-3">${o.customer_phone || 'N/A'}</td>
-        <td class="py-2.5 px-3 truncate max-w-[150px]">${o.delivery_address || 'Ravulapalem'}</td>
+        <td class="py-2.5 px-3 truncate max-w-[150px]">${o.delivery_address || 'Mandapeta'}</td>
         <td class="py-2.5 px-3 font-black text-slate-900">₹${amt}</td>
         <td class="py-2.5 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${o.payment_mode || 'UPI'}</td>
         <td class="py-2.5 px-3 font-bold text-emerald-600">${o.status || 'PLACED'}</td>
@@ -975,7 +1040,7 @@ function exportDailyOrdersCSV() {
   const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
   const link = document.createElement("a");
   link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `Ravulapalem_Orders_${selectedFilterDate || 'All'}.csv`);
+  link.setAttribute("download", `Mandapeta_Orders_${selectedFilterDate || 'All'}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
