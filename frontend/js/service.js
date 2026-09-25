@@ -1,6 +1,8 @@
 const serviceType = new URLSearchParams(window.location.search).get("type") || "restaurant";
+const restaurantId = new URLSearchParams(window.location.search).get("restaurantId") || "";
 let serviceRestaurants = [];
 let serviceProducts = [];
+let restaurantCart = {};
 
 function serviceEscape(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -41,10 +43,44 @@ function loadRestaurants() {
 function renderRestaurants() {
   const container = document.getElementById("serviceRestaurantList");
   if (!container) return;
-  container.innerHTML = serviceRestaurants.length ? serviceRestaurants.map(restaurant => {
-    const dishes = serviceProducts.filter(product => product.restaurant_id === restaurant.id);
-    return `<article class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3"><div class="flex gap-3"><img src="${serviceEscape(restaurant.image_url || "")}" class="w-20 h-20 rounded-xl object-cover bg-slate-50" alt="${serviceEscape(restaurant.name)}"><div><h2 class="text-sm font-black text-slate-900">${serviceEscape(restaurant.name)}</h2><p class="text-[11px] text-slate-500 mt-1">${serviceEscape(restaurant.cuisine || "Restaurant menu")}</p><p class="text-[10px] text-emerald-700 font-black mt-1">${Number(restaurant.distance_km || 0).toFixed(1)} km · 25-45 min</p></div></div><div class="flex gap-2 overflow-x-auto no-scrollbar mt-3 pb-1">${dishes.length ? dishes.map(serviceProductCard).join("") : '<p class="text-xs text-slate-400 py-3">Menu is being updated.</p>'}</div></article>`;
-  }).join("") : '<p class="text-xs text-slate-500">No restaurants available yet.</p>';
+  if (restaurantId) {
+    renderRestaurantMenu();
+    return;
+  }
+  container.innerHTML = serviceRestaurants.length ? serviceRestaurants.map(restaurant => `<button type="button" onclick="openRestaurantMenu('${serviceEscape(restaurant.id)}')" class="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-left flex items-center justify-between hover:border-amber-400 hover:shadow-md transition"><span><strong class="block text-sm font-black text-slate-900">${serviceEscape(restaurant.name)}</strong><span class="block text-[11px] text-slate-500 mt-1">${serviceEscape(restaurant.cuisine || "Restaurant menu")} · ${Number(restaurant.distance_km || 0).toFixed(1)} km</span></span><span class="px-3 py-1.5 rounded-xl bg-[#0B132B] text-white text-[10px] font-black">View menu ↗</span></button>`).join("") : '<p class="text-xs text-slate-500">No restaurants available yet.</p>';
+}
+
+function openRestaurantMenu(id) {
+  window.open(`service.html?type=restaurant&restaurantId=${encodeURIComponent(id)}`, "_blank", "noopener");
+}
+
+function renderRestaurantMenu() {
+  const restaurant = serviceRestaurants.find(item => item.id === restaurantId);
+  if (!restaurant) return;
+  document.getElementById("restaurantServiceView")?.classList.add("hidden");
+  document.getElementById("restaurantMenuView")?.classList.remove("hidden");
+  document.getElementById("serviceTitle").innerText = `${restaurant.name} Menu`;
+  document.getElementById("serviceDescription").innerText = "Choose dishes and add them to your cart.";
+  document.getElementById("restaurantMenuTitle").innerText = restaurant.name;
+  document.getElementById("restaurantMenuMeta").innerText = `${restaurant.cuisine || "Restaurant menu"} · ${Number(restaurant.distance_km || 0).toFixed(1)} km · 25-45 min`;
+  const products = serviceProducts.filter(product => product.restaurant_id === restaurantId);
+  const container = document.getElementById("restaurantMenuProducts");
+  container.innerHTML = products.length ? products.map(product => `<article class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"><div class="h-28 rounded-xl bg-slate-50 flex items-center justify-center p-2"><img src="${serviceEscape(product.image_url || "")}" alt="${serviceEscape(product.name)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'"></div><h3 class="text-xs font-bold text-slate-900 mt-2 line-clamp-2">${serviceEscape(product.name)}</h3><p class="text-[10px] text-slate-500 mt-1">${serviceEscape(product.qty_unit || "1 plate")}</p><div class="flex items-center justify-between mt-2"><strong class="text-xs">₹${Number(product.price || 0)}</strong><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" class="px-3 py-1 rounded-lg border-2 border-emerald-600 text-emerald-700 text-xs font-black">ADD</button></div></article>`).join("") : '<p class="col-span-full text-xs text-slate-400 py-8 text-center">Menu is being updated.</p>';
+}
+
+function modifyRestaurantCart(productId, delta) {
+  restaurantCart[productId] = Math.max(0, (restaurantCart[productId] || 0) + delta);
+  if (!restaurantCart[productId]) delete restaurantCart[productId];
+  const totalItems = Object.values(restaurantCart).reduce((sum, quantity) => sum + quantity, 0);
+  const total = Object.entries(restaurantCart).reduce((sum, [id, quantity]) => sum + (Number(serviceProducts.find(item => item.id === id)?.price || 0) * quantity), 0);
+  document.getElementById("serviceCartBar")?.classList.toggle("hidden", totalItems === 0);
+  document.getElementById("serviceCartCount").innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
+  document.getElementById("serviceCartTotal").innerText = `₹${total}`;
+}
+
+function continueServiceCart() {
+  localStorage.setItem("myshopzy_pending_cart", JSON.stringify(restaurantCart));
+  window.location.href = "index.html?checkout=1";
 }
 
 function loadMeatProducts() {

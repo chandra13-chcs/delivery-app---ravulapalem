@@ -2318,6 +2318,7 @@ async function fetchProducts() {
         liveCatalog =
           cloudProducts;
 
+        restorePendingServiceCart();
         renderServiceRestaurantList();
         filterAndRender();
       },
@@ -2330,6 +2331,26 @@ async function fetchProducts() {
         );
       }
     );
+}
+
+function restorePendingServiceCart() {
+  const pendingCart = localStorage.getItem("myshopzy_pending_cart");
+  if (!pendingCart) return;
+  try {
+    const parsedCart = JSON.parse(pendingCart);
+    if (!parsedCart || typeof parsedCart !== "object") return;
+    Object.entries(parsedCart).forEach(([productId, quantity]) => {
+      if (liveCatalog.some(product => product.id === productId)) cartState[productId] = Number(quantity) || 0;
+    });
+    localStorage.removeItem("myshopzy_pending_cart");
+    syncCartBar();
+    if (new URLSearchParams(window.location.search).get("checkout") === "1" && Object.keys(cartState).length) {
+      setTimeout(openCheckout, 250);
+    }
+  } catch (error) {
+    console.warn("Pending service cart restore failed:", error);
+    localStorage.removeItem("myshopzy_pending_cart");
+  }
 }
 
 
