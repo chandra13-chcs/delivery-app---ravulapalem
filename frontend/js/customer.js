@@ -5200,6 +5200,7 @@ function showDailyOfferOnce() {
 document.addEventListener(
   "DOMContentLoaded",
   () => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     document.addEventListener("click", event => {
       if (event.target.closest("button, [onclick], .cat-card")) {
         CUSTOMER_TAB_SOUND.currentTime = 0;

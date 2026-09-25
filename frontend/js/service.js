@@ -9,7 +9,8 @@ function serviceEscape(value) {
 }
 
 function serviceProductCard(product) {
-  return `<article class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm"><div class="h-28 rounded-xl bg-slate-50 flex items-center justify-center p-2"><img src="${serviceEscape(product.image_url || "")}" alt="${serviceEscape(product.name)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'"></div><h3 class="text-xs font-bold text-slate-900 mt-2 line-clamp-2">${serviceEscape(product.name || "Product")}</h3><p class="text-[10px] text-slate-500 mt-1">${serviceEscape(product.qty_unit || product.unit || "1 pc")}</p><strong class="block text-xs text-emerald-700 mt-1">₹${Number(product.price || 0)}</strong></article>`;
+  const quantity = restaurantCart[product.id] || 0;
+  return `<article class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"><div><div class="h-28 rounded-xl bg-slate-50 flex items-center justify-center p-2"><img src="${serviceEscape(product.image_url || "")}" alt="${serviceEscape(product.name)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'"></div><h3 class="text-xs font-bold text-slate-900 mt-2 line-clamp-2">${serviceEscape(product.name || "Product")}</h3><p class="text-[10px] text-slate-500 mt-1">${serviceEscape(product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit || "1 pc")}</p><strong class="block text-xs text-emerald-700 mt-1">₹${Number(product.price || 0)}</strong></div><div class="mt-2">${quantity ? `<div class="flex items-center justify-between rounded-lg bg-emerald-700 px-2 py-1 text-xs font-black text-white"><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', -1)">-</button><span>${quantity}</span><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)">+</button></div>` : `<button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)" class="w-full rounded-lg border-2 border-emerald-600 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50">ADD</button>`}</div></article>`;
 }
 
 function setupServicePage() {
@@ -88,8 +89,21 @@ function loadMeatProducts() {
     const container = document.getElementById("serviceMeatProducts");
     const products = [];
     snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+    serviceProducts = products;
     container.innerHTML = products.length ? products.map(serviceProductCard).join("") : '<p class="col-span-full text-xs text-slate-500">No fresh meat products available yet.</p>';
   }, error => console.error("Service meat listener error:", error));
+}
+
+function modifyServiceCart(productId, delta) {
+  restaurantCart[productId] = Math.max(0, (restaurantCart[productId] || 0) + delta);
+  if (!restaurantCart[productId]) delete restaurantCart[productId];
+  const totalItems = Object.values(restaurantCart).reduce((sum, quantity) => sum + quantity, 0);
+  const total = Object.entries(restaurantCart).reduce((sum, [id, quantity]) => sum + (Number(serviceProducts.find(item => item.id === id)?.price || 0) * quantity), 0);
+  const container = document.getElementById("serviceMeatProducts");
+  if (container) container.innerHTML = serviceProducts.map(serviceProductCard).join("");
+  document.getElementById("serviceCartBar")?.classList.toggle("hidden", totalItems === 0);
+  document.getElementById("serviceCartCount").innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
+  document.getElementById("serviceCartTotal").innerText = `₹${total}`;
 }
 
 async function submitServiceParcel(event) {

@@ -213,7 +213,8 @@ async function loginRider() {
     const profile = profileDoc?.exists ? profileDoc.data() : null;
     const passwordHash = await hashRiderPassword(password);
     if (!profile || profile.password_hash !== passwordHash) throw new Error('Invalid rider credentials.');
-    if (profile.verification_status !== 'APPROVED') throw new Error('Admin approval is required before rider login.');
+    const verificationStatus = profile.verification_status || 'PENDING';
+    if (!['PENDING', 'SUBMITTED', 'APPROVED', 'REJECTED'].includes(verificationStatus)) throw new Error('Rider profile verification data is incomplete.');
 
     riderProfile = profile;
     currentActiveRider = profile.name;
@@ -222,6 +223,10 @@ async function loginRider() {
     closeRiderLoginModal();
     updateRiderIdentity();
     startRiderOrdersListener();
+    if (verificationStatus !== 'APPROVED') {
+      pendingRiderRegistration = profile;
+      openRiderVerificationModal();
+    }
     alert(`Welcome back, ${profile.name}.`);
   } catch (error) {
     console.error('Rider login failed:', error);
@@ -314,6 +319,12 @@ function updateAvailabilityUi() {
 async function toggleRiderAvailability() {
   if (!riderProfile?.name || !currentActiveRider) {
     alert('Register your rider profile before going online.');
+    return;
+  }
+  if (riderProfile.verification_status !== 'APPROVED') {
+    pendingRiderRegistration = riderProfile;
+    openRiderVerificationModal();
+    alert('Complete document verification and wait for Admin approval before going online.');
     return;
   }
   if (!riderIsAvailable && !isWithinWorkingHours()) {
