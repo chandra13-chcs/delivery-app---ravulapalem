@@ -92,7 +92,7 @@
         </a>
       </div>
 
-      <!-- 4-Tab Switcher (Scrollable on mobile) -->
+      <!-- Admin tab switcher -->
       <div class="w-full sm:w-auto overflow-x-auto no-scrollbar py-1">
         <div class="flex items-center gap-1.5 bg-[#1C2541] p-1 rounded-2xl border border-slate-700 whitespace-nowrap">
           <button id="tabBtnOrders" onclick="switchView('orders')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition">
@@ -103,6 +103,9 @@
           </button>
           <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
             <span>📦</span> Inventory
+          </button>
+          <button id="tabBtnPartners" onclick="switchView('partners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>🤝</span> Partner Accounts
           </button>
           <button id="tabBtnBanners" onclick="switchView('banners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
             <span>🖼️</span> Banners & Categories
@@ -396,54 +399,90 @@
 
   <!-- TAB 4: BANNER & CATEGORY MANAGER -->
   <main id="bannersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
-      <h2 class="text-base font-extrabold text-slate-900 mb-2">Homepage Hero Banner Manager</h2>
-      <p class="text-xs text-slate-500 mb-4">Update headline and vegetable shelf picture in real-time.</p>
-
-      <form onsubmit="handleSaveHeroBanner(event)" class="space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">Banner Headline Title</label>
-            <input id="bannerTitleInput" type="text" required placeholder="Stock up on daily essentials" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-          </div>
-          <div>
-            <label class="text-[11px] font-bold text-slate-500 uppercase">Banner Subtitle</label>
-            <input id="bannerSubInput" type="text" required placeholder="Get farm-fresh goodness..." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-          </div>
-        </div>
-
-        <div>
-          <label class="text-[11px] font-bold text-slate-500 uppercase">Banner Right Image (File Upload or URL)</label>
-          <div class="flex items-center gap-2 mt-1">
-            <input 
-              type="file" 
-              accept="image/*" 
-              onchange="handleBannerDirectFile(event)" 
-              class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer w-full sm:w-auto"
-            >
-            <input id="bannerImgInput" type="text" placeholder="Or paste image link..." class="flex-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3 pt-2">
-          <button type="submit" id="btnSaveBanner" class="py-2.5 px-5 bg-[#0B132B] hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow">
-            Save & Publish Banner
-          </button>
-          <button type="button" onclick="handleResetDefaultBanner()" class="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl border border-rose-200 transition">
-            Reset to Default
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Category Image Replacer (20 Categories) -->
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
-        <h3 class="text-base font-extrabold text-slate-900">Category Images Replacer (20 Categories)</h3>
-        <p class="text-xs text-slate-500">Pick any image directly from gallery/files for instant update.</p>
+        <h2 class="text-base font-extrabold text-slate-900">Homepage Banners</h2>
+        <p class="text-xs text-slate-500">Add multiple banners; customers see active banners rotate on the homepage.</p>
       </div>
-      <div id="categoryManagerGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
-    </div>
+      <form id="homepageBannerForm" onsubmit="handleSaveHeroBanner(event)" class="space-y-3">
+        <input id="bannerDocumentId" type="hidden">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label for="bannerTitleInput" class="text-[11px] font-bold text-slate-500 uppercase">Headline *</label><input id="bannerTitleInput" type="text" required maxlength="100" placeholder="Fresh picks for today" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold"></div>
+          <div><label for="bannerSubInput" class="text-[11px] font-bold text-slate-500 uppercase">Subtitle *</label><input id="bannerSubInput" type="text" required maxlength="180" placeholder="Farm-fresh produce delivered fast" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold"></div>
+        </div>
+        <div>
+          <label for="bannerImgInput" class="text-[11px] font-bold text-slate-500 uppercase">Banner image *</label>
+          <div class="flex flex-col sm:flex-row gap-2 mt-1"><input type="file" accept="image/*" onchange="handleBannerDirectFile(event)" class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer"><input id="bannerImgInput" type="url" required placeholder="Choose an image or paste an https:// URL" class="flex-1 min-w-0 px-3 py-2 text-xs border rounded-xl outline-none font-bold"></div>
+        </div>
+        <div class="flex flex-wrap gap-2"><button type="submit" id="btnSaveBanner" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Add banner</button><button type="button" onclick="resetHomepageBannerForm()" class="py-2.5 px-4 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Clear form</button></div>
+      </form>
+      <div id="homepageBannersList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5"><p class="text-xs text-slate-500">Loading banners...</p></div>
+    </section>
+
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="pb-3 border-b border-slate-100 mb-4"><h2 class="text-base font-extrabold text-slate-900">Offer Popup</h2><p class="text-xs text-slate-500">Publish one daily offer popup or remove it from the storefront.</p></div>
+      <form onsubmit="handleSaveDailyOffer(event)" class="space-y-3">
+        <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-700"><input id="dailyOfferEnabledInput" type="checkbox" checked class="h-4 w-4 accent-emerald-600"> Popup is active</label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label for="dailyOfferTitleInput" class="text-[11px] font-bold text-slate-500 uppercase">Offer headline *</label><input id="dailyOfferTitleInput" required maxlength="80" placeholder="₹50 OFF" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+          <div><label for="dailyOfferCodeInput" class="text-[11px] font-bold text-slate-500 uppercase">Coupon code</label><input id="dailyOfferCodeInput" maxlength="32" placeholder="MANDAPETA50" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        </div>
+        <div><label for="dailyOfferDescriptionInput" class="text-[11px] font-bold text-slate-500 uppercase">Offer details *</label><input id="dailyOfferDescriptionInput" required maxlength="180" placeholder="on orders above ₹499" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        <div><label for="dailyOfferBodyInput" class="text-[11px] font-bold text-slate-500 uppercase">Supporting text</label><input id="dailyOfferBodyInput" maxlength="180" placeholder="Fresh essentials delivered to your door." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        <div><label for="dailyOfferImageInput" class="text-[11px] font-bold text-slate-500 uppercase">Popup image (optional)</label><div class="flex flex-col sm:flex-row gap-2 mt-1"><input type="file" accept="image/*" onchange="handleDailyOfferDirectFile(event)" class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer"><input id="dailyOfferImageInput" type="url" placeholder="Choose an image or paste an https:// URL" class="flex-1 min-w-0 px-3 py-2 text-xs border rounded-xl font-bold"></div></div>
+        <div class="flex flex-wrap gap-2"><button type="submit" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Save popup</button><button type="button" onclick="handleDeleteDailyOffer()" class="py-2.5 px-4 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl">Delete popup</button></div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="pb-3 border-b border-slate-100 mb-4"><h2 class="text-base font-extrabold text-slate-900">Store Categories</h2><p class="text-xs text-slate-500">Add categories, update their photos, or remove them from the storefront. Products are kept when a category is removed.</p></div>
+      <form onsubmit="handleAddCategory(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+        <div><label for="newCategoryNameInput" class="text-[11px] font-bold text-slate-500 uppercase">Category name *</label><input id="newCategoryNameInput" required maxlength="60" placeholder="e.g. Frozen Foods" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        <div><label for="newCategoryImageInput" class="text-[11px] font-bold text-slate-500 uppercase">Category image *</label><div class="flex flex-col gap-1 mt-1"><input type="file" accept="image/*" onchange="handleNewCategoryDirectFile(event)" class="text-xs file:mr-1 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:bg-[#1C2541] file:text-white border border-slate-200 rounded p-1 bg-white cursor-pointer"><input id="newCategoryImageInput" type="url" required placeholder="Or paste image URL" class="w-full px-3 py-2 text-xs border rounded-xl font-bold"></div></div>
+        <button type="submit" class="py-2.5 px-4 bg-[#0B132B] text-white rounded-xl text-xs font-black">Add category</button>
+      </form>
+      <div id="categoryManagerGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5"></div>
+    </section>
+  </main>
+
+  <!-- PARTNER ACCOUNT MANAGER -->
+  <main id="partnersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="pb-3 border-b border-slate-100 mb-4">
+        <h2 class="text-base font-extrabold text-slate-900">Create Partner Console</h2>
+        <p class="text-xs text-slate-500">Choose the partner type. Each account gets a direct link to its matching console.</p>
+      </div>
+      <form onsubmit="createAdminPartnerAccount(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+        <div>
+          <label for="partnerAccountType" class="text-[11px] font-bold text-slate-500 uppercase">Partner type *</label>
+          <select id="partnerAccountType" onchange="toggleAdminPartnerAccountFields()" required class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-bold">
+            <option value="meat">Meat partner</option>
+            <option value="store">Extra store</option>
+            <option value="restaurant">Restaurant</option>
+          </select>
+        </div>
+        <div id="partnerAccountNameField">
+          <label for="partnerAccountName" class="text-[11px] font-bold text-slate-500 uppercase">Partner name *</label>
+          <input id="partnerAccountName" required maxlength="80" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl font-bold" placeholder="e.g. Ravi Fresh Meat">
+        </div>
+        <div id="partnerAccountRestaurantField" class="hidden">
+          <label for="partnerAccountRestaurant" class="text-[11px] font-bold text-slate-500 uppercase">Restaurant *</label>
+          <select id="partnerAccountRestaurant" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-bold">
+            <option value="">Loading restaurants...</option>
+          </select>
+        </div>
+        <button type="submit" class="py-2.5 px-4 bg-[#0B132B] text-white rounded-xl text-xs font-black">Create partner account</button>
+      </form>
+    </section>
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+        <h2 class="text-base font-extrabold text-slate-900">Configured Partner Accounts</h2>
+        <a href="../partner/partner.html" target="_blank" class="text-xs font-black text-cyan-800 underline">Open setup console</a>
+      </div>
+      <div id="adminPartnerAccountsList" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <p class="text-xs font-bold text-slate-500">Loading partner accounts...</p>
+      </div>
+    </section>
   </main>
 
   <!-- PRODUCT IMAGE EDIT MODAL -->

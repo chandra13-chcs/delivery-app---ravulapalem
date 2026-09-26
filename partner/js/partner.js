@@ -46,9 +46,29 @@ function loadPartnerRestaurants() {
   }, error => console.error("Partner restaurant listener error:", error));
 }
 
-function openRequestedPartnerFromUrl() {
+async function openRequestedPartnerFromUrl() {
   const requestedId = new URLSearchParams(window.location.search).get("partnerId");
   if (!requestedId || document.getElementById("partnerDesk")?.classList.contains("hidden") === false) return;
+  try {
+    const accountSnapshot = await db.collection("partner_accounts").doc(requestedId).get();
+    if (accountSnapshot.exists) {
+      const account = { id: accountSnapshot.id, ...accountSnapshot.data() };
+      if (account.enabled === false) return alert("This partner console is currently disabled. Contact the store administrator.");
+      if (!["restaurant", "meat", "store"].includes(account.type)) return alert("This partner account has an unsupported partner type.");
+      if (account.type === "restaurant") {
+        const restaurantSelect = document.getElementById("partnerRestaurantSelect");
+        if (!Array.from(restaurantSelect?.options || []).some(option => option.value === account.id)) {
+          return alert("This restaurant is no longer available in the partner directory.");
+        }
+      }
+      setPartnerType(account.type);
+      openPartnerDesk(account);
+      return;
+    }
+  } catch (error) {
+    console.error("Partner account lookup failed:", error);
+  }
+
   if (requestedId.startsWith("meat_partner_")) {
     setPartnerType("meat");
     const field = document.getElementById("meatPartnerName");
@@ -66,8 +86,12 @@ function openRequestedPartnerFromUrl() {
   openPartnerDesk();
 }
 
-function openPartnerDesk() {
-  if (partnerState.type === "restaurant") {
+function openPartnerDesk(account = null) {
+  if (account) {
+    partnerState.id = account.id;
+    partnerState.name = account.name || "Partner";
+    partnerState.label = partnerState.name;
+  } else if (partnerState.type === "restaurant") {
     const select = document.getElementById("partnerRestaurantSelect");
     partnerState.id = select?.value || "";
     partnerState.name = select?.selectedOptions[0]?.dataset.partnerName || "Restaurant Partner";
@@ -113,10 +137,7 @@ function switchPartnerView(view) {
 }
 
 function getPartnerProductQuery(product) {
-  if (product.partner_id === partnerState.id || product.restaurant_id === partnerState.id) return true;
-  if (partnerState.type === "restaurant") return product.pickup_source === "restaurant" && product.pickup_source_name === partnerState.name;
-  if (partnerState.type === "meat") return product.pickup_source === "meat_partner" && !product.partner_id;
-  return false;
+  return product.partner_id === partnerState.id || product.restaurant_id === partnerState.id;
 }
 
 function startPartnerProductListener() {
@@ -275,13 +296,9 @@ async function savePartnerProfile(event) {
 function getPartnerItems(order) {
   if (!Array.isArray(order.items)) return [];
   return order.items.filter(item => {
-    if (partnerState.type === "meat") return item.pickup_source === "meat_partner" && (item.partner_id === partnerState.id || !item.partner_id);
+    if (partnerState.type === "meat") return item.pickup_source === "meat_partner" && item.partner_id === partnerState.id;
     if (partnerState.type === "store") return item.pickup_source === "store_partner" && item.partner_id === partnerState.id;
-    return item.pickup_source === "restaurant" && (
-      item.restaurant_id === partnerState.id ||
-      item.restaurant_name === partnerState.name ||
-      (!item.restaurant_id && item.pickup_source_name === partnerState.name)
-    );
+    return item.pickup_source === "restaurant" && (item.restaurant_id === partnerState.id || item.partner_id === partnerState.id);
   });
 }
 

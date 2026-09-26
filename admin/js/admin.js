@@ -168,26 +168,65 @@ function renderRiderVerificationQueue() {
     return;
   }
   container.innerHTML = pending.map(profile => `
-    <article class="rounded-2xl border border-amber-200 bg-white p-3 shadow-sm">
+    <article class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
       <div class="flex items-start justify-between gap-2">
-        <div><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(profile.name || "Unnamed rider")}</h3><p class="text-[11px] text-slate-500">${escapeAdminHtml(profile.mobile || "-")} · ${escapeAdminHtml(profile.email || "-")}</p></div>
+        <div><h3 class="text-base font-black text-slate-900">${escapeAdminHtml(profile.name || "Unnamed rider")}</h3><p class="text-xs text-slate-500">${escapeAdminHtml(profile.mobile || "-")} · ${escapeAdminHtml(profile.email || "-")}</p></div>
         <span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">${escapeAdminHtml(profile.verification_status || "PENDING")}</span>
       </div>
       <div class="mt-2 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
         <span>Aadhaar: ****${escapeAdminHtml(profile.aadhaar_last4 || "----")}</span>
         <span>PAN: ****${escapeAdminHtml(profile.pan_last4 || "----")}</span>
       </div>
-      <div class="mt-3 flex flex-wrap gap-1.5">
-        ${profile.selfie_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.selfie_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">Selfie</button>` : ""}
-        ${profile.aadhaar_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.aadhaar_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">Aadhaar photo</button>` : ""}
-        ${profile.pan_path ? `<button onclick="openRiderVerificationDocument('${encodeURIComponent(profile.pan_path)}')" class="rounded-lg bg-slate-100 px-2 py-1.5 text-[10px] font-black text-slate-700">PAN photo</button>` : ""}
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        ${renderRiderVerificationDocument(profile, "Selfie", "selfie_path", "selfie_file")}
+        ${renderRiderVerificationDocument(profile, "Aadhaar", "aadhaar_path", "aadhaar_file")}
+        ${renderRiderVerificationDocument(profile, "PAN", "pan_path", "pan_file")}
       </div>
       <div class="mt-3 grid grid-cols-2 gap-2">
-        <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'APPROVED')" class="rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black text-white">Approve rider</button>
-        <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'REJECTED')" class="rounded-xl bg-rose-50 px-3 py-2 text-[10px] font-black text-rose-700 border border-rose-200">Reject</button>
+        <button ${profile.selfie_path && profile.aadhaar_path && profile.pan_path ? "" : "disabled"} onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'APPROVED')" class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">Accept rider</button>
+        <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'REJECTED')" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Reject rider</button>
       </div>
     </article>
   `).join("");
+  loadRiderVerificationPreviews(container);
+}
+
+function renderRiderVerificationDocument(profile, label, pathField, fileField) {
+  const path = profile[pathField];
+  if (!path) {
+    return `<div class="overflow-hidden rounded-xl border border-rose-200 bg-rose-50"><div class="flex aspect-[4/3] items-center justify-center px-2 text-center text-xs font-bold text-rose-700">${label} not uploaded</div></div>`;
+  }
+  const encodedPath = encodeURIComponent(path);
+  const fileName = profile[fileField] || "Uploaded document";
+  return `<div class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+    <button type="button" onclick="openRiderVerificationDocument('${encodedPath}')" class="block w-full text-left" aria-label="Open ${label} document for ${escapeAdminHtml(profile.name || "rider")}">
+      <div class="relative flex aspect-[4/3] items-center justify-center bg-slate-100">
+        <img data-rider-document-preview="${encodedPath}" alt="${label} document for ${escapeAdminHtml(profile.name || "rider")}" class="hidden h-full w-full object-contain">
+        <span data-rider-document-status class="px-2 text-center text-xs font-bold text-slate-500">Loading ${label} preview...</span>
+      </div>
+      <div class="p-2"><span class="block text-xs font-black text-slate-800">${label} photo · Open full size</span><span class="block truncate text-[10px] text-slate-500" title="${escapeAdminHtml(fileName)}">${escapeAdminHtml(fileName)}</span></div>
+    </button>
+  </div>`;
+}
+
+async function loadRiderVerificationPreviews(container) {
+  const images = container.querySelectorAll("[data-rider-document-preview]");
+  await Promise.all(Array.from(images, async image => {
+    const status = image.parentElement.querySelector("[data-rider-document-status]");
+    try {
+      const path = decodeURIComponent(image.dataset.riderDocumentPreview);
+      image.src = await firebase.storage().ref(path).getDownloadURL();
+      image.onload = () => {
+        image.classList.remove("hidden");
+        status?.remove();
+      };
+      image.onerror = () => {
+        if (status) status.textContent = "Preview unavailable. Open to retry.";
+      };
+    } catch (error) {
+      if (status) status.textContent = "Preview unavailable. Check Storage access.";
+    }
+  }));
 }
 
 function escapeAdminHtml(value) {
@@ -195,11 +234,17 @@ function escapeAdminHtml(value) {
 }
 
 async function openRiderVerificationDocument(encodedPath) {
+  const documentWindow = window.open("about:blank", "_blank");
+  if (!documentWindow) {
+    alert("Allow pop-ups to open the full-size document. The preview is available in the rider card.");
+    return;
+  }
   try {
     const path = decodeURIComponent(encodedPath);
     const url = await firebase.storage().ref(path).getDownloadURL();
-    window.open(url, "_blank", "noopener");
+    documentWindow.location.href = url;
   } catch (error) {
+    documentWindow.close();
     alert("Unable to open document. Check Firebase Storage rules.");
   }
 }
@@ -289,15 +334,17 @@ function switchView(tab) {
   const ordersSec = document.getElementById('ordersViewSection');
   const analyticsSec = document.getElementById('analyticsViewSection');
   const invSec = document.getElementById('inventoryViewSection');
+  const partnersSec = document.getElementById('partnersViewSection');
   const banSec = document.getElementById('bannersViewSection');
 
   const btnOrders = document.getElementById('tabBtnOrders');
   const btnAnalytics = document.getElementById('tabBtnAnalytics');
   const btnInv = document.getElementById('tabBtnInventory');
+  const btnPartners = document.getElementById('tabBtnPartners');
   const btnBan = document.getElementById('tabBtnBanners');
 
-  [ordersSec, analyticsSec, invSec, banSec].forEach(el => el && el.classList.add('hidden'));
-  [btnOrders, btnAnalytics, btnInv, btnBan].forEach(b => b && (b.className = "px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition"));
+  [ordersSec, analyticsSec, invSec, partnersSec, banSec].forEach(el => el && el.classList.add('hidden'));
+  [btnOrders, btnAnalytics, btnInv, btnPartners, btnBan].forEach(b => b && (b.className = "px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition"));
 
   if (tab === 'orders') {
     if (ordersSec) ordersSec.classList.remove('hidden');
@@ -311,10 +358,14 @@ function switchView(tab) {
     if (invSec) invSec.classList.remove('hidden');
     if (btnInv) btnInv.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadAdminInventory();
+  } else if (tab === 'partners') {
+    if (partnersSec) partnersSec.classList.remove('hidden');
+    if (btnPartners) btnPartners.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
   } else if (tab === 'banners') {
     if (banSec) banSec.classList.remove('hidden');
     if (btnBan) btnBan.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-    loadActiveHeroBanner();
+    loadAdminBanners();
+    loadAdminDailyOffer();
     loadCategoryManager();
   }
 }
@@ -360,6 +411,7 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
 
 let selectedProductBase64 = "";
 let adminRestaurants = [];
+let adminPartnerAccounts = [];
 
 function toggleRestaurantProductFields() {
   const category = document.getElementById('pCategory')?.value;
@@ -368,12 +420,26 @@ function toggleRestaurantProductFields() {
   const partnerFields = document.getElementById('partnerProductFields');
   if (fields) fields.classList.toggle('hidden', category !== 'restaurants' && source !== 'restaurant');
   if (partnerFields) partnerFields.classList.toggle('hidden', source !== 'meat_partner' && source !== 'store_partner');
+  refreshAdminPartnerProductOptions();
+}
+
+function refreshAdminPartnerProductOptions() {
+  const select = document.getElementById('pPartner');
+  if (!select) return;
+  const type = document.getElementById('pPickupSource')?.value === 'meat_partner' ? 'meat' : 'store';
+  const selectedId = select.value;
+  const accounts = adminPartnerAccounts.filter(account => account.type === type && account.enabled !== false);
+  select.innerHTML = accounts.length
+    ? accounts.map(account => `<option value="${escapeAdminHtml(account.id)}">${escapeAdminHtml(account.name || 'Unnamed partner')}</option>`).join('')
+    : '<option value="">Create an active partner account first</option>';
+  if (accounts.some(account => account.id === selectedId)) select.value = selectedId;
 }
 
 function loadAdminRestaurants() {
   const select = document.getElementById('pRestaurant');
   const list = document.getElementById('adminRestaurantsList');
-  if (!select && !list) return;
+  const accountRestaurantSelect = document.getElementById('partnerAccountRestaurant');
+  if (!select && !list && !accountRestaurantSelect) return;
 
   db.collection('restaurants').onSnapshot(snapshot => {
     adminRestaurants = [];
@@ -387,6 +453,16 @@ function loadAdminRestaurants() {
         select.innerHTML += `<option value="${restaurant.id}">${restaurant.name}</option>`;
       });
     }
+    if (accountRestaurantSelect) {
+      const selectedId = accountRestaurantSelect.value;
+      accountRestaurantSelect.innerHTML = adminRestaurants.length
+        ? '<option value="">Select a restaurant...</option>'
+        : '<option value="">Add a restaurant in Inventory first</option>';
+      adminRestaurants.forEach(restaurant => {
+        accountRestaurantSelect.innerHTML += `<option value="${escapeAdminHtml(restaurant.id)}">${escapeAdminHtml(restaurant.name || 'Unnamed restaurant')}</option>`;
+      });
+      accountRestaurantSelect.value = selectedId;
+    }
     if (list) {
       list.innerHTML = adminRestaurants.length ? adminRestaurants.map(restaurant => `
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
@@ -397,6 +473,88 @@ function loadAdminRestaurants() {
       `).join('') : '<p class="text-xs text-slate-400">No restaurants added yet.</p>';
     }
   }, error => console.error('Restaurant listener error:', error));
+}
+
+function toggleAdminPartnerAccountFields() {
+  const type = document.getElementById('partnerAccountType')?.value;
+  document.getElementById('partnerAccountNameField')?.classList.toggle('hidden', type === 'restaurant');
+  document.getElementById('partnerAccountRestaurantField')?.classList.toggle('hidden', type !== 'restaurant');
+  const nameInput = document.getElementById('partnerAccountName');
+  const restaurantSelect = document.getElementById('partnerAccountRestaurant');
+  if (nameInput) nameInput.required = type !== 'restaurant';
+  if (restaurantSelect) restaurantSelect.required = type === 'restaurant';
+}
+
+async function createAdminPartnerAccount(event) {
+  event.preventDefault();
+  const type = document.getElementById('partnerAccountType')?.value;
+  let partnerId;
+  let name;
+  if (type === 'restaurant') {
+    partnerId = document.getElementById('partnerAccountRestaurant')?.value;
+    const restaurant = adminRestaurants.find(item => item.id === partnerId);
+    if (!restaurant) return alert('Select an existing restaurant first.');
+    name = restaurant.name || 'Restaurant Partner';
+  } else {
+    name = document.getElementById('partnerAccountName')?.value.trim();
+    if (!name) return alert('Enter a partner name.');
+    partnerId = db.collection('partner_accounts').doc().id;
+  }
+
+  try {
+    await db.collection('partner_accounts').doc(partnerId).set({
+      partner_id: partnerId,
+      type,
+      name,
+      enabled: true,
+      created_at_ms: Date.now(),
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    document.getElementById('partnerAccountName').value = '';
+    alert(`Partner account created for ${name}. Use its console link below.`);
+  } catch (error) {
+    alert(`Unable to create partner account: ${error.message}`);
+  }
+}
+
+function getAdminPartnerConsoleUrl(partnerId) {
+  const url = new URL('../partner/partner.html', window.location.href);
+  url.searchParams.set('partnerId', partnerId);
+  return url.href;
+}
+
+async function copyAdminPartnerConsoleLink(partnerId) {
+  const url = getAdminPartnerConsoleUrl(decodeURIComponent(partnerId));
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('Partner console link copied.');
+  } catch (error) {
+    window.prompt('Copy this partner console link:', url);
+  }
+}
+
+function loadAdminPartnerAccounts() {
+  db.collection('partner_accounts').onSnapshot(snapshot => {
+    const container = document.getElementById('adminPartnerAccountsList');
+    if (!container) return;
+    const accounts = [];
+    snapshot.forEach(doc => accounts.push({ id: doc.id, ...doc.data() }));
+    adminPartnerAccounts = accounts;
+    accounts.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+    refreshAdminPartnerProductOptions();
+    container.innerHTML = accounts.length ? accounts.map(account => {
+      const typeLabels = { meat: 'Meat partner', store: 'Extra store', restaurant: 'Restaurant' };
+      const consoleUrl = getAdminPartnerConsoleUrl(account.id);
+      return `<article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div class="flex items-start justify-between gap-3"><div><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(account.name || 'Unnamed partner')}</h3><p class="text-[10px] font-bold uppercase text-slate-500 mt-1">${escapeAdminHtml(typeLabels[account.type] || account.type || 'Partner')} · ${escapeAdminHtml(account.id)}</p></div><span class="rounded-full px-2 py-1 text-[10px] font-black ${account.enabled === false ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${account.enabled === false ? 'Disabled' : 'Active'}</span></div>
+        <div class="mt-3 flex flex-wrap gap-2"><a href="${escapeAdminHtml(consoleUrl)}" target="_blank" rel="noopener" class="rounded-lg bg-[#0B132B] px-3 py-2 text-[10px] font-black text-white">Open console</a><button type="button" onclick="copyAdminPartnerConsoleLink('${encodeURIComponent(account.id)}')" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Copy partner link</button></div>
+      </article>`;
+    }).join('') : '<p class="text-xs text-slate-500">No partner accounts configured yet.</p>';
+  }, error => {
+    console.error('Partner account listener error:', error);
+    const container = document.getElementById('adminPartnerAccountsList');
+    if (container) container.innerHTML = '<p class="text-xs font-bold text-rose-600">Unable to load partner accounts. Check Firestore access.</p>';
+  });
 }
 
 async function handleAddRestaurant(event) {
@@ -475,6 +633,11 @@ async function handleAddNewProduct(e) {
 
   if (pickupSource === 'restaurant' && !restaurant) {
     alert('Select a restaurant before adding menu food.');
+    return;
+  }
+  const partnerType = pickupSource === 'meat_partner' ? 'meat' : pickupSource === 'store_partner' ? 'store' : '';
+  if (partnerType && !adminPartnerAccounts.some(account => account.id === partnerId && account.type === partnerType && account.enabled !== false)) {
+    alert('Create or select an active account for this partner type first.');
     return;
   }
 
@@ -636,6 +799,9 @@ async function submitProductImageUpdate() {
   }
 }
 
+let adminHomepageBanners = [];
+let adminHomepageBannersUnsubscribe = null;
+
 // HERO BANNER MANAGER
 async function handleBannerDirectFile(event) {
   const file = event.target.files[0];
@@ -653,22 +819,35 @@ async function handleBannerDirectFile(event) {
 async function handleSaveHeroBanner(e) {
   e.preventDefault();
   const btn = document.getElementById('btnSaveBanner');
-  if (btn) btn.innerText = "Publishing...";
+  if (btn) { btn.disabled = true; btn.innerText = "Saving..."; }
 
   const bannerData = {
     title: document.getElementById('bannerTitleInput').value.trim(),
     subtitle: document.getElementById('bannerSubInput').value.trim(),
     image_url: document.getElementById('bannerImgInput').value.trim(),
-    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    is_active: true
   };
 
   try {
-    await db.collection("settings").doc("hero_banner").set(bannerData);
-    alert("Homepage Banner Updated!");
-    if (btn) btn.innerText = "Save & Publish Banner";
-  } catch(err) {
-    alert("Error: " + err.message);
-    if (btn) btn.innerText = "Save & Publish Banner";
+    const bannerId = document.getElementById('bannerDocumentId').value;
+    if (bannerId === 'legacy') {
+      await db.collection('settings').doc('hero_banner').set(bannerData, { merge: true });
+    } else if (bannerId) {
+      bannerData.created_at_ms = adminHomepageBanners.find(item => item.id === bannerId)?.created_at_ms || Date.now();
+      await db.collection('homepage_banners').doc(bannerId).set(bannerData, { merge: true });
+    } else {
+      bannerData.created_at_ms = Date.now();
+      await db.collection('homepage_banners').add(bannerData);
+      await db.collection('settings').doc('hero_banner').delete();
+    }
+    resetHomepageBannerForm();
+    alert('Homepage banner saved.');
+  } catch (error) {
+    alert(`Unable to save banner: ${error.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+    updateHomepageBannerSubmitLabel();
   }
 }
 
@@ -698,6 +877,150 @@ async function handleResetDefaultBanner() {
   }
 }
 
+function updateHomepageBannerSubmitLabel() {
+  const button = document.getElementById('btnSaveBanner');
+  if (button) button.innerText = document.getElementById('bannerDocumentId')?.value ? 'Update banner' : 'Add banner';
+}
+
+function resetHomepageBannerForm() {
+  document.getElementById('homepageBannerForm')?.reset();
+  document.getElementById('bannerDocumentId').value = '';
+  updateHomepageBannerSubmitLabel();
+}
+
+function loadAdminBanners() {
+  if (adminHomepageBannersUnsubscribe) return;
+  renderAdminBanners();
+  db.collection('homepage_banners').get().then(applyAdminBannerSnapshot).catch(error => {
+    console.error('Homepage banner load failed:', error);
+  });
+  adminHomepageBannersUnsubscribe = db.collection('homepage_banners').onSnapshot(snapshot => {
+    applyAdminBannerSnapshot(snapshot);
+  }, error => {
+    console.error('Homepage banner listener error:', error);
+  });
+}
+
+function applyAdminBannerSnapshot(snapshot) {
+  adminHomepageBanners = [];
+  snapshot.forEach(doc => adminHomepageBanners.push({ id: doc.id, ...doc.data() }));
+  adminHomepageBanners.sort((left, right) => Number(right.created_at_ms || 0) - Number(left.created_at_ms || 0));
+  if (adminHomepageBanners.length) {
+    renderAdminBanners();
+    return;
+  }
+  db.collection('settings').doc('hero_banner').get().then(legacySnapshot => {
+    if (!legacySnapshot.exists || adminHomepageBanners.length) return renderAdminBanners();
+    adminHomepageBanners = [{ id: 'legacy', ...legacySnapshot.data() }];
+    renderAdminBanners();
+  }).catch(error => {
+    console.error('Legacy homepage banner load failed:', error);
+    renderAdminBanners();
+  });
+}
+
+function renderAdminBanners() {
+  const container = document.getElementById('homepageBannersList');
+  if (!container) return;
+  container.innerHTML = adminHomepageBanners.length ? adminHomepageBanners.map(banner => `
+    <article class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <img src="${escapeAdminHtml(banner.image_url || '')}" alt="${escapeAdminHtml(banner.title || 'Homepage banner')}" class="h-32 w-full bg-slate-100 object-cover" onerror="this.classList.add('hidden')">
+      <div class="p-3"><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(banner.title || 'Untitled banner')}</h3><p class="mt-1 text-[11px] text-slate-500">${escapeAdminHtml(banner.subtitle || '')}</p>
+        <div class="mt-3 flex gap-2"><button type="button" onclick="editHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Edit</button><button type="button" onclick="deleteHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-black text-rose-700">Delete</button></div>
+      </div>
+    </article>
+  `).join('') : '<p class="text-xs text-slate-500">No homepage banners yet.</p>';
+}
+
+function editHomepageBanner(encodedId) {
+  const banner = adminHomepageBanners.find(item => item.id === decodeURIComponent(encodedId));
+  if (!banner) return;
+  document.getElementById('bannerDocumentId').value = banner.id;
+  document.getElementById('bannerTitleInput').value = banner.title || '';
+  document.getElementById('bannerSubInput').value = banner.subtitle || '';
+  document.getElementById('bannerImgInput').value = banner.image_url || '';
+  updateHomepageBannerSubmitLabel();
+  document.getElementById('homepageBannerForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function deleteHomepageBanner(encodedId) {
+  const bannerId = decodeURIComponent(encodedId);
+  if (!confirm('Delete this homepage banner?')) return;
+  try {
+    if (bannerId === 'legacy') {
+      await db.collection('settings').doc('hero_banner').delete();
+      adminHomepageBanners = adminHomepageBanners.filter(banner => banner.id !== 'legacy');
+      renderAdminBanners();
+    } else {
+      await db.collection('homepage_banners').doc(bannerId).delete();
+    }
+    if (document.getElementById('bannerDocumentId').value === bannerId) resetHomepageBannerForm();
+  } catch (error) {
+    alert(`Unable to delete banner: ${error.message}`);
+  }
+}
+
+async function handleDailyOfferDirectFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    document.getElementById('dailyOfferImageInput').value = await compressImageFile(file, 800, 600, 0.85);
+    event.target.value = '';
+  } catch (error) {
+    alert(`Popup image load failed: ${error.message}`);
+  }
+}
+
+async function loadAdminDailyOffer() {
+  try {
+    const snapshot = await db.collection('settings').doc('daily_offer').get();
+    const offer = snapshot.exists ? snapshot.data() : {};
+    document.getElementById('dailyOfferEnabledInput').checked = offer.is_active === true;
+    document.getElementById('dailyOfferTitleInput').value = offer.title || '';
+    document.getElementById('dailyOfferCodeInput').value = offer.code || '';
+    document.getElementById('dailyOfferDescriptionInput').value = offer.description || '';
+    document.getElementById('dailyOfferBodyInput').value = offer.body || '';
+    document.getElementById('dailyOfferImageInput').value = offer.image_url || '';
+  } catch (error) {
+    console.error('Offer popup load failed:', error);
+  }
+}
+
+async function handleSaveDailyOffer(event) {
+  event.preventDefault();
+  const offer = {
+    is_active: document.getElementById('dailyOfferEnabledInput').checked,
+    title: document.getElementById('dailyOfferTitleInput').value.trim(),
+    code: document.getElementById('dailyOfferCodeInput').value.trim(),
+    description: document.getElementById('dailyOfferDescriptionInput').value.trim(),
+    body: document.getElementById('dailyOfferBodyInput').value.trim(),
+    image_url: document.getElementById('dailyOfferImageInput').value.trim(),
+    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    await db.collection('settings').doc('daily_offer').set(offer);
+    alert('Offer popup saved.');
+  } catch (error) {
+    alert(`Unable to save popup: ${error.message}`);
+  }
+}
+
+async function handleDeleteDailyOffer() {
+  if (!confirm('Delete the offer popup from the storefront?')) return;
+  try {
+    await db.collection('settings').doc('daily_offer').delete();
+    document.getElementById('dailyOfferEnabledInput').checked = false;
+    document.getElementById('dailyOfferTitleInput').value = '';
+    document.getElementById('dailyOfferCodeInput').value = '';
+    document.getElementById('dailyOfferDescriptionInput').value = '';
+    document.getElementById('dailyOfferBodyInput').value = '';
+    document.getElementById('dailyOfferImageInput').value = '';
+    alert('Offer popup deleted.');
+  } catch (error) {
+    alert(`Unable to delete popup: ${error.message}`);
+  }
+}
+
 // --- ALL 20 BLINKIT CATEGORIES RESTORED ---
 const adminCategoryDefaults = [
   { id: "paan", name: "Paan Corner & Refreshers", img: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150" },
@@ -723,49 +1046,141 @@ const adminCategoryDefaults = [
   { id: "restaurants", name: "Restaurant Menus", img: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" }
 ];
 
+let adminCategoryItems = [];
+let adminCategoryImages = {};
+
 async function loadCategoryManager() {
   const container = document.getElementById('categoryManagerGrid');
   if (!container) return;
-
-  let customMap = {};
   try {
-    const doc = await db.collection("settings").doc("category_images").get();
-    if (doc.exists) customMap = doc.data();
-  } catch(e) {}
-
-  container.innerHTML = '';
-  adminCategoryDefaults.forEach(cat => {
-    const activeUrl = customMap[cat.id] || cat.img;
-    const card = document.createElement('div');
-    card.className = "p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3";
-    card.innerHTML = `
-      <img id="cat_preview_${cat.id}" src="${activeUrl}" class="w-12 h-12 rounded-xl object-contain bg-white border p-1 shrink-0">
-      <div class="flex-1 min-w-0">
-        <p class="text-xs font-bold text-slate-800 truncate">${cat.name}</p>
-        <div class="mt-1 flex items-center gap-1">
-          <input type="file" accept="image/*" onchange="handleCategoryDirectFile(event, '${cat.id}')" class="text-[9px] file:mr-1 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:bg-[#1C2541] file:text-white border border-slate-200 rounded p-0.5 bg-white cursor-pointer w-full">
-        </div>
-      </div>
-    `;
-    container.appendChild(card);
-  });
+    const [catalogSnapshot, imageSnapshot] = await Promise.all([
+      db.collection('settings').doc('category_catalog').get(),
+      db.collection('settings').doc('category_images').get()
+    ]);
+    adminCategoryItems = catalogSnapshot.exists && Array.isArray(catalogSnapshot.data().categories)
+      ? catalogSnapshot.data().categories.filter(category => category?.id && category?.name)
+      : adminCategoryDefaults.map(({ id, name }) => ({ id, name }));
+    adminCategoryImages = imageSnapshot.exists ? imageSnapshot.data() : {};
+    renderCategoryManager();
+    renderAdminProductCategoryOptions();
+  } catch (error) {
+    console.error('Category manager load failed:', error);
+    container.innerHTML = '<p class="text-xs font-bold text-rose-600">Unable to load categories.</p>';
+  }
 }
 
 async function handleCategoryDirectFile(event, catId) {
-  const file = event.target.files[0];
+  const file = event.target.files?.[0];
   if (!file) return;
 
   try {
+    catId = decodeURIComponent(catId);
     const compressedCatBase64 = await compressImageFile(file, 200, 200, 0.85);
     await db.collection("settings").doc("category_images").set({
       [catId]: compressedCatBase64
     }, { merge: true });
+    adminCategoryImages[catId] = compressedCatBase64;
+    renderCategoryManager();
+    alert('Category photo updated.');
+  } catch (error) {
+    alert(`Unable to update category photo: ${error.message}`);
+  }
+}
 
-    const prev = document.getElementById(`cat_preview_${catId}`);
-    if (prev) prev.src = compressedCatBase64;
-    alert("Category photo updated!");
-  } catch(err) {
-    alert("Error: " + err.message);
+function renderCategoryManager() {
+  const container = document.getElementById('categoryManagerGrid');
+  if (!container) return;
+  container.innerHTML = adminCategoryItems.length ? adminCategoryItems.map(category => {
+    const defaultCategory = adminCategoryDefaults.find(item => item.id === category.id);
+    const imageUrl = adminCategoryImages[category.id] || category.image_url || defaultCategory?.img || '';
+    const encodedId = encodeURIComponent(category.id);
+    return `<article class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <img id="cat_preview_${escapeAdminHtml(category.id)}" src="${escapeAdminHtml(imageUrl)}" alt="${escapeAdminHtml(category.name)}" class="h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1" onerror="this.classList.add('hidden')">
+      <div class="min-w-0 flex-1"><p class="truncate text-xs font-bold text-slate-800">${escapeAdminHtml(category.name)}</p><p class="mt-0.5 truncate text-[10px] text-slate-500">${escapeAdminHtml(category.id)}</p><input type="file" accept="image/*" aria-label="Change ${escapeAdminHtml(category.name)} photo" onchange="handleCategoryDirectFile(event, '${encodedId}')" class="mt-1 w-full cursor-pointer rounded border border-slate-200 bg-white p-0.5 text-[9px] file:mr-1 file:rounded file:border-0 file:bg-[#1C2541] file:px-2 file:py-1 file:text-[9px] file:text-white"></div>
+      <button type="button" onclick="deleteAdminCategory('${encodedId}')" aria-label="Delete ${escapeAdminHtml(category.name)} category" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-black text-rose-700">Delete</button>
+    </article>`;
+  }).join('') : '<p class="text-xs text-slate-500">No storefront categories configured.</p>';
+}
+
+function renderAdminProductCategoryOptions() {
+  const select = document.getElementById('pCategory');
+  if (!select || !adminCategoryItems.length) return;
+  const selectedId = select.value;
+  select.innerHTML = adminCategoryItems.map(category => `<option value="${escapeAdminHtml(category.id)}">${escapeAdminHtml(category.name)}</option>`).join('');
+  if (adminCategoryItems.some(category => category.id === selectedId)) select.value = selectedId;
+  toggleRestaurantProductFields();
+}
+
+async function persistAdminCategoryState() {
+  const batch = db.batch();
+  batch.set(db.collection('settings').doc('category_catalog'), {
+    categories: adminCategoryItems.map(({ id, name }) => ({ id, name })),
+    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  batch.set(db.collection('settings').doc('category_images'), adminCategoryImages);
+  await batch.commit();
+  renderCategoryManager();
+  renderAdminProductCategoryOptions();
+}
+
+function createCategoryId(name) {
+  const baseId = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `category-${Date.now()}`;
+  let id = baseId;
+  let suffix = 2;
+  while (adminCategoryItems.some(category => category.id === id)) id = `${baseId}-${suffix++}`;
+  return id;
+}
+
+async function handleNewCategoryDirectFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    document.getElementById('newCategoryImageInput').value = await compressImageFile(file, 200, 200, 0.85);
+    event.target.value = '';
+  } catch (error) {
+    alert(`Category image load failed: ${error.message}`);
+  }
+}
+
+async function handleAddCategory(event) {
+  event.preventDefault();
+  const name = document.getElementById('newCategoryNameInput').value.trim();
+  const imageUrl = document.getElementById('newCategoryImageInput').value.trim();
+  if (!name || !imageUrl) return alert('Enter a category name and choose or paste an image.');
+  const id = createCategoryId(name);
+  const previousImages = adminCategoryImages;
+  adminCategoryItems = [...adminCategoryItems, { id, name }];
+  adminCategoryImages = { ...adminCategoryImages, [id]: imageUrl };
+  try {
+    await persistAdminCategoryState();
+    event.target.reset();
+    alert('Category added to the storefront.');
+  } catch (error) {
+    adminCategoryItems = adminCategoryItems.filter(category => category.id !== id);
+    adminCategoryImages = previousImages;
+    renderCategoryManager();
+    renderAdminProductCategoryOptions();
+    alert(`Unable to add category: ${error.message}`);
+  }
+}
+
+async function deleteAdminCategory(encodedId) {
+  const categoryId = decodeURIComponent(encodedId);
+  const category = adminCategoryItems.find(item => item.id === categoryId);
+  if (!category || !confirm(`Remove ${category.name} from the storefront? Its products will remain in inventory.`)) return;
+  const previousCategories = adminCategoryItems;
+  const previousImages = adminCategoryImages;
+  adminCategoryItems = adminCategoryItems.filter(item => item.id !== categoryId);
+  adminCategoryImages = { ...adminCategoryImages };
+  delete adminCategoryImages[categoryId];
+  try {
+    await persistAdminCategoryState();
+  } catch (error) {
+    adminCategoryItems = previousCategories;
+    adminCategoryImages = previousImages;
+    renderCategoryManager();
+    renderAdminProductCategoryOptions();
+    alert(`Unable to delete category: ${error.message}`);
   }
 }
 
@@ -1063,8 +1478,11 @@ document.addEventListener('DOMContentLoaded', () => {
   startAdminRiderLocationListeners();
   startRegisteredRiderListener();
   loadAdminRestaurants();
+  loadAdminPartnerAccounts();
+  toggleAdminPartnerAccountFields();
   toggleRestaurantProductFields();
   loadAdminInventory();
+  loadCategoryManager();
   // ==========================================
 // 🗺️ LIVE RIDER TRACKING (Admin Side)
 // ==========================================

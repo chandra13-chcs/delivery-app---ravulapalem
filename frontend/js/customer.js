@@ -2110,6 +2110,277 @@ const categories = [
 
 ];
 
+const categoryDefaultImages = {
+  paan: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150",
+  dairy: "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150",
+  veggies: "https://images.pexels.com/photos/144248/potatoes-vegetables-erdfrucht-bio-144248.jpeg?auto=compress&cs=tinysrgb&w=150",
+  drinks: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Coca-Cola_can_-_2020.jpg/220px-Coca-Cola_can_-_2020.jpg",
+  snacks: "https://images.pexels.com/photos/568805/pexels-photo-568805.jpeg?auto=compress&cs=tinysrgb&w=150",
+  breakfast: "https://images.pexels.com/photos/884600/pexels-photo-884600.jpeg?auto=compress&cs=tinysrgb&w=150",
+  sweets: "https://images.pexels.com/photos/65882/chocolate-dark-coffee-confiserie-65882.jpeg?auto=compress&cs=tinysrgb&w=150",
+  bakery: "https://images.pexels.com/photos/1395319/pexels-photo-1395319.jpeg?auto=compress&cs=tinysrgb&w=150",
+  tea: "https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=150",
+  staples: "https://images.pexels.com/photos/6287295/pexels-photo-6287295.jpeg?auto=compress&cs=tinysrgb&w=150",
+  masala: "https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=150",
+  sauces: "https://images.pexels.com/photos/1435735/pexels-photo-1435735.jpeg?auto=compress&cs=tinysrgb&w=150",
+  meat: "https://images.pexels.com/photos/618775/pexels-photo-618775.jpeg?auto=compress&cs=tinysrgb&w=150",
+  organic: "https://images.pexels.com/photos/7421213/pexels-photo-7421213.jpeg?auto=compress&cs=tinysrgb&w=150",
+  baby: "https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150",
+  pharma: "https://images.pexels.com/photos/593451/pexels-photo-593451.jpeg?auto=compress&cs=tinysrgb&w=150",
+  cleaning: "https://images.pexels.com/photos/5202925/pexels-photo-5202925.jpeg?auto=compress&cs=tinysrgb&w=150",
+  home: "https://images.pexels.com/photos/4198024/pexels-photo-4198024.jpeg?auto=compress&cs=tinysrgb&w=150",
+  personal: "https://images.pexels.com/photos/6621376/pexels-photo-6621376.jpeg?auto=compress&cs=tinysrgb&w=150",
+  pet: "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150",
+  restaurants: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80"
+};
+
+let customerCategoryImages = {};
+let customerHomepageBanners = [];
+let customerLegacyHomepageBanner = null;
+let customerHomepageBannerIndex = 0;
+let customerHomepageBannerTimer = null;
+let customerDailyOffer = null;
+let customerHeroFeatureIndex = 0;
+let customerHeroFeatureTimer = null;
+let customerHeroFeatureSlides = [];
+const defaultHeroFeatureSlides = [
+  {
+    eyebrow: 'Daily essentials',
+    title: 'Shop MyShopzy Store',
+    subtitle: 'Groceries and essentials, delivered fast',
+    image_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80',
+    href: '#customerCategoryGrid'
+  },
+  {
+    eyebrow: 'Meals nearby',
+    title: 'Restaurants Around You',
+    subtitle: 'Meals, tiffins & more',
+    image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',
+    href: 'service.html?type=restaurant'
+  },
+  {
+    eyebrow: 'Across Mandapeta',
+    title: 'Parcel Delivery',
+    subtitle: 'Send a parcel across town',
+    image_url: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=800&q=80',
+    href: 'service.html?type=parcel'
+  }
+];
+
+function renderCustomerCategoryTiles() {
+  const container = document.getElementById('customerCategoryGrid');
+  if (!container) return;
+  container.innerHTML = categories.map(category => {
+    const imageUrl = customerCategoryImages[category.id] || category.image_url || categoryDefaultImages[category.id] || '';
+    return `<button type="button" onclick="selectCategory('${escapeAttribute(category.id)}', this)" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
+      <span class="flex h-16 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-1"><img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(category.name)}" class="max-h-full object-contain transition group-hover:scale-105" onerror="this.classList.add('hidden')"></span>
+      <span class="mt-1 text-[11px] font-bold leading-tight text-slate-800">${escapeHtml(category.name)}</span>
+    </button>`;
+  }).join('');
+}
+
+function loadCustomerCategorySettings() {
+  db.collection('settings').doc('category_catalog').onSnapshot(snapshot => {
+    if (snapshot.exists && Array.isArray(snapshot.data().categories)) {
+      const nextCategories = snapshot.data().categories.filter(category => category?.id && category?.name);
+      categories.splice(0, categories.length, ...nextCategories);
+      if (!categories.some(category => category.id === activeCategory)) {
+        activeCategory = categories[0]?.id || '';
+        activeRestaurantId = '';
+      }
+    }
+    renderCustomerCategoryTiles();
+    const heading = document.getElementById('categoryHeading');
+    const active = categories.find(category => category.id === activeCategory);
+    if (heading && active) heading.innerText = active.name;
+    filterAndRender();
+  }, error => console.error('Category catalog listener error:', error));
+
+  db.collection('settings').doc('category_images').onSnapshot(snapshot => {
+    customerCategoryImages = snapshot.exists ? snapshot.data() : {};
+    renderCustomerCategoryTiles();
+  }, error => console.error('Category image listener error:', error));
+}
+
+function renderHomepageBanner(banner) {
+  if (!banner) return;
+  const title = document.getElementById('bannerTitleDisplay');
+  const subtitle = document.getElementById('bannerSubDisplay');
+  if (title) title.innerText = banner.title || '';
+  if (subtitle) subtitle.innerText = banner.subtitle || '';
+}
+
+function renderHeroFeatureCarousel() {
+  const carousel = document.getElementById('heroFeatureCarousel');
+  if (!carousel) return;
+  const managedSlides = customerHomepageBanners
+    .filter(banner => banner.image_url)
+    .map(banner => ({
+      eyebrow: 'Store highlight',
+      title: banner.title || 'Shop the latest',
+      subtitle: banner.subtitle || 'Explore what is fresh today',
+      image_url: banner.image_url,
+      href: '#productsGrid'
+    }));
+  if (!customerHomepageBanners.length && customerLegacyHomepageBanner?.image_url) {
+    managedSlides.push({
+      eyebrow: 'Store highlight',
+      title: customerLegacyHomepageBanner.title || 'Shop today',
+      subtitle: customerLegacyHomepageBanner.subtitle || 'Explore what is fresh today',
+      image_url: customerLegacyHomepageBanner.image_url,
+      href: '#productsGrid'
+    });
+  }
+  customerHeroFeatureSlides = [...defaultHeroFeatureSlides, ...managedSlides];
+  customerHeroFeatureIndex %= customerHeroFeatureSlides.length;
+  const slide = customerHeroFeatureSlides[customerHeroFeatureIndex];
+  const link = document.getElementById('heroFeatureLink');
+  const image = document.getElementById('heroFeatureImage');
+  if (link) link.href = slide.href;
+  if (image) {
+    image.src = slide.image_url;
+    image.alt = slide.title;
+  }
+  document.getElementById('heroFeatureEyebrow').innerText = slide.eyebrow;
+  document.getElementById('heroFeatureTitle').innerText = slide.title;
+  document.getElementById('heroFeatureSubtitle').innerText = slide.subtitle;
+  const indicators = document.getElementById('heroFeatureIndicators');
+  if (indicators) indicators.innerHTML = customerHeroFeatureSlides.map((item, index) => `
+    <button type="button" onclick="selectHeroFeature(${index})" aria-label="Show ${escapeAttribute(item.title)}" aria-current="${index === customerHeroFeatureIndex}" class="h-2 w-2 rounded-full border border-white/70 ${index === customerHeroFeatureIndex ? 'bg-amber-400' : 'bg-white/40'}"></button>
+  `).join('');
+}
+
+function selectHeroFeature(index) {
+  if (!customerHeroFeatureSlides.length) return;
+  customerHeroFeatureIndex = (index + customerHeroFeatureSlides.length) % customerHeroFeatureSlides.length;
+  renderHeroFeatureCarousel();
+}
+
+function stepHeroFeature(direction) {
+  selectHeroFeature(customerHeroFeatureIndex + direction);
+}
+
+function startHeroFeatureCarousel() {
+  renderHeroFeatureCarousel();
+  const carousel = document.getElementById('heroFeatureCarousel');
+  if (carousel && carousel.dataset.swipeReady !== 'true') {
+    carousel.dataset.swipeReady = 'true';
+    let touchStartX = null;
+    carousel.addEventListener('touchstart', event => {
+      touchStartX = event.changedTouches[0]?.clientX ?? null;
+    }, { passive: true });
+    carousel.addEventListener('touchend', event => {
+      if (touchStartX === null) return;
+      const swipeDistance = event.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(swipeDistance) > 40) stepHeroFeature(swipeDistance < 0 ? 1 : -1);
+      touchStartX = null;
+    }, { passive: true });
+  }
+  if (!customerHeroFeatureTimer) {
+    customerHeroFeatureTimer = setInterval(() => stepHeroFeature(1), 5200);
+  }
+}
+
+function selectHomepageBanner(index) {
+  if (!customerHomepageBanners.length) return;
+  customerHomepageBannerIndex = (index + customerHomepageBanners.length) % customerHomepageBanners.length;
+  renderHomepageBanner(customerHomepageBanners[customerHomepageBannerIndex]);
+  const indicators = document.getElementById('homepageBannerIndicators');
+  if (indicators) indicators.querySelectorAll('button').forEach((button, buttonIndex) => {
+    button.classList.toggle('bg-amber-500', buttonIndex === customerHomepageBannerIndex);
+    button.classList.toggle('bg-slate-300', buttonIndex !== customerHomepageBannerIndex);
+    button.setAttribute('aria-current', String(buttonIndex === customerHomepageBannerIndex));
+  });
+}
+
+function renderHomepageBannerIndicators() {
+  const container = document.getElementById('homepageBannerIndicators');
+  if (!container) return;
+  container.innerHTML = customerHomepageBanners.length > 1 ? customerHomepageBanners.map((banner, index) => `
+    <button type="button" onclick="selectHomepageBanner(${index})" aria-label="Show banner ${index + 1}: ${escapeAttribute(banner.title || '')}" class="h-2.5 w-2.5 rounded-full ${index === customerHomepageBannerIndex ? 'bg-amber-500' : 'bg-slate-300'}"></button>
+  `).join('') : '';
+}
+
+function loadCustomerHomepageBanners() {
+  startHeroFeatureCarousel();
+  db.collection('settings').doc('hero_banner').onSnapshot(snapshot => {
+    customerLegacyHomepageBanner = snapshot.exists ? snapshot.data() : null;
+    if (!customerHomepageBanners.length && customerLegacyHomepageBanner) renderHomepageBanner(customerLegacyHomepageBanner);
+    renderHeroFeatureCarousel();
+  }, error => console.error('Legacy homepage banner listener error:', error));
+
+  db.collection('homepage_banners').onSnapshot(snapshot => {
+    customerHomepageBanners = [];
+    snapshot.forEach(doc => {
+      const banner = { id: doc.id, ...doc.data() };
+      if (banner.is_active !== false) customerHomepageBanners.push(banner);
+    });
+    customerHomepageBanners.sort((left, right) => Number(right.created_at_ms || 0) - Number(left.created_at_ms || 0));
+    customerHomepageBannerIndex = Math.min(customerHomepageBannerIndex, Math.max(0, customerHomepageBanners.length - 1));
+    renderHomepageBannerIndicators();
+    renderHeroFeatureCarousel();
+    if (customerHomepageBanners.length) selectHomepageBanner(customerHomepageBannerIndex);
+    else if (customerLegacyHomepageBanner) renderHomepageBanner(customerLegacyHomepageBanner);
+  }, error => console.error('Homepage banner listener error:', error));
+
+  if (!customerHomepageBannerTimer) {
+    customerHomepageBannerTimer = setInterval(() => {
+      if (customerHomepageBanners.length > 1) selectHomepageBanner(customerHomepageBannerIndex + 1);
+    }, 6000);
+  }
+}
+
+function renderCustomerDailyOffer(offer) {
+  const modal = document.getElementById('dailyOfferModal');
+  const title = document.getElementById('dailyOfferTitle');
+  const description = document.getElementById('dailyOfferDescription');
+  const body = document.getElementById('dailyOfferBody');
+  const code = document.getElementById('dailyOfferCode');
+  const codeWrap = document.getElementById('dailyOfferCodeWrap');
+  const image = document.getElementById('dailyOfferImage');
+  const eyebrow = document.getElementById('dailyOfferEyebrow');
+  if (!offer || offer.is_active !== true) {
+    closeDailyOffer();
+    return;
+  }
+  if (title) title.innerText = offer.title || '';
+  if (description) description.innerText = offer.description || '';
+  if (body) body.innerText = offer.body || '';
+  if (eyebrow) eyebrow.innerText = offer.eyebrow || "Today's Mandapeta Offer";
+  if (code) code.innerText = offer.code || '';
+  if (codeWrap) codeWrap.classList.toggle('hidden', !offer.code);
+  if (image) {
+    image.classList.toggle('hidden', !offer.image_url);
+    if (offer.image_url) image.src = offer.image_url;
+  }
+  if (modal) showDailyOfferOnce();
+}
+
+const defaultCustomerDailyOffer = {
+  is_active: true,
+  eyebrow: "Today's Mandapeta Offer",
+  title: '₹50 OFF',
+  description: 'on orders above ₹499',
+  code: 'MANDAPETA50',
+  body: 'Fresh groceries, meat, bakery and daily essentials delivered fast.'
+};
+
+function loadCustomerDailyOffer() {
+  const offerRef = db.collection('settings').doc('daily_offer');
+  offerRef.get().then(snapshot => {
+    customerDailyOffer = snapshot.exists ? snapshot.data() : defaultCustomerDailyOffer;
+    renderCustomerDailyOffer(customerDailyOffer);
+  }).catch(error => {
+    console.warn('Daily offer load failed; showing the default offer:', error);
+    customerDailyOffer = defaultCustomerDailyOffer;
+    renderCustomerDailyOffer(customerDailyOffer);
+  });
+  offerRef.onSnapshot(snapshot => {
+    customerDailyOffer = snapshot.exists ? snapshot.data() : defaultCustomerDailyOffer;
+    renderCustomerDailyOffer(customerDailyOffer);
+  }, error => console.error('Daily offer listener error:', error));
+}
+
 
 let liveCatalog = [];
 
@@ -5187,8 +5458,9 @@ function closeDailyOffer() {
 
 function showDailyOfferOnce() {
   const today = new Date().toISOString().slice(0, 10);
-  if (localStorage.getItem("myshopzy_offer_seen") === today) return;
-  localStorage.setItem("myshopzy_offer_seen", today);
+  const seenKey = `myshopzy_offer_seen_v2_${today}`;
+  if (localStorage.getItem(seenKey) === 'true') return;
+  localStorage.setItem(seenKey, 'true');
   setTimeout(openDailyOffer, 700);
 }
 
@@ -5213,7 +5485,9 @@ document.addEventListener(
     setUserLanguage(localStorage.getItem("myshopzy_language") || "en");
 
     checkStoreWorkingHours();
-    showDailyOfferOnce();
+    loadCustomerHomepageBanners();
+    loadCustomerCategorySettings();
+    loadCustomerDailyOffer();
 
 
     // Load addresses for current
@@ -5236,10 +5510,8 @@ document.addEventListener(
     suppressCategoryScrollOnInit = true;
 
 
-    selectCategory(
-      "veggies",
-      null
-    );
+    const initialCategory = categories.find(category => category.id === 'veggies') || categories[0];
+    if (initialCategory) selectCategory(initialCategory.id, null);
 
 
     suppressCategoryScrollOnInit = false;
