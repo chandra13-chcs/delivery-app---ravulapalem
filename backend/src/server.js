@@ -16,6 +16,27 @@ app.get("/", (req, res) => {
   });
 });
 
+// PostgreSQL health check
+app.get("/api/health", async (req, res) => {
+  try {
+    const result = await db.query("SELECT NOW() AS server_time");
+
+    res.json({
+      success: true,
+      message: "Backend and PostgreSQL are connected",
+      database: "connected",
+      server_time: result.rows[0].server_time
+    });
+  } catch (error) {
+    console.error("Health check failed:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed"
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
