@@ -4,12 +4,14 @@ require("dotenv").config();
 
 const db = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
+const shopRoutes = require("./routes/shopRoutes");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use("/api/users", userRoutes);
+app.use("/api/shops", shopRoutes);
 
 app.get("/", (req, res) => {
   res.json({
