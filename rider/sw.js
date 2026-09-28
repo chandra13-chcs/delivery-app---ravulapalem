@@ -1,4 +1,4 @@
-const CACHE_NAME = "myshopzy-rider-v1";
+const CACHE_NAME = "myshopzy-rider-v2";
 
 self.addEventListener("install", event => {
   self.skipWaiting();

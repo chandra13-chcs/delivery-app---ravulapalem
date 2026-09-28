@@ -33,6 +33,68 @@
       }
     }
   </script>
+  <style>
+    body.rider-app button {
+      position: relative;
+      perspective: 700px;
+      transform: translateY(0);
+      box-shadow: 0 4px 0 rgba(15, 23, 42, 0.22), 0 7px 14px rgba(15, 23, 42, 0.12);
+      transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease, filter 180ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body.rider-app button:hover:not(:disabled) {
+      transform: translateY(-3px) rotateX(2deg);
+      filter: brightness(1.035);
+      box-shadow: 0 7px 0 rgba(15, 23, 42, 0.2), 0 13px 20px rgba(15, 23, 42, 0.16);
+    }
+    body.rider-app button:active:not(:disabled) {
+      transform: translateY(3px) rotateX(-2deg) scale(0.99);
+      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.22), 0 2px 5px rgba(15, 23, 42, 0.12);
+    }
+    body.rider-app button:focus-visible {
+      outline: 3px solid #22d3ee;
+      outline-offset: 3px;
+    }
+    body.rider-app button:disabled {
+      cursor: not-allowed;
+      filter: grayscale(0.2);
+      opacity: 0.58;
+      box-shadow: 0 2px 0 rgba(15, 23, 42, 0.12);
+    }
+    .rider-avatar-frame {
+      box-shadow: 0 5px 0 rgba(8, 47, 73, 0.22), 0 12px 24px rgba(8, 47, 73, 0.2);
+      transform: translateY(-2px);
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+    .rider-avatar-frame:hover {
+      transform: translateY(-4px) rotate(-1deg);
+      box-shadow: 0 7px 0 rgba(8, 47, 73, 0.18), 0 16px 30px rgba(8, 47, 73, 0.25);
+    }
+    .rider-avatar-image {
+      display: block;
+      object-fit: cover;
+    }
+    #riderHomePhoto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    body.rider-app .rider-avatar-image[hidden] {
+      display: none !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body.rider-app button,
+      body.rider-app button:hover:not(:disabled),
+      body.rider-app button:active:not(:disabled),
+      .rider-avatar-frame,
+      .rider-avatar-frame:hover {
+        animation: none;
+        transition: none;
+        transform: none;
+      }
+    }
+  </style>
   <!-- PWA MANIFEST & SERVICE WORKER -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0B132B">
@@ -44,7 +106,7 @@
     }
   </script>
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans antialiased min-h-screen pb-12">
+<body class="rider-app bg-slate-100 text-slate-900 font-sans antialiased min-h-screen pb-12">
 
   <!-- TOP APP BAR -->
   <header class="bg-brand-navy text-white px-4 py-3.5 sticky top-0 z-30 shadow-md border-b border-slate-800">
@@ -62,7 +124,7 @@
       <div class="flex items-center gap-1.5">
         <button onclick="openRiderRegistrationModal()" id="riderRegisterButton" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">New rider · Register</button>
         <button onclick="openRiderLoginModal()" id="riderLoginButton" class="px-2 py-1.5 rounded-xl bg-emerald-400 text-slate-950 text-[10px] font-black">Existing rider · Login</button>
-        <button onclick="showRiderSection('account')" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
+        <button onclick="openRiderAccount()" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
       </div>
     </div>
   </header>
@@ -108,6 +170,19 @@
     </div>
 
     <section id="riderHomeSection" class="space-y-3">
+      <button type="button" onclick="openRiderAccount()" class="w-full flex items-center gap-3 rounded-2xl border border-cyan-100 bg-gradient-to-r from-white to-cyan-50 p-3 text-left">
+        <span class="rider-avatar-frame relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white bg-gradient-to-br from-cyan-100 to-blue-200 text-2xl">
+          <img id="riderHomePhoto" class="rider-avatar-image" alt="Rider profile photo" hidden>
+          <span id="riderHomePhotoPlaceholder" aria-hidden="true">👤</span>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[10px] font-black uppercase tracking-wider text-slate-400">Rider profile</span>
+          <strong id="riderHomeName" class="block truncate text-sm font-black text-slate-900">Delivery partner</strong>
+          <span class="block text-[10px] font-semibold text-cyan-700">Tap to view profile</span>
+        </span>
+        <span class="text-xl text-cyan-700" aria-hidden="true">›</span>
+      </button>
+      <div id="riderStatusSummary" class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm"></div>
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-black text-slate-900">Pickup Queue</h2>
         <span class="text-[10px] text-slate-500">Next assigned pickups</span>
@@ -130,14 +205,41 @@
     <section id="riderAccountSection" class="hidden space-y-3">
       <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm space-y-3">
         <h2 class="text-sm font-black text-slate-900">My Account</h2>
+        <div class="flex items-center gap-3">
+          <img id="riderAccountPhoto" class="rider-avatar-image rider-avatar-frame h-14 w-14 rounded-2xl border-2 border-white bg-slate-100" alt="Rider profile photo" hidden>
+          <span id="riderAccountPhotoPlaceholder" class="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xl" aria-hidden="true">👤</span>
+          <div><p class="text-xs font-black text-slate-900">Rider profile</p><p class="text-[10px] text-slate-500">Keep your profile and bike details current.</p></div>
+        </div>
         <div class="text-xs space-y-1 text-slate-600">
           <p><strong>Name:</strong> <span id="riderAccountName">Not registered</span></p>
           <p><strong>Mobile:</strong> <span id="riderAccountMobile">-</span></p>
           <p><strong>Email:</strong> <span id="riderAccountEmail">-</span></p>
           <p><strong>Aadhaar:</strong> <span id="riderAccountAadhaar">-</span></p>
+          <p><strong>Bike:</strong> <span id="riderAccountBike">Not added</span></p>
+          <p><strong>Bike colour:</strong> <span id="riderAccountBikeColor">-</span></p>
+          <p><strong>Bike licence photo:</strong> <span id="riderAccountBikeLicense">Not uploaded</span></p>
+          <p><strong>Bike RC photo:</strong> <span id="riderAccountBikeRc">Not uploaded</span></p>
+          <p><strong>Online:</strong> <span id="riderAccountOnlineTime">0m</span> · <strong>Driving:</strong> <span id="riderAccountDrivingTime">0m</span></p>
         </div>
+        <p id="riderAccountSyncStatus" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-2 text-[10px] font-bold text-amber-800" role="status" aria-live="polite"></p>
+        <button id="riderProfileRetryButton" onclick="retryRiderProfileSync()" class="hidden w-full py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-black">Retry profile sync</button>
+        <button onclick="openRiderProfileModal()" class="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-black">Update photo & bike details</button>
         <button onclick="openRiderRegistrationModal()" class="w-full py-2.5 rounded-xl bg-brand-navy text-white text-xs font-black">Register / Update Profile</button>
         <button onclick="logoutRider()" class="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black">Logout</button>
+      </div>
+    </section>
+
+    <section id="riderSupportSection" class="hidden space-y-3">
+      <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm">
+        <h2 class="text-sm font-black text-slate-900">Rider Support & performance</h2>
+        <p class="text-[10px] text-slate-500 mt-1">Online and driving time are calculated from your rider activity logs.</p>
+        <div class="grid grid-cols-4 gap-1 mt-3">
+          <button onclick="setSupportRange('day')" class="support-range-btn rounded-xl bg-slate-900 text-white p-2 text-[9px] font-black">Day</button>
+          <button onclick="setSupportRange('week')" class="support-range-btn rounded-xl bg-slate-100 p-2 text-[9px] font-black">Week</button>
+          <button onclick="setSupportRange('month')" class="support-range-btn rounded-xl bg-slate-100 p-2 text-[9px] font-black">Month</button>
+          <button onclick="setSupportRange('hours')" class="support-range-btn rounded-xl bg-slate-100 p-2 text-[9px] font-black">Hours</button>
+        </div>
+        <div id="riderSupportMetrics" class="mt-3 grid grid-cols-2 gap-2"></div>
       </div>
     </section>
 
@@ -146,12 +248,52 @@
   </main>
 
   <nav id="riderBottomNav" class="hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg">
-    <div class="max-w-md mx-auto grid grid-cols-3 text-center">
+    <div class="max-w-md mx-auto grid grid-cols-4 text-center">
       <button onclick="showRiderSection('home')" class="py-2.5 text-[10px] font-black text-slate-600">🏠<span class="block">Home</span></button>
       <button onclick="showRiderSection('orders')" class="py-2.5 text-[10px] font-black text-slate-600">📦<span class="block">Orders</span></button>
+      <button onclick="showRiderSection('support')" class="py-2.5 text-[10px] font-black text-slate-600">📊<span class="block">Support</span></button>
       <button onclick="showRiderSection('account')" class="py-2.5 text-[10px] font-black text-slate-600">👤<span class="block">My Account</span></button>
     </div>
+
   </nav>
+
+  <div id="riderProfileModal" class="hidden fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3">
+      <div class="flex items-center justify-between"><h3 class="text-base font-black">Profile & bike details</h3><button onclick="closeRiderProfileModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button></div>
+      <div class="flex items-center gap-3">
+        <img id="riderProfilePhotoPreview" class="w-20 h-20 rounded-2xl object-cover bg-slate-100 border border-slate-200 hidden" alt="Selected rider photo preview">
+        <span id="riderProfilePhotoPlaceholder" class="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-2xl" aria-hidden="true">👤</span>
+        <label class="flex-1 block text-[10px] font-black uppercase text-slate-500">Driver photo<input id="riderProfilePhotoInput" type="file" accept="image/*" capture="user" class="mt-1 w-full p-2 border rounded-xl text-xs" onchange="previewRiderProfilePhoto(event)"></label>
+      </div>
+      <input id="riderBikeNumberInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Bike registration number">
+      <input id="riderBikeModelInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Bike brand / model">
+      <input id="riderBikeColorInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Bike colour">
+      <label class="block text-[10px] font-black uppercase text-slate-500">Driving licence photo<input id="riderBikeLicenseInput" type="file" accept="image/jpeg,image/png,image/webp" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <label class="block text-[10px] font-black uppercase text-slate-500">Bike RC photo<input id="riderBikeRcInput" type="file" accept="image/jpeg,image/png,image/webp" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <p id="riderProfileStatus" role="status" aria-live="polite" class="hidden rounded-xl border p-2 text-[11px] font-bold"></p>
+      <button id="riderProfileSaveButton" onclick="saveRiderProfileDetails()" class="w-full py-3 rounded-xl bg-cyan-600 text-white text-xs font-black">Save details</button>
+    </div>
+  </div>
+
+  <div id="riderPhotoModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3">
+      <h3 id="riderPhotoTitle" class="text-base font-black">Upload delivery proof</h3>
+      <p id="riderPhotoHelp" class="text-[11px] text-slate-500"></p>
+      <input id="riderOrderPhotoInput" type="file" accept="image/*" capture="environment" class="w-full p-2 border rounded-xl text-xs">
+      <p id="riderPhotoStatus" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-2 text-[11px] font-bold text-amber-800"></p>
+      <div class="grid grid-cols-2 gap-2"><button onclick="closeRiderPhotoModal()" class="py-2.5 rounded-xl border text-xs font-bold">Cancel</button><button onclick="uploadRiderOrderPhoto()" class="py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black">Upload proof</button></div>
+    </div>
+  </div>
+
+  <div id="riderReturnModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3">
+      <h3 class="text-base font-black">Return cancelled order to hotel</h3>
+      <textarea id="riderCancelReasonInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Cancellation / return reason"></textarea>
+      <label class="block text-[10px] font-black uppercase text-slate-500">Pickup return proof<input id="riderReturnPhotoInput" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
+      <p id="riderReturnStatus" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-2 text-[11px] font-bold text-amber-800"></p>
+      <div class="grid grid-cols-2 gap-2"><button onclick="closeRiderReturnModal()" class="py-2.5 rounded-xl border text-xs font-bold">Cancel</button><button onclick="submitRiderReturn()" class="py-2.5 rounded-xl bg-rose-600 text-white text-xs font-black">Start return</button></div>
+    </div>
+  </div>
 
   <!-- RIDER REGISTRATION MODAL -->
   <div id="riderRegistrationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
@@ -164,7 +306,7 @@
       <input id="riderMobileInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="10-digit mobile" maxlength="10" inputmode="numeric">
       <input id="riderEmailInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Email address" type="email">
       <input id="riderAadhaarInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Aadhaar number" maxlength="12" inputmode="numeric">
-      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password (min 6 characters)" type="password" autocomplete="new-password">
+      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password (10+ chars, upper/lowercase/number)" type="password" autocomplete="new-password">
       <input id="riderConfirmPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Confirm password" type="password" autocomplete="new-password">
       <div class="flex gap-2">
         <input id="riderOtpInput" class="flex-1 p-2.5 border rounded-xl text-xs" placeholder="OTP" maxlength="4" inputmode="numeric">
@@ -182,7 +324,10 @@
         <div><p class="text-[10px] uppercase tracking-wider font-black text-amber-600">Step 2 of 2</p><h3 class="text-base font-black text-slate-900">Verify rider identity</h3><p class="text-[11px] text-slate-500 mt-1">Upload clear original photos for admin verification.</p></div>
         <button onclick="closeRiderVerificationModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
       </div>
-      <input id="riderPanInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="PAN card number" maxlength="10" autocomplete="off">
+      <label class="block text-[10px] font-black uppercase text-slate-500">Unique PAN ID
+        <input id="riderPanInput" class="w-full p-2.5 border rounded-xl text-xs normal-case" placeholder="14 digits followed by 2 letters" maxlength="16" inputmode="text" autocomplete="off" pattern="[0-9]{14}[A-Za-z]{2}">
+      </label>
+      <p class="text-[10px] text-slate-500">Enter exactly 14 numbers and 2 uppercase letters (example: 12345678901234AB).</p>
       <label class="block text-[10px] font-black uppercase text-slate-500">Original selfie<input id="riderSelfieFile" type="file" accept="image/*" capture="user" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
       <label class="block text-[10px] font-black uppercase text-slate-500">Aadhaar photo<input id="riderAadhaarFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
       <label class="block text-[10px] font-black uppercase text-slate-500">PAN card photo<input id="riderPanFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
