@@ -104,11 +104,23 @@
           <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
             <span>📦</span> Inventory
           </button>
+          <button id="tabBtnRiderVerification" onclick="switchView('rider-verification')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>🛵</span> Rider Verification
+          </button>
+          <button id="tabBtnExpenses" onclick="switchView('expenses')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>💰</span> Expenses
+          </button>
+          <button id="tabBtnDeliveryPricing" onclick="switchView('delivery-pricing')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>🚴</span> Delivery Boy Pricing
+          </button>
           <button id="tabBtnPartners" onclick="switchView('partners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
             <span>🤝</span> Partner Accounts
           </button>
           <button id="tabBtnBanners" onclick="switchView('banners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🖼️</span> Banners & Categories
+            <span>🖼️</span> Banners
+          </button>
+          <button id="tabBtnCategories" onclick="switchView('categories')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+            <span>🗂️</span> Categories
           </button>
         </div>
       </div>
@@ -155,19 +167,6 @@
       <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
         <p class="text-[11px] font-bold text-slate-400 uppercase">Active Hub Riders</p>
         <div id="adminRiderStatusList" class="flex flex-wrap items-center gap-2 mt-2"></div>
-      </div>
-    </div>
-
-    <div class="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 shadow-sm">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <div>
-          <h2 class="text-base font-extrabold text-slate-900">Rider Verification Queue</h2>
-          <p class="text-xs text-slate-500">Review identity documents before rider login is enabled.</p>
-        </div>
-        <span class="rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-black text-amber-900">Admin review</span>
-      </div>
-      <div id="riderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
       </div>
     </div>
 
@@ -397,7 +396,53 @@
     </div>
   </main>
 
-  <!-- TAB 4: BANNER & CATEGORY MANAGER -->
+  <!-- TAB 4: RIDER VERIFICATION -->
+  <main id="riderVerificationViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Rider Verification Queue</h2>
+          <p class="text-xs text-slate-500">Review identity documents before rider login is enabled.</p>
+        </div>
+        <span class="rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-black text-amber-900">Admin review</span>
+      </div>
+      <div id="riderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 5: EXPENSES -->
+  <main id="expensesViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Expenses</h2>
+          <p class="text-xs text-slate-500">Operating costs, reimbursements, and vendor payouts.</p>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <p class="text-sm font-bold text-slate-500">No data available yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 6: DELIVERY BOY PRICING -->
+  <main id="deliveryPricingViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Delivery Boy Pricing</h2>
+          <p class="text-xs text-slate-500">Base fares, per-km charges, and rider payout rules.</p>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <p class="text-sm font-bold text-slate-500">No data available yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 8: BANNERS -->
   <main id="bannersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
@@ -433,7 +478,10 @@
         <div class="flex flex-wrap gap-2"><button type="submit" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Save popup</button><button type="button" onclick="handleDeleteDailyOffer()" class="py-2.5 px-4 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl">Delete popup</button></div>
       </form>
     </section>
+  </main>
 
+  <!-- TAB 9: CATEGORIES -->
+  <main id="categoriesViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4"><h2 class="text-base font-extrabold text-slate-900">Store Categories</h2><p class="text-xs text-slate-500">Add categories, update their photos, or remove them from the storefront. Products are kept when a category is removed.</p></div>
       <form onsubmit="handleAddCategory(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">

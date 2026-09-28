@@ -334,17 +334,25 @@ function switchView(tab) {
   const ordersSec = document.getElementById('ordersViewSection');
   const analyticsSec = document.getElementById('analyticsViewSection');
   const invSec = document.getElementById('inventoryViewSection');
+  const riderVerificationSec = document.getElementById('riderVerificationViewSection');
+  const expensesSec = document.getElementById('expensesViewSection');
+  const deliveryPricingSec = document.getElementById('deliveryPricingViewSection');
   const partnersSec = document.getElementById('partnersViewSection');
   const banSec = document.getElementById('bannersViewSection');
+  const categoriesSec = document.getElementById('categoriesViewSection');
 
   const btnOrders = document.getElementById('tabBtnOrders');
   const btnAnalytics = document.getElementById('tabBtnAnalytics');
   const btnInv = document.getElementById('tabBtnInventory');
+  const btnRiderVerification = document.getElementById('tabBtnRiderVerification');
+  const btnExpenses = document.getElementById('tabBtnExpenses');
+  const btnDeliveryPricing = document.getElementById('tabBtnDeliveryPricing');
   const btnPartners = document.getElementById('tabBtnPartners');
   const btnBan = document.getElementById('tabBtnBanners');
+  const btnCategories = document.getElementById('tabBtnCategories');
 
-  [ordersSec, analyticsSec, invSec, partnersSec, banSec].forEach(el => el && el.classList.add('hidden'));
-  [btnOrders, btnAnalytics, btnInv, btnPartners, btnBan].forEach(b => b && (b.className = "px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition"));
+  [ordersSec, analyticsSec, invSec, riderVerificationSec, expensesSec, deliveryPricingSec, partnersSec, banSec, categoriesSec].forEach(el => el && el.classList.add('hidden'));
+  [btnOrders, btnAnalytics, btnInv, btnRiderVerification, btnExpenses, btnDeliveryPricing, btnPartners, btnBan, btnCategories].forEach(b => b && (b.className = "px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition"));
 
   if (tab === 'orders') {
     if (ordersSec) ordersSec.classList.remove('hidden');
@@ -358,6 +366,16 @@ function switchView(tab) {
     if (invSec) invSec.classList.remove('hidden');
     if (btnInv) btnInv.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadAdminInventory();
+  } else if (tab === 'rider-verification') {
+    if (riderVerificationSec) riderVerificationSec.classList.remove('hidden');
+    if (btnRiderVerification) btnRiderVerification.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
+    renderRiderVerificationQueue();
+  } else if (tab === 'expenses') {
+    if (expensesSec) expensesSec.classList.remove('hidden');
+    if (btnExpenses) btnExpenses.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
+  } else if (tab === 'delivery-pricing') {
+    if (deliveryPricingSec) deliveryPricingSec.classList.remove('hidden');
+    if (btnDeliveryPricing) btnDeliveryPricing.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
   } else if (tab === 'partners') {
     if (partnersSec) partnersSec.classList.remove('hidden');
     if (btnPartners) btnPartners.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
@@ -366,6 +384,9 @@ function switchView(tab) {
     if (btnBan) btnBan.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadAdminBanners();
     loadAdminDailyOffer();
+  } else if (tab === 'categories') {
+    if (categoriesSec) categoriesSec.classList.remove('hidden');
+    if (btnCategories) btnCategories.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadCategoryManager();
   }
 }
@@ -1483,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleRestaurantProductFields();
   loadAdminInventory();
   loadCategoryManager();
+  renderRiderVerificationQueue();
   // ==========================================
 // 🗺️ LIVE RIDER TRACKING (Admin Side)
 // ==========================================
