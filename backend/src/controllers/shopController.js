@@ -17,10 +17,12 @@ function invalidUuidResponse(res) {
 async function listShops(req, res) {
   try {
     const result = await db.query(
-      `SELECT id, partner_id, name, description, cuisine, image_object_key
-       FROM shops
-       WHERE status = 'ACTIVE' AND deleted_at IS NULL
-       ORDER BY name ASC`
+      `SELECT s.id, s.partner_id, s.name, s.description, s.cuisine, s.image_object_key,
+          partner.business_type
+       FROM shops s
+       JOIN partners partner ON partner.id = s.partner_id
+       WHERE s.status = 'ACTIVE' AND s.deleted_at IS NULL
+       ORDER BY s.name ASC`
     );
 
     return res.json({

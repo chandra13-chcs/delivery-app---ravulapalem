@@ -2141,6 +2141,13 @@ const categories = [
 
 ];
 
+const customerApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (
+  window.location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? `http://${window.location.hostname || "localhost"}:5000/api`
+    : `${window.location.origin}/api`
+);
+let customerDatabaseCategories = null;
+
 const categoryDefaultImages = {
   paan: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150",
   dairy: "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150",
@@ -2201,9 +2208,13 @@ const defaultHeroFeatureSlides = [
 let selectedCategoryPreviewId = "";
 
 function openCategoryPage(categoryId, categoryName = "") {
-  const query = new URLSearchParams({ type: "category", categoryId });
-  if (categoryName) query.set("categoryName", categoryName);
-  window.open(`service.html?${query.toString()}`, "_blank", "noopener");
+  const category = customerDatabaseCategories?.find(item => item.id === categoryId || item.slug === categoryId)
+    || categories.find(item => item.id === categoryId);
+  const categorySlug = category?.slug || categoryId;
+  const query = new URLSearchParams({ type: "category", categorySlug });
+  const name = category?.name || categoryName;
+  if (name) query.set("categoryName", name);
+  window.location.href = `service.html?${query.toString()}`;
 }
 
 function selectCategoryPreview(productId) {
@@ -2278,37 +2289,34 @@ function renderCustomerCategoryPreviews() {
 function renderCustomerCategoryTiles() {
   const container = document.getElementById('customerCategoryGrid');
   if (!container) return;
-  container.innerHTML = categories.map(category => {
-    const imageUrl = customerCategoryImages[category.id] || category.image_url || categoryDefaultImages[category.id] || '';
-    return `<button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
+  const tileCategories = customerDatabaseCategories === null ? categories : customerDatabaseCategories;
+  if (tileCategories.length === 0) {
+    container.innerHTML = '<p class="col-span-full py-6 text-center text-xs text-slate-500">No categories available yet.</p>';
+    return;
+  }
+  container.innerHTML = tileCategories.map(category => {
+    const categorySlug = category.slug || category.id;
+    const imageUrl = customerCategoryImages[category.id] || customerCategoryImages[categorySlug] || category.image_url || categoryDefaultImages[category.id] || categoryDefaultImages[categorySlug] || '';
+    return `<button type="button" onclick="openCategoryPage('${escapeAttribute(categorySlug)}', '${escapeAttribute(category.name)}')" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
       <span class="flex h-16 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-1"><img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(category.name)}" class="max-h-full object-contain transition group-hover:scale-105" onerror="this.classList.add('hidden')"></span>
       <span class="mt-1 text-[11px] font-bold leading-tight text-slate-800">${escapeHtml(category.name)}</span>
     </button>`;
   }).join('');
 }
 
-function loadCustomerCategorySettings() {
-  db.collection('settings').doc('category_catalog').onSnapshot(snapshot => {
-    if (snapshot.exists && Array.isArray(snapshot.data().categories)) {
-      const nextCategories = snapshot.data().categories.filter(category => category?.id && category?.name);
-      categories.splice(0, categories.length, ...nextCategories);
-      if (!categories.some(category => category.id === activeCategory)) {
-        activeCategory = categories[0]?.id || '';
-        activeRestaurantId = '';
-      }
+async function loadCustomerCategorySettings() {
+  try {
+    const response = await fetch(`${customerApiBaseUrl}/categories`);
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success || !Array.isArray(result.data)) {
+      throw new Error(result?.message || 'Unable to retrieve categories.');
     }
-    renderCustomerCategoryTiles();
-    renderCustomerCategoryPreviews();
-    const heading = document.getElementById('categoryHeading');
-    const active = categories.find(category => category.id === activeCategory);
-    if (heading && active) heading.innerText = active.name;
-    filterAndRender();
-  }, error => console.error('Category catalog listener error:', error));
-
-  db.collection('settings').doc('category_images').onSnapshot(snapshot => {
-    customerCategoryImages = snapshot.exists ? snapshot.data() : {};
-    renderCustomerCategoryTiles();
-  }, error => console.error('Category image listener error:', error));
+    customerDatabaseCategories = result.data;
+  } catch (error) {
+    console.error('PostgreSQL category catalog request failed:', error);
+    customerDatabaseCategories = null;
+  }
+  renderCustomerCategoryTiles();
 }
 
 function renderHomepageBanner(banner) {
@@ -3080,7 +3088,7 @@ function openServiceCategory(serviceKey, targetEl = null) {
   if (!route) return;
 
   if (route.destination) {
-    window.open(route.destination, "_blank", "noopener");
+    window.location.href = route.destination;
     return;
   }
 
@@ -5651,8 +5659,8 @@ document.addEventListener(
     renderCustomerCategoryPreviews();
 
     checkStoreWorkingHours();
-    loadCustomerHomepageBanners();
     loadCustomerCategorySettings();
+    loadCustomerHomepageBanners();
     loadCustomerDailyOffer();
 
 

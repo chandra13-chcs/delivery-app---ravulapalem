@@ -1,13 +1,40 @@
 const serviceType = new URLSearchParams(window.location.search).get("type") || "restaurant";
 const restaurantId = new URLSearchParams(window.location.search).get("restaurantId") || "";
-const categoryId = new URLSearchParams(window.location.search).get("categoryId") || "";
+const categoryId = new URLSearchParams(window.location.search).get("categorySlug")
+  || new URLSearchParams(window.location.search).get("categoryId")
+  || "";
 const requestedCategoryName = new URLSearchParams(window.location.search).get("categoryName") || "";
+const isLocalServiceHost = window.location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const serviceApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (isLocalServiceHost
+  ? `http://${window.location.hostname || "localhost"}:5000/api`
+  : `${window.location.origin}/api`);
 let serviceRestaurants = [];
 let serviceProducts = [];
 let restaurantCart = {};
 
 function serviceEscape(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+async function getServiceApiData(path) {
+  const response = await fetch(`${serviceApiBaseUrl}${path}`);
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.message || "The service is temporarily unavailable.");
+  }
+  return result.data;
+}
+
+function normalizeServiceProduct(product) {
+  const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
+  const image = product.images?.[0] || {};
+  return {
+    ...product,
+    price: Number(product.price ?? variant.price ?? 0),
+    image_url: product.image_url || image.public_url || "",
+    qty_unit: product.unit_label || variant.unit_label || product.qty_unit || product.unit || "",
+    restaurant_id: product.shop_id || product.restaurant_id || ""
+  };
 }
 
 function serviceProductCard(product) {
@@ -50,34 +77,34 @@ function loadCategoryProducts() {
     return;
   }
 
-  db.collection("settings").doc("category_catalog").onSnapshot(snapshot => {
-    const category = snapshot.data()?.categories?.find(item => item.id === categoryId);
-    if (category) document.getElementById("serviceTitle").innerText = category.name;
-  }, error => console.error("Category name lookup failed:", error));
-
-  db.collection("products").where("category", "==", categoryId).onSnapshot(snapshot => {
-    serviceProducts = [];
-    snapshot.forEach(doc => serviceProducts.push({ id: doc.id, ...doc.data() }));
+  getServiceApiData(`/products?category=${encodeURIComponent(categoryId)}`).then(products => {
+    serviceProducts = products.map(normalizeServiceProduct);
     container.innerHTML = serviceProducts.length
       ? serviceProducts.map(serviceProductCard).join("")
       : '<p class="col-span-full py-8 text-center text-xs text-slate-500">No products in this category yet.</p>';
-  }, error => {
+  }).catch(error => {
     console.error("Category products listener error:", error);
     container.innerHTML = '<p class="col-span-full py-8 text-center text-xs text-rose-600">Unable to load products.</p>';
   });
 }
 
-function loadRestaurants() {
-  db.collection("restaurants").onSnapshot(snapshot => {
-    serviceRestaurants = [];
-    snapshot.forEach(doc => serviceRestaurants.push({ id: doc.id, ...doc.data() }));
+async function loadRestaurants() {
+  try {
+    const shops = await getServiceApiData("/shops");
+    serviceRestaurants = shops.filter(shop => !shop.business_type || shop.business_type === "RESTAURANT");
+
+    if (restaurantId) {
+      const products = await getServiceApiData(`/shops/${encodeURIComponent(restaurantId)}/products`);
+      serviceProducts = products.map(normalizeServiceProduct);
+      renderRestaurantMenu();
+      return;
+    }
+
     renderRestaurants();
-  }, error => console.error("Service restaurant listener error:", error));
-  db.collection("products").where("category", "==", "restaurants").onSnapshot(snapshot => {
-    serviceProducts = [];
-    snapshot.forEach(doc => serviceProducts.push({ id: doc.id, ...doc.data() }));
-    renderRestaurants();
-  }, error => console.error("Service restaurant menu listener error:", error));
+  } catch (error) {
+    console.error("Service restaurant loading failed:", error);
+    document.getElementById("serviceRestaurantList").innerHTML = '<p class="text-xs text-rose-600">Unable to load restaurants.</p>';
+  }
 }
 
 function renderRestaurants() {
@@ -87,7 +114,10 @@ function renderRestaurants() {
     renderRestaurantMenu();
     return;
   }
-  container.innerHTML = serviceRestaurants.length ? serviceRestaurants.map(restaurant => `<button type="button" onclick="openRestaurantMenu('${serviceEscape(restaurant.id)}')" class="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-left flex items-center justify-between hover:border-amber-400 hover:shadow-md transition"><span><strong class="block text-sm font-black text-slate-900">${serviceEscape(restaurant.name)}</strong><span class="block text-[11px] text-slate-500 mt-1">${serviceEscape(restaurant.cuisine || "Restaurant menu")} · ${Number(restaurant.distance_km || 0).toFixed(1)} km</span></span><span class="px-3 py-1.5 rounded-xl bg-[#0B132B] text-white text-[10px] font-black">View menu ↗</span></button>`).join("") : '<p class="text-xs text-slate-500">No restaurants available yet.</p>';
+  container.innerHTML = serviceRestaurants.length ? serviceRestaurants.map(restaurant => {
+    const distance = restaurant.distance_km == null ? "" : ` · ${Number(restaurant.distance_km).toFixed(1)} km`;
+    return `<button type="button" onclick="openRestaurantMenu('${serviceEscape(restaurant.id)}')" class="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-left flex items-center justify-between hover:border-amber-400 hover:shadow-md transition"><span><strong class="block text-sm font-black text-slate-900">${serviceEscape(restaurant.name)}</strong><span class="block text-[11px] text-slate-500 mt-1">${serviceEscape(restaurant.cuisine || "Restaurant menu")}${distance}</span></span><span class="px-3 py-1.5 rounded-xl bg-[#0B132B] text-white text-[10px] font-black">View menu ↗</span></button>`;
+  }).join("") : '<p class="text-xs text-slate-500">No restaurants available yet.</p>';
 }
 
 function openRestaurantMenu(id) {
@@ -124,13 +154,16 @@ function continueServiceCart() {
 }
 
 function loadMeatProducts() {
-  db.collection("products").where("category", "==", "meat").onSnapshot(snapshot => {
-    const container = document.getElementById("serviceMeatProducts");
-    const products = [];
-    snapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
-    serviceProducts = products;
-    container.innerHTML = products.length ? products.map(serviceProductCard).join("") : '<p class="col-span-full text-xs text-slate-500">No fresh meat products available yet.</p>';
-  }, error => console.error("Service meat listener error:", error));
+  const container = document.getElementById("serviceMeatProducts");
+  getServiceApiData("/products?category=meat").then(products => {
+    serviceProducts = products.map(normalizeServiceProduct);
+    container.innerHTML = serviceProducts.length
+      ? serviceProducts.map(serviceProductCard).join("")
+      : '<p class="col-span-full text-xs text-slate-500">No fresh meat products available yet.</p>';
+  }).catch(error => {
+    console.error("Meat products loading failed:", error);
+    container.innerHTML = '<p class="col-span-full text-xs text-rose-600">Unable to load meat products.</p>';
+  });
 }
 
 function modifyServiceCart(productId, delta) {
@@ -147,37 +180,9 @@ function modifyServiceCart(productId, delta) {
 
 async function submitServiceParcel(event) {
   event.preventDefault();
-  const orderId = `PX-${Math.floor(100000 + Math.random() * 900000)}`;
-  const pickup = document.getElementById("serviceParcelPickup").value.trim();
-  const drop = document.getElementById("serviceParcelDrop").value.trim();
-  const description = document.getElementById("serviceParcelDescription").value.trim();
-  const order = {
-    id: orderId,
-    order_type: "PARCEL",
-    customer_phone: JSON.parse(localStorage.getItem("quickdash_customer") || "null")?.phone || "guest",
-    delivery_address: drop,
-    parcel_pickup_address: pickup,
-    parcel_drop_address: drop,
-    parcel_description: description,
-    items: [{ name: `Parcel: ${description}`, quantity: 1, price: 50, pickup_source: "parcel", pickup_source_name: "Parcel Pickup", pickup_source_address: pickup }],
-    subtotal: 50,
-    total_amount: 50,
-    status: "PLACED",
-    delivery_deadline_ms: Date.now() + 60 * 60 * 1000,
-    payment_mode: "COD",
-    delivery_otp: String(Math.floor(1000 + Math.random() * 9000)),
-    created_at_ms: Date.now()
-  };
-  try {
-    await db.collection("orders").doc(orderId).set({ ...order, created_at: firebase.firestore.FieldValue.serverTimestamp() });
-    const status = document.getElementById("serviceParcelStatus");
-    status.innerText = `Parcel ${orderId} created. A rider will be assigned shortly.`;
-    status.classList.remove("hidden");
-    event.target.reset();
-  } catch (error) {
-    console.error("Service parcel creation failed:", error);
-    alert(`Unable to create parcel request: ${error.message}`);
-  }
+  const status = document.getElementById("serviceParcelStatus");
+  status.innerText = "Parcel requests are not connected to the PostgreSQL backend yet.";
+  status.classList.remove("hidden");
 }
 
 document.addEventListener("DOMContentLoaded", setupServicePage);
