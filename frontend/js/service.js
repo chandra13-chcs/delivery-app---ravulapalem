@@ -1,5 +1,7 @@
 const serviceType = new URLSearchParams(window.location.search).get("type") || "restaurant";
 const restaurantId = new URLSearchParams(window.location.search).get("restaurantId") || "";
+const categoryId = new URLSearchParams(window.location.search).get("categoryId") || "";
+const requestedCategoryName = new URLSearchParams(window.location.search).get("categoryName") || "";
 let serviceRestaurants = [];
 let serviceProducts = [];
 let restaurantCart = {};
@@ -10,13 +12,25 @@ function serviceEscape(value) {
 
 function serviceProductCard(product) {
   const quantity = restaurantCart[product.id] || 0;
-  return `<article class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"><div><div class="h-28 rounded-xl bg-slate-50 flex items-center justify-center p-2"><img src="${serviceEscape(product.image_url || "")}" alt="${serviceEscape(product.name)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'"></div><h3 class="text-xs font-bold text-slate-900 mt-2 line-clamp-2">${serviceEscape(product.name || "Product")}</h3><p class="text-[10px] text-slate-500 mt-1">${serviceEscape(product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit || "1 pc")}</p><strong class="block text-xs text-emerald-700 mt-1">₹${Number(product.price || 0)}</strong></div><div class="mt-2">${quantity ? `<div class="flex items-center justify-between rounded-lg bg-emerald-700 px-2 py-1 text-xs font-black text-white"><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', -1)">-</button><span>${quantity}</span><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)">+</button></div>` : `<button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)" class="w-full rounded-lg border-2 border-emerald-600 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50">ADD</button>`}</div></article>`;
+  const selectedClass = quantity ? "is-selected" : "";
+  return `<article class="category-product-card bg-white p-2.5 rounded-2xl shadow-sm flex flex-col justify-between ${selectedClass}">
+    <div>
+      <div class="h-28 rounded-xl bg-slate-50 flex items-center justify-center p-2"><img src="${serviceEscape(product.image_url || "")}" alt="${serviceEscape(product.name)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'"></div>
+      <h3 class="text-xs font-bold text-slate-900 mt-2 line-clamp-2">${serviceEscape(product.name || "Product")}</h3>
+      <p class="text-[10px] text-slate-500 mt-1">${serviceEscape(product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit || "1 pc")}</p>
+      <strong class="block text-xs text-emerald-700 mt-1">₹${Number(product.price || 0)}</strong>
+    </div>
+    <div class="mt-2">${quantity
+      ? `<div class="flex items-center justify-between rounded-lg bg-emerald-700 px-2 py-1 text-xs font-black text-white"><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', -1)">-</button><span>${quantity}</span><button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)">+</button></div>`
+      : `<button type="button" onclick="modifyServiceCart('${serviceEscape(product.id)}', 1)" class="w-full rounded-lg border-2 border-emerald-600 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50">ADD</button>`}</div>
+  </article>`;
 }
 
 function setupServicePage() {
   const settings = {
     restaurant: ["Restaurants", "Restaurant menus near Mandapeta", "Choose a restaurant and browse its available dishes."],
     meat: ["Fresh Meat", "Chicken, meat & fish", "Fresh meat products available from partner stores."],
+    category: ["Shop by Category", requestedCategoryName || categoryId || "Products", "Products in this category."],
     parcel: ["Parcel Delivery", "Send a parcel across Mandapeta", "Add pickup and drop details to request a delivery rider."]
   }[serviceType] || [];
   document.getElementById("serviceEyebrow").innerText = settings[0] || "MyShopzy Service";
@@ -25,7 +39,32 @@ function setupServicePage() {
   document.getElementById(`${serviceType}ServiceView`)?.classList.remove("hidden");
   if (serviceType === "restaurant") loadRestaurants();
   if (serviceType === "meat") loadMeatProducts();
+  if (serviceType === "category") loadCategoryProducts();
   if (serviceType === "parcel") document.getElementById("serviceParcelForm")?.addEventListener("submit", submitServiceParcel);
+}
+
+function loadCategoryProducts() {
+  const container = document.getElementById("serviceCategoryProducts");
+  if (!categoryId) {
+    container.innerHTML = '<p class="col-span-full py-8 text-center text-xs text-slate-500">Category not found.</p>';
+    return;
+  }
+
+  db.collection("settings").doc("category_catalog").onSnapshot(snapshot => {
+    const category = snapshot.data()?.categories?.find(item => item.id === categoryId);
+    if (category) document.getElementById("serviceTitle").innerText = category.name;
+  }, error => console.error("Category name lookup failed:", error));
+
+  db.collection("products").where("category", "==", categoryId).onSnapshot(snapshot => {
+    serviceProducts = [];
+    snapshot.forEach(doc => serviceProducts.push({ id: doc.id, ...doc.data() }));
+    container.innerHTML = serviceProducts.length
+      ? serviceProducts.map(serviceProductCard).join("")
+      : '<p class="col-span-full py-8 text-center text-xs text-slate-500">No products in this category yet.</p>';
+  }, error => {
+    console.error("Category products listener error:", error);
+    container.innerHTML = '<p class="col-span-full py-8 text-center text-xs text-rose-600">Unable to load products.</p>';
+  });
 }
 
 function loadRestaurants() {
@@ -99,7 +138,7 @@ function modifyServiceCart(productId, delta) {
   if (!restaurantCart[productId]) delete restaurantCart[productId];
   const totalItems = Object.values(restaurantCart).reduce((sum, quantity) => sum + quantity, 0);
   const total = Object.entries(restaurantCart).reduce((sum, [id, quantity]) => sum + (Number(serviceProducts.find(item => item.id === id)?.price || 0) * quantity), 0);
-  const container = document.getElementById("serviceMeatProducts");
+  const container = document.getElementById(serviceType === "category" ? "serviceCategoryProducts" : "serviceMeatProducts");
   if (container) container.innerHTML = serviceProducts.map(serviceProductCard).join("");
   document.getElementById("serviceCartBar")?.classList.toggle("hidden", totalItems === 0);
   document.getElementById("serviceCartCount").innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;

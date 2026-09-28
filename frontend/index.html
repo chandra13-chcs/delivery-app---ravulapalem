@@ -76,6 +76,9 @@
           </span>
         </a>
 
+        <span class="myshopzy-mobile-eta">30 min</span>
+        <button type="button" class="myshopzy-laptop-account" onclick="openCustomerAccountAccess()" aria-label="Login, register or open account" title="Login or register">👤</button>
+
         <div class="myshopzy-welcome">
           <span class="myshopzy-welcome-label">Your quick delivery partner</span>
           <strong>Hi <span id="customerGreetingName">User</span></strong>
@@ -325,13 +328,13 @@
       </div>
     </div>
 
-    <div class="flex items-center justify-between mb-3.5">
+    <div id="exploreCategories" class="flex items-center justify-between mb-3.5">
       <div>
         <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight" data-i18n="exploreCategories">Explore Categories</h3>
-        <p class="text-[11px] text-slate-400 font-semibold">Tap any category to view 25-minute delivery essentials</p>
+        <p class="text-[11px] text-slate-400 font-semibold">Tap any category to view 30-minute delivery essentials</p>
       </div>
       <span class="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shadow-sm">
-        ⚡ 25-Min Fast Delivery
+        ⚡ 30-Min Fast Delivery
       </span>
     </div>
 
@@ -484,10 +487,12 @@
         <p class="text-[11px] font-bold text-slate-800 leading-tight mt-1">Pet Care</p>
       </div>
     </div>
+
+    <div id="customerCategoryPreviews" class="mt-4 space-y-8"></div>
   </section>
 
   <!-- PRODUCTS FEED -->
-  <main class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+  <main id="homeProductFeed" class="hidden max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div class="flex items-center justify-between mb-4">
       <div>
         <h3 id="categoryHeading" class="text-base sm:text-lg font-black text-slate-900">Dairy, Bread & Eggs</h3>
@@ -499,100 +504,13 @@
     </div>
 
     <!-- Product Cards Grid -->
-    <div id="productsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"></div>
+    <div id="productsGrid" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"></div>
   </main>
 
-  <!-- SIGNATURE NAVY BLUE MEGA FOOTER -->
-  <footer class="mt-20 bg-[#0B132B] text-slate-300 border-t border-slate-800 pt-14 pb-16 text-xs">
-    <div class="max-w-7xl mx-auto px-4 lg:px-8">
-      
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-10 mb-10 border-b border-slate-800 gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg">
-            ⚡
-          </div>
-          <div>
-            <h4 class="text-xl font-black text-white tracking-tight leading-none">
-              MyShopzy<span class="text-amber-400">.</span>
-            </h4>
-            <p class="text-[11px] text-cyan-400 font-bold mt-1">Mandapeta's 25-Minute Dark Store Network</p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <div class="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Dark Store: <strong>RTC Complex Hub</strong></span>
-          </div>
-          <a href="../admin/admin.html" class="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] transition shadow">
-            Store Console →
-          </a>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-8 pb-12 border-b border-slate-800/80">
-        <div class="space-y-2.5">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Useful Links</h5>
-          <p><a href="#" class="hover:text-white transition">About MyShopzy</a></p>
-          <p><a href="#" class="hover:text-white transition">Privacy Policy</a></p>
-          <p><a href="#" class="hover:text-white transition">Terms of Service</a></p>
-          <p><a href="#" class="hover:text-white transition">FAQs & Help</a></p>
-          <p><a href="#" class="hover:text-white transition">Security & Safety</a></p>
-          <p><a href="#" class="hover:text-white transition">Contact Support</a></p>
-        </div>
-
-        <div class="space-y-2.5">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Partner</h5>
-          <p><a href="../rider/rider.html" class="text-cyan-400 hover:text-cyan-300 font-bold transition">Delivery Partner</a></p>
-          <p><a href="../admin/admin.html" class="text-cyan-400 hover:text-cyan-300 font-bold transition">Store Manager Hub</a></p>
-          <p><a href="#" class="hover:text-white transition">Local Farmer Tie-up</a></p>
-          <p><a href="#" class="hover:text-white transition">Franchise Enquiry</a></p>
-          <p><a href="#" class="hover:text-white transition">Warehouse Hub</a></p>
-        </div>
-
-        <div class="space-y-2.5">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Groceries</h5>
-          <p><a onclick="selectCategory('staples', this)" class="cursor-pointer hover:text-white transition">Atta, Rice & Dal</a></p>
-          <p><a onclick="selectCategory('masala', this)" class="cursor-pointer hover:text-white transition">Cooking Oils & Ghee</a></p>
-          <p><a onclick="selectCategory('dairy', this)" class="cursor-pointer hover:text-white transition">Milk, Curd & Paneer</a></p>
-          <p><a onclick="selectCategory('veggies', this)" class="cursor-pointer hover:text-white transition">Fresh Vegetables</a></p>
-          <p><a onclick="selectCategory('masala', this)" class="cursor-pointer hover:text-white transition">Masala & Spices</a></p>
-        </div>
-
-        <div class="space-y-2.5">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Snacks</h5>
-          <p><a onclick="selectCategory('snacks', this)" class="cursor-pointer hover:text-white transition">Chips & Namkeen</a></p>
-          <p><a onclick="selectCategory('sweets', this)" class="cursor-pointer hover:text-white transition">Chocolates & Sweets</a></p>
-          <p><a onclick="selectCategory('bakery', this)" class="cursor-pointer hover:text-white transition">Biscuits & Cookies</a></p>
-          <p><a onclick="selectCategory('breakfast', this)" class="cursor-pointer hover:text-white transition">Instant Noodles</a></p>
-          <p><a onclick="selectCategory('drinks', this)" class="cursor-pointer hover:text-white transition">Cold Drinks & Juices</a></p>
-        </div>
-
-        <div class="space-y-2.5">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Household</h5>
-          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Bath & Soaps</a></p>
-          <p><a onclick="selectCategory('cleaning', this)" class="cursor-pointer hover:text-white transition">Detergents & Bars</a></p>
-          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Oral Care & Pastes</a></p>
-          <p><a onclick="selectCategory('personal', this)" class="cursor-pointer hover:text-white transition">Skin & Hair Care</a></p>
-          <p><a onclick="selectCategory('cleaning', this)" class="cursor-pointer hover:text-white transition">Cleaning Supplies</a></p>
-        </div>
-
-        <div class="space-y-3">
-          <h5 class="font-extrabold text-white uppercase text-[11px] tracking-wider mb-3 text-amber-400">Mandapeta SLA</h5>
-          <p class="text-[11px] text-slate-300 leading-relaxed">
-            ⚡ <strong>25-Minute Dispatch:</strong> Direct deliveries from Mandapeta Hub across Mandapeta 6KM Radius.
-          </p>
-          <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl">
-            <span class="block text-[10px] uppercase font-black text-amber-400">Dark Store Hub:</span>
-            <span class="text-[11px] font-bold text-white">Mandapeta, Andhra Pradesh</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="pt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
-        <p>© 2026 MyShopzy Express Commerce Pvt Ltd. All rights reserved.</p>
-        <p class="text-slate-400">Built for Mandapeta Dark Store Operations</p>
-      </div>
+  <footer class="mt-8 bg-[#0B132B] text-slate-300 border-t border-slate-800 py-5 text-xs">
+    <div class="max-w-7xl mx-auto px-4 lg:px-8 text-center">
+      <p class="font-bold text-white">MyShopzy Private Limited</p>
+      <p class="mt-1 text-slate-400">Mandapeta, Andhra Pradesh</p>
     </div>
   </footer>
 
@@ -667,20 +585,7 @@
           </div>
         </div>
 
-        <!-- 🌟 Multi-Address Selector (Added to your original checkout) -->
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
-          <!-- 🌟 Multi-Address Selector -->
-        <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-2 shadow-sm">
-          <div class="flex items-center justify-between">
-            <label class="text-[11px] font-black text-slate-800 uppercase">Delivery Address</label>
-            <button type="button" onclick="openAddressManager()" class="text-[10px] font-bold text-blue-600 underline hover:text-blue-800">
-              + Add / Manage Addresses
-            </button>
-          </div>
-          <select id="checkoutAddressSelect" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl outline-none font-bold bg-slate-50">
-            <option value="">-- Select Saved Address --</option>
-          </select>
-        </div>
           <div class="flex items-center justify-between">
             <label class="text-[11px] font-black text-slate-800 uppercase">Delivery Address</label>
             <button type="button" onclick="openAddressManager()" class="text-[10px] font-bold text-blue-600 underline hover:text-blue-800">
@@ -825,8 +730,8 @@
       </div>
 
       <div class="p-3 bg-slate-50 rounded-2xl border space-y-1 text-xs">
-        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">Chelluri Chandu</h4>
-        <p class="text-slate-500">+91 <span id="accPhoneDisplay">8897798251</span></p>
+        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">MyShopzy Customer</h4>
+        <p class="text-slate-500">+91 <span id="accPhoneDisplay">Not logged in</span></p>
         <p id="accEmailDisplay" class="text-slate-400 text-[11px]">Not logged in</p>
       </div>
 

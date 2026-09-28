@@ -30,6 +30,7 @@ let currentCustomerCoords = {
   address: "Mandapeta, Andhra Pradesh",
   accuracy: null
 };
+let selectedMapLocation = null;
 
 let leafletMap = null;
 let customerMarker = null;
@@ -1241,10 +1242,14 @@ function closeLocationModal() {
 
 function confirmLocationSelection() {
 
+  const lat = Number(currentCustomerCoords?.lat);
+  const lng = Number(currentCustomerCoords?.lng);
+
   if (
-    !currentCustomerCoords ||
-    !currentCustomerCoords.lat ||
-    !currentCustomerCoords.lng
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 || lat > 90 ||
+    lng < -180 || lng > 180
   ) {
 
     alert(
@@ -1255,24 +1260,32 @@ function confirmLocationSelection() {
   }
 
 
-  const headerAddr =
-    document.getElementById(
-      "currentAddressHeader"
-    );
+  selectedMapLocation = {
+    lat,
+    lng,
+    address: currentCustomerCoords.address || `GPS Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`,
+    accuracy: currentCustomerCoords.accuracy ?? null
+  };
 
-  if (headerAddr) {
-
-    headerAddr.innerText =
-      currentCustomerCoords.address;
-  }
-
-
+  updateLocationUI();
   closeLocationModal();
+  populateCheckoutAddressDropdown();
+}
 
 
-  // Open address manager so customer can
-  // add/save the GPS location manually.
-  openAddressManager();
+function getSelectedMapDeliveryAddress() {
+  if (!selectedMapLocation) return null;
+
+  return {
+    id: "selected-map-location",
+    isMapPin: true,
+    fullName: getCustomerDisplayName(),
+    mobile: getCurrentCustomerPhone(),
+    street: selectedMapLocation.address,
+    latitude: selectedMapLocation.lat,
+    longitude: selectedMapLocation.lng,
+    accuracy: selectedMapLocation.accuracy
+  };
 }
 
 
@@ -1322,6 +1335,11 @@ function closeOrdersView() {
       "hidden"
     );
   }
+}
+
+
+function openCustomerAccountAccess() {
+  openLoginModal();
 }
 
 
@@ -1396,11 +1414,12 @@ function closeAddressManager() {
 
 
 function scrollToCategories() {
+  const target = document.getElementById("exploreCategories");
+  if (!target) return;
 
-  window.scrollTo({
-    top: 400,
-    behavior: "smooth"
-  });
+  const headerHeight = document.querySelector(".myshopzy-header")?.getBoundingClientRect().height || 0;
+  const targetTop = window.scrollY + target.getBoundingClientRect().top - headerHeight - 12;
+  window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
 }
 
 
@@ -1980,7 +1999,7 @@ function populateCheckoutAddressDropdown() {
         <option
           value="${idx}"
           ${
-            addr.isDefault
+            addr.isDefault && !selectedMapLocation
               ? "selected"
               : ""
           }
@@ -1994,6 +2013,18 @@ function populateCheckoutAddressDropdown() {
       `;
     }
   );
+
+  if (selectedMapLocation) {
+    const mapPinOption = document.createElement("option");
+    mapPinOption.value = "map-pin";
+    mapPinOption.textContent = `📍 Exact map pin - ${selectedMapLocation.address}`;
+    mapPinOption.selected = true;
+    select.append(mapPinOption);
+  }
+
+  select.onchange = () => {
+    if (select.value !== "map-pin") selectedMapLocation = null;
+  };
 }
 
 
@@ -2167,12 +2198,89 @@ const defaultHeroFeatureSlides = [
   }
 ];
 
+let selectedCategoryPreviewId = "";
+
+function openCategoryPage(categoryId, categoryName = "") {
+  const query = new URLSearchParams({ type: "category", categoryId });
+  if (categoryName) query.set("categoryName", categoryName);
+  window.open(`service.html?${query.toString()}`, "_blank", "noopener");
+}
+
+function selectCategoryPreview(productId) {
+  selectedCategoryPreviewId = productId;
+  document.querySelectorAll("#customerCategoryPreviews [data-category-product-id]").forEach(card => {
+    const selected = card.dataset.categoryProductId === String(productId);
+    card.classList.toggle("is-selected", selected);
+    card.querySelectorAll("[data-preview-select]").forEach(button => button.setAttribute("aria-pressed", String(selected)));
+  });
+}
+
+function refreshCategoryPreviewProduct(productId) {
+  const card = [...document.querySelectorAll("#customerCategoryPreviews [data-category-product-id]")]
+    .find(item => item.dataset.categoryProductId === String(productId));
+  const product = liveCatalog.find(item => String(item.id) === String(productId));
+  if (card && product) card.outerHTML = renderCategoryPreviewProduct(product);
+}
+
+function renderCategoryPreviewProduct(product) {
+  const quantity = product.isDemo ? 0 : cartState[product.id] || 0;
+  const productId = escapeAttribute(product.id);
+  const unit = product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit || "1 pc";
+  const price = getProductPrice(product, getSelectedProductWeight(product));
+  const selected = selectedCategoryPreviewId === product.id;
+  const selectedClass = selected ? "is-selected" : "";
+
+  return `<article data-category-product-id="${productId}" class="min-w-0 category-product-card rounded-xl bg-white p-2 shadow-sm transition ${selectedClass}">
+    <button type="button" data-preview-select onclick="selectCategoryPreview('${productId}')" aria-pressed="${selected}" class="block w-full text-left">
+      <div class="relative flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2"><img src="${escapeAttribute(product.image_url || "")}" alt="${escapeAttribute(product.name || "Product")}" loading="lazy" class="max-h-full max-w-full object-contain" onerror="this.classList.add('hidden')">${product.isDemo ? '<span class="absolute bottom-1 right-1 rounded bg-slate-800/80 px-1 text-[8px] font-black text-white">DEMO</span>' : ""}</div>
+      <p class="mt-2 truncate text-[10px] font-semibold text-slate-500">${escapeHtml(unit)}</p>
+      <h4 class="mt-1 line-clamp-2 min-h-8 text-[11px] font-bold text-slate-900">${escapeHtml(product.name || "Product")}</h4>
+    </button>
+    <div class="mt-2 flex items-center justify-between gap-1"><strong class="text-xs font-black text-slate-900">₹${price}</strong>
+      ${product.isDemo
+        ? `<button type="button" data-preview-select onclick="selectCategoryPreview('${productId}')" aria-pressed="${selected}" class="rounded-lg border-2 border-emerald-700 bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-800">DEMO</button>`
+        : quantity === 0
+        ? `<button type="button" onclick="modifyCart('${productId}', 1)" class="rounded-lg border-2 border-emerald-700 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">ADD</button>`
+        : `<div class="flex items-center gap-2 rounded-lg bg-emerald-700 px-2 py-1 text-[10px] font-black text-white"><button type="button" aria-label="Remove one" onclick="modifyCart('${productId}', -1)">-</button><span>${quantity}</span><button type="button" aria-label="Add one" onclick="modifyCart('${productId}', 1)">+</button></div>`}
+    </div>
+  </article>`;
+}
+
+function renderCustomerCategoryPreviews() {
+  const container = document.getElementById("customerCategoryPreviews");
+  if (!container) return;
+
+  container.innerHTML = categories.map(category => {
+    const products = liveCatalog.filter(product => product.category === category.id).slice(0, 6);
+    const imageUrl = customerCategoryImages[category.id] || category.image_url || categoryDefaultImages[category.id] || "";
+    const demoProducts = Array.from({ length: 4 }, (_, index) => ({
+      id: `demo-${category.id}-${index + 1}`,
+      name: `${category.name} Demo ${index + 1}`,
+      category: category.id,
+      price: 49 + index * 20,
+      qty_value: 1,
+      qty_unit: "pc",
+      image_url: imageUrl,
+      isDemo: true
+    }));
+    while (products.length < 4) products.push(demoProducts[products.length]);
+
+    return `<section class="space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="min-w-0 truncate text-left text-sm font-black text-slate-900">${escapeHtml(category.name)}</button>
+        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="shrink-0 text-[10px] font-black text-emerald-700">View all →</button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3">${products.map(renderCategoryPreviewProduct).join("")}</div>
+    </section>`;
+  }).join("");
+}
+
 function renderCustomerCategoryTiles() {
   const container = document.getElementById('customerCategoryGrid');
   if (!container) return;
   container.innerHTML = categories.map(category => {
     const imageUrl = customerCategoryImages[category.id] || category.image_url || categoryDefaultImages[category.id] || '';
-    return `<button type="button" onclick="selectCategory('${escapeAttribute(category.id)}', this)" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
+    return `<button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
       <span class="flex h-16 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-1"><img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(category.name)}" class="max-h-full object-contain transition group-hover:scale-105" onerror="this.classList.add('hidden')"></span>
       <span class="mt-1 text-[11px] font-bold leading-tight text-slate-800">${escapeHtml(category.name)}</span>
     </button>`;
@@ -2190,6 +2298,7 @@ function loadCustomerCategorySettings() {
       }
     }
     renderCustomerCategoryTiles();
+    renderCustomerCategoryPreviews();
     const heading = document.getElementById('categoryHeading');
     const active = categories.find(category => category.id === activeCategory);
     if (heading && active) heading.innerText = active.name;
@@ -2656,6 +2765,7 @@ async function fetchProducts() {
           cloudProducts;
 
         restorePendingServiceCart();
+        renderCustomerCategoryPreviews();
         renderServiceRestaurantList();
         filterAndRender();
       },
@@ -2787,7 +2897,7 @@ function filterAndRender() {
 
 
       grid.innerHTML += `
-        <div class="bg-white p-2.5 rounded-2xl border shadow-sm flex flex-col justify-between">
+        <div class="category-product-card bg-white p-2.5 rounded-2xl shadow-sm flex flex-col justify-between">
 
           <div>
 
@@ -2841,7 +2951,7 @@ function filterAndRender() {
 
                     <button
                       onclick="modifyCart('${escapeAttribute(p.id)}', 1)"
-                      class="px-3 py-1 rounded-lg border-2 border-emerald-600 text-emerald-700 text-xs font-black"
+                      class="px-3 py-1 rounded-lg border-2 border-emerald-700 bg-emerald-50 text-emerald-800 text-xs font-black"
                     >
                       ADD
                     </button>
@@ -2905,9 +3015,19 @@ function selectCategory(
   targetEl = null
 ) {
 
+  if (targetEl?.closest("#customerCategoryGrid")) {
+    const category = categories.find(item => item.id === catId);
+    openCategoryPage(catId, category?.name || "Products");
+    return;
+  }
+
   if (catId === "meat") {
     window.location.href = "service.html?type=meat";
     return;
+  }
+
+  if (!suppressCategoryScrollOnInit) {
+    document.getElementById("homeProductFeed")?.classList.remove("hidden");
   }
 
   activeCategory =
@@ -2949,8 +3069,8 @@ function selectCategory(
 const CUSTOMER_SERVICE_ROUTES = {
   groceries: { category: "staples", name: "Fresh Groceries" },
   "fruits-vegetables": { category: "veggies", name: "Fruits & Vegetables" },
-  "food-delivery": { category: "restaurants", name: "Food Delivery" },
-  "meat-chicken": { category: "meat" },
+  "food-delivery": { destination: "service.html?type=restaurant" },
+  "meat-chicken": { destination: "service.html?type=meat" },
   "parcel-delivery": { destination: "service.html?type=parcel" },
   "local-stores": { category: "home", name: "Local Stores" }
 };
@@ -2960,13 +3080,11 @@ function openServiceCategory(serviceKey, targetEl = null) {
   if (!route) return;
 
   if (route.destination) {
-    window.location.href = route.destination;
+    window.open(route.destination, "_blank", "noopener");
     return;
   }
 
-  selectCategory(route.category, targetEl);
-  const heading = document.getElementById("categoryHeading");
-  if (heading && route.name) heading.innerText = route.name;
+  openCategoryPage(route.category, route.name);
 }
 
 function scrollToProducts(productsGrid) {
@@ -3010,6 +3128,8 @@ function modifyCart(
   delta
 ) {
 
+  selectedCategoryPreviewId = prodId;
+
   const next =
     (cartState[prodId] || 0) +
     delta;
@@ -3027,6 +3147,7 @@ function modifyCart(
 
 
   filterAndRender();
+  refreshCategoryPreviewProduct(prodId);
 
   syncCartBar();
 
@@ -3939,9 +4060,9 @@ async function processPaymentFlow() {
 
 
   const chosenAddr =
-    savedAddresses[
-      Number(selectIdx)
-    ];
+    selectIdx === "map-pin"
+      ? getSelectedMapDeliveryAddress()
+      : savedAddresses[Number(selectIdx)];
 
 
   if (!chosenAddr) {
@@ -4146,8 +4267,9 @@ async function finalizeOrderAndLaunch(
     );
 
 
-  const fullAddressString =
-    `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.house}, ${chosenAddr.street}, ${chosenAddr.city}, ${chosenAddr.state} - ${chosenAddr.pincode}`;
+  const fullAddressString = chosenAddr.isMapPin
+    ? `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.street}, Exact pin ${chosenAddr.latitude.toFixed(6)}, ${chosenAddr.longitude.toFixed(6)}`
+    : `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.house}, ${chosenAddr.street}, ${chosenAddr.city}, ${chosenAddr.state} - ${chosenAddr.pincode}`;
 
 
   // IMPORTANT:
@@ -4175,19 +4297,13 @@ async function finalizeOrderAndLaunch(
       fullAddressString,
 
     delivery_latitude:
-      chosenAddr.latitude ||
-      currentCustomerCoords.lat ||
-      null,
+      chosenAddr.latitude ?? null,
 
     delivery_longitude:
-      chosenAddr.longitude ||
-      currentCustomerCoords.lng ||
-      null,
+      chosenAddr.longitude ?? null,
 
     delivery_accuracy:
-      chosenAddr.accuracy ||
-      currentCustomerCoords.accuracy ||
-      null,
+      chosenAddr.accuracy ?? null,
 
     items:
       orderItems,
@@ -4439,15 +4555,21 @@ function syncAccountDashboard() {
   }
 
 
+  let savedCustomer = null;
+  if (phone) {
+    try {
+      savedCustomer = JSON.parse(
+        localStorage.getItem(`myshopzy_customer_${phone}`) || "null"
+      );
+    } catch (error) {
+      console.warn("Customer account profile unavailable:", error);
+    }
+  }
+
   const name =
-    phone
-      ? getCustomerDisplayName()
-      : "MyShopzy Customer";
+    savedCustomer?.name ||
+    (phone ? getCustomerDisplayName() : "MyShopzy Customer");
 
-
-  const savedCustomer = phone
-    ? JSON.parse(localStorage.getItem(`myshopzy_customer_${phone}`) || "null")
-    : null;
   const email = phone
     ? (savedCustomer?.email || "Not provided")
     : "Not logged in";
@@ -5524,6 +5646,9 @@ document.addEventListener(
 
     applyThemeMode(localStorage.getItem("myshopzy_theme") === "dark");
     setUserLanguage(localStorage.getItem("myshopzy_language") || "en");
+
+    renderCustomerCategoryTiles();
+    renderCustomerCategoryPreviews();
 
     checkStoreWorkingHours();
     loadCustomerHomepageBanners();
