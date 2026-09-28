@@ -44,8 +44,637 @@
       }
     }
   </script>
+  <style>
+    :root {
+      --sidebar-bg: #0b1b33;
+      --sidebar-border: rgba(255,255,255,0.08);
+      --page-bg: #eef2f7;
+      --card-soft: #f8fbff;
+      --card-muted: #f3f7f5;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #1d4ed8;
+      --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: var(--page-bg);
+      color: var(--text);
+    }
+
+    .dashboard-shell {
+      min-height: 100vh;
+      display: flex;
+      background: var(--page-bg);
+    }
+
+    .dashboard-sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 260px;
+      background: linear-gradient(180deg, #0b1b33 0%, #101d34 100%);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      z-index: 40;
+      transition: transform 0.25s ease;
+    }
+
+    .brand-block {
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid rgba(148,163,184,0.18);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+      font-size: 18px;
+    }
+
+    .brand-name {
+      font-size: 1.05rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: #f8fbff;
+      line-height: 1.1;
+    }
+
+    .brand-name span {
+      display: block;
+      font-size: 0.76rem;
+      letter-spacing: 0.12em;
+      opacity: 0.9;
+    }
+
+    .brand-sub {
+      margin-top: 12px;
+      color: rgba(191,219,254,0.88);
+      font-size: 0.72rem;
+      line-height: 1.6;
+    }
+
+    .sidebar-nav {
+      padding: 16px 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      text-align: left;
+      padding: 12px 12px;
+      border-radius: 12px;
+      color: rgba(226,232,240,0.9);
+      border: 1px solid transparent;
+      background: transparent;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: rgba(148, 163, 184, 0.08);
+      color: #fff;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(59,130,246,0.28), rgba(96,165,250,0.18));
+      border-color: rgba(96,165,250,0.35);
+      color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(147,197,253,0.12);
+    }
+
+    .nav-item .icon-wrap {
+      width: 20px;
+      text-align: center;
+      font-size: 1.1rem;
+      opacity: 0.95;
+    }
+
+    .sidebar-status {
+      margin-top: auto;
+      padding: 16px 18px 18px;
+      border-top: 1px solid rgba(148,163,184,0.18);
+    }
+
+    .sidebar-status-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-radius: 12px;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.2);
+      border: 1px solid rgba(148,163,184,0.12);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 0 4px rgba(52,211,153,0.14);
+    }
+
+    .status-cloud {
+      font-size: 0.9rem;
+      opacity: 0.85;
+    }
+
+    .workspace {
+      margin-left: 260px;
+      width: calc(100% - 260px);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 72px;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(148,163,184,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 0 18px;
+    }
+
+    .topbar-left,
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .menu-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(148,163,184,0.28);
+      border-radius: 10px;
+      background: white;
+      color: #1e293b;
+      font-size: 1.2rem;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+      cursor: pointer;
+    }
+
+    .current-meta {
+      color: #1e293b;
+      font-weight: 700;
+      font-size: 0.86rem;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bell-btn {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(148,163,184,0.2);
+      color: #1e293b;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .profile-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 8px 5px 5px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.03);
+      border: 1px solid rgba(148,163,184,0.15);
+      position: relative;
+    }
+
+    .profile-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      min-width: 160px;
+      background: white;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 14px;
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+      z-index: 30;
+    }
+
+    .profile-menu.hidden {
+      display: none;
+    }
+
+    .profile-menu button {
+      width: 100%;
+      border: 0;
+      background: white;
+      color: #0f172a;
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .profile-menu button:hover {
+      background: #f8fafc;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+      color: white;
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .profile-name {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .caret {
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-left: 2px;
+    }
+
+    .page-content {
+      padding: 28px 28px 40px;
+    }
+
+    .dashboard-header {
+      padding: 8px 0 18px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .dashboard-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 6px;
+    }
+
+    .dashboard-title {
+      font-size: clamp(2rem, 2.5vw, 3.2rem);
+      line-height: 1.08;
+      letter-spacing: -0.06em;
+      font-weight: 900;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #15803d;
+      background: rgba(52, 211, 153, 0.12);
+      border: 1px solid rgba(52, 211, 153, 0.18);
+      white-space: nowrap;
+    }
+
+    .dot-green {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34,197,94,0.15);
+    }
+
+    .dashboard-subtitle {
+      font-size: 0.97rem;
+      color: #475569;
+      margin: 0;
+      max-width: 720px;
+      line-height: 1.6;
+    }
+
+    .dashboard-card-grid {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .dash-card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88));
+      border: 1px solid rgba(148,163,184,0.15);
+      box-shadow: var(--shadow-soft);
+      border-radius: 20px;
+      padding: 18px 18px 16px;
+      min-height: 168px;
+      overflow: hidden;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .dash-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.10);
+    }
+
+    .dash-card[data-tone="amber"] { background: linear-gradient(180deg, #fffaf0 0%, #fef3c7 100%); }
+    .dash-card[data-tone="cyan"] { background: linear-gradient(180deg, #eefcff 0%, #dff4ff 100%); }
+    .dash-card[data-tone="violet"] { background: linear-gradient(180deg, #f7f4ff 0%, #ede9fe 100%); }
+    .dash-card[data-tone="green"] { background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%); }
+    .dash-card[data-tone="rose"] { background: linear-gradient(180deg, #fff5f6 0%, #ffe0e4 100%); }
+    .dash-card[data-tone="indigo"] { background: linear-gradient(180deg, #eef5ff 0%, #dbeafe 100%); }
+    .dash-card[data-tone="purple"] { background: linear-gradient(180deg, #f7f3ff 0%, #ede9fe 100%); }
+    .dash-card[data-tone="sand"] { background: linear-gradient(180deg, #fffaf5 0%, #fdf1e6 100%); }
+    .dash-card[data-tone="slate"] { background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%); }
+
+    .card-badge {
+      position: absolute;
+      right: 14px;
+      top: 14px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #475569;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(148,163,184,0.2);
+    }
+
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      font-size: 1.45rem;
+      background: rgba(255,255,255,0.56);
+      border: 1px solid rgba(148,163,184,0.15);
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+
+    .card-text {
+      margin: 8px 0 0;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: #475569;
+      max-width: 26ch;
+    }
+
+    .welcome-panel {
+      margin-top: 30px;
+      background: linear-gradient(135deg, rgba(219,234,254,0.62), rgba(191,219,254,0.38));
+      border: 1px solid rgba(148,163,184,0.14);
+      border-radius: 26px;
+      padding: 22px 22px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .welcome-copy {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .welcome-icon {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(148,163,184,0.14);
+      font-size: 1.45rem;
+    }
+
+    .welcome-title {
+      margin: 0;
+      font-size: clamp(1.4rem, 2vw, 2.15rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: #0f172a;
+    }
+
+    .welcome-subtitle {
+      margin: 8px 0 0;
+      font-size: 0.92rem;
+      color: #475569;
+    }
+
+    .welcome-art {
+      width: 180px;
+      height: 120px;
+      position: relative;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(14,165,233,0.18), rgba(59,130,246,0.08));
+      overflow: hidden;
+      border: 1px solid rgba(59,130,246,0.12);
+    }
+
+    .welcome-art::before {
+      content: "";
+      position: absolute;
+      right: 18px;
+      bottom: 10px;
+      width: 108px;
+      height: 58px;
+      border-radius: 16px 16px 12px 12px;
+      background: linear-gradient(180deg, rgba(14,165,233,0.85), rgba(59,130,246,0.7));
+      box-shadow: inset 0 -8px 0 rgba(255,255,255,0.18);
+    }
+
+    .welcome-art::after {
+      content: "";
+      position: absolute;
+      left: 34px;
+      bottom: 18px;
+      width: 70px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(34,197,94,0.35);
+      box-shadow: 90px 4px 0 rgba(34,197,94,0.18), 40px -26px 0 rgba(34,197,94,0.2);
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-sidebar {
+        transform: translateX(-100%);
+      }
+
+      body.sidebar-open .dashboard-sidebar {
+        transform: translateX(0);
+      }
+
+      .workspace {
+        width: 100%;
+        margin-left: 0;
+      }
+
+      .topbar {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .page-content {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .dashboard-card-grid { grid-template-columns: 1fr; }
+      .dashboard-title-row { flex-direction: column; align-items: flex-start; }
+      .welcome-panel { flex-direction: column; align-items: flex-start; }
+      .welcome-art { width: 100%; max-width: 220px; }
+      .current-meta { display: none; }
+      .profile-name { display: none; }
+      .caret { display: none; }
+    }
+  </style>
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-20">
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar" aria-label="Admin sidebar">
+      <div class="brand-block">
+        <div class="brand-wrap">
+          <div class="brand-icon">🛒</div>
+          <div class="brand-name">MYSHOPZY <span>STORE HUB</span></div>
+        </div>
+        <p class="brand-sub">Managed Operations Console</p>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <button type="button" class="nav-item active" data-tab="home" onclick="switchView('home')">
+          <span class="icon-wrap">⌂</span>
+          <span>Home</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="orders" onclick="switchView('orders')">
+          <span class="icon-wrap">🔔</span>
+          <span>Orders</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="analytics" onclick="switchView('analytics')">
+          <span class="icon-wrap">📊</span>
+          <span>Sales &amp; Reports</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="inventory" onclick="switchView('inventory')">
+          <span class="icon-wrap">📦</span>
+          <span>Inventory</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="partners" onclick="switchView('partners')">
+          <span class="icon-wrap">👥</span>
+          <span>Partner Accounts</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="banners" onclick="switchView('banners')">
+          <span class="icon-wrap">🖼️</span>
+          <span>Banners &amp; Categories</span>
+        </button>
+        <a href="../frontend/index.html" target="_blank" rel="noreferrer" class="nav-item">
+          <span class="icon-wrap">🌐</span>
+          <span>Storefront</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="sidebar-status-inner">
+          <span style="display:flex;align-items:center;gap:10px;">
+            <span class="live-dot"></span>
+            <span>Live sync</span>
+          </span>
+          <span class="status-cloud">☁</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-btn" id="sidebarToggle" type="button" aria-label="Toggle sidebar">☰</button>
+          <div class="current-meta">
+            <span id="currentDateLabel">Wed, 28 Sep 2026</span>
+            <span>•</span>
+            <span id="currentTimeLabel">08:24 PM</span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button type="button" class="bell-btn" aria-label="Notifications">🔔</button>
+          <div class="profile-box">
+            <button type="button" id="adminProfileToggle" style="display:flex; align-items:center; gap:10px; border:0; background:transparent; padding:0; cursor:pointer;">
+              <div class="avatar">A</div>
+              <span class="profile-name">Admin</span>
+              <span class="caret">▾</span>
+            </button>
+            <div id="adminProfileMenu" class="profile-menu hidden">
+              <button type="button" onclick="logoutAdminSession()">Logout</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
   <!-- TERMINAL PIN SECURITY OVERLAY -->
   <div id="adminAuthLock" class="fixed inset-0 z-50 bg-[#0B132B] flex items-center justify-center p-4">
@@ -70,72 +699,65 @@
     </div>
   </div>
 
-  <!-- HEADER (Responsive Scrollable Tabs for Mobile) -->
-  <header class="bg-[#0B132B] text-white px-3 sm:px-6 py-4 border-b border-slate-800 shadow-md sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-      
-      <div class="flex items-center justify-between w-full sm:w-auto">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg shadow">
-            ⚡
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h1 class="text-sm font-extrabold uppercase tracking-wider text-cyan-400">MyShopzy Store Hub</h1>
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            </div>
-            <p class="text-[10px] sm:text-xs text-slate-300">Mandapeta Operations Console</p>
-          </div>
-        </div>
-        <a href="../frontend/index.html" target="_blank" class="sm:hidden px-2.5 py-1 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 text-[10px] font-bold">
-          Storefront ↗
-        </a>
-      </div>
+  <script>
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const currentDateLabel = document.getElementById('currentDateLabel');
+    const currentTimeLabel = document.getElementById('currentTimeLabel');
+    const adminProfileToggle = document.getElementById('adminProfileToggle');
+    const adminProfileMenu = document.getElementById('adminProfileMenu');
 
-      <!-- Admin tab switcher -->
-      <div class="w-full sm:w-auto overflow-x-auto no-scrollbar py-1">
-        <div class="flex items-center gap-1.5 bg-[#1C2541] p-1 rounded-2xl border border-slate-700 whitespace-nowrap">
-          <button id="tabBtnOrders" onclick="switchView('orders')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition">
-            <span>🔔</span> Orders
-          </button>
-          <button id="tabBtnAnalytics" onclick="switchView('analytics')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>📈</span> Sales & Reports
-          </button>
-          <button id="tabBtnInventory" onclick="switchView('inventory')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>📦</span> Inventory
-          </button>
-          <button id="tabBtnRiderVerification" onclick="switchView('rider-verification')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🛵</span> Rider Verification
-          </button>
-          <button id="tabBtnExpenses" onclick="switchView('expenses')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>💰</span> Expenses
-          </button>
-          <button id="tabBtnDeliveryPricing" onclick="switchView('delivery-pricing')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🚴</span> Delivery Boy Pricing
-          </button>
-          <button id="tabBtnPartners" onclick="switchView('partners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🤝</span> Partner Accounts
-          </button>
-          <button id="tabBtnBanners" onclick="switchView('banners')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🖼️</span> Banners
-          </button>
-          <button id="tabBtnCategories" onclick="switchView('categories')" class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition">
-            <span>🗂️</span> Categories
-          </button>
-        </div>
-      </div>
+    const setCurrentDateTime = () => {
+      if (!currentDateLabel || !currentTimeLabel) return;
 
-      <div class="hidden sm:flex items-center gap-2">
-        <a href="../partner/partner.html" target="_blank" class="px-3 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-black flex items-center gap-1">
-          <span>Partner Console ↗</span>
-        </a>
-        <a href="../frontend/index.html" target="_blank" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1">
-          <span>Storefront ↗</span>
-        </a>
-      </div>
+      const now = new Date();
+      currentDateLabel.textContent = now.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+      currentTimeLabel.textContent = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
 
-    </div>
-  </header>
+    const toggleAdminProfileMenu = () => {
+      if (!adminProfileMenu) return;
+      adminProfileMenu.classList.toggle('hidden');
+    };
+
+    const logoutAdminSession = () => {
+      sessionStorage.removeItem('hub_session_unlocked');
+      localStorage.removeItem('hub_session_unlocked');
+      const lock = document.getElementById('adminAuthLock');
+      if (lock) lock.classList.remove('hidden');
+      if (adminProfileMenu) adminProfileMenu.classList.add('hidden');
+      document.getElementById('adminPinInput')?.focus();
+    };
+
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener('click', () => {
+        document.body.classList.toggle('sidebar-open');
+      });
+    }
+
+    if (adminProfileToggle) {
+      adminProfileToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleAdminProfileMenu();
+      });
+    }
+
+    document.addEventListener('click', (event) => {
+      if (adminProfileMenu && !event.target.closest('.profile-box')) {
+        adminProfileMenu.classList.add('hidden');
+      }
+    });
+
+    setCurrentDateTime();
+    setInterval(setCurrentDateTime, 60000);
+  </script>
 
   <div id="adminNewOrderAlert" class="hidden fixed top-4 right-4 z-[80] w-[min(92vw,380px)] rounded-2xl bg-rose-600 text-white p-4 shadow-2xl border-2 border-rose-300">
     <div class="flex items-start justify-between gap-3">
@@ -153,96 +775,242 @@
     </div>
   </div>
 
-  <!-- TAB 1: LIVE ORDERS DISPATCH QUEUE -->
-  <main id="ordersViewSection" class="max-w-7xl mx-auto px-3 sm:px-6 py-6">
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <p class="text-[11px] font-bold text-slate-400 uppercase">Active Orders in Hub</p>
-        <h3 id="metricActiveOrders" class="text-2xl font-black text-slate-900 mt-1">0</h3>
-      </div>
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <p class="text-[11px] font-bold text-slate-400 uppercase">Delivered Today</p>
-        <h3 id="metricDelivered" class="text-2xl font-black text-emerald-600 mt-1">0</h3>
-      </div>
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <p class="text-[11px] font-bold text-slate-400 uppercase">Active Hub Riders</p>
-        <div id="adminRiderStatusList" class="flex flex-wrap items-center gap-2 mt-2"></div>
+  <!-- TAB 1: HOME DASHBOARD -->
+  <main id="homeViewSection" class="max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="page-content" style="padding: 0; margin: 0;">
+      <section class="dashboard-header" style="padding-top:0;">
+        <div class="eyebrow">Store Hub Overview</div>
+        <div class="dashboard-title-row">
+          <h1 class="dashboard-title">Operations Dashboard</h1>
+          <span class="live-pill"><span class="dot-green"></span> Live sync</span>
+        </div>
+        <p class="dashboard-subtitle">Monitor your store performance, manage operations and keep everything running smoothly.</p>
+      </section>
+
+      <section class="welcome-panel">
+        <div class="welcome-copy">
+          <div class="welcome-icon">📦</div>
+          <div>
+            <h2 class="welcome-title">Welcome to MyShopzy Store Hub</h2>
+            <p class="welcome-subtitle">Manage your store operations efficiently and grow your business.</p>
+          </div>
+        </div>
+        <div class="welcome-art" aria-hidden="true"></div>
+      </section>
+
+      <div class="dashboard-card-grid">
+        <button type="button" class="dash-card" data-tone="amber" onclick="switchView('orders')">
+          <span class="card-badge">Live</span>
+          <span class="card-icon">🔔</span>
+          <h3 class="card-title">Orders</h3>
+          <p class="card-text">Dispatch queue and delivery follow-up.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="cyan" onclick="switchView('analytics')">
+          <span class="card-badge">Reports</span>
+          <span class="card-icon">📈</span>
+          <h3 class="card-title">Sales &amp; Reports</h3>
+          <p class="card-text">Daily revenue, order totals and settlements.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="violet" onclick="switchView('inventory')">
+          <span class="card-badge">Inventory</span>
+          <span class="card-icon">📦</span>
+          <h3 class="card-title">Inventory</h3>
+          <p class="card-text">Current product and stock management.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="green" onclick="switchView('riderVerification')">
+          <span class="card-badge">Review</span>
+          <span class="card-icon">🛵</span>
+          <h3 class="card-title">Rider Verification</h3>
+          <p class="card-text">Review pending rider documents and approvals.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="rose" onclick="switchView('expenses')">
+          <span class="card-badge">Pending</span>
+          <span class="card-icon">💰</span>
+          <h3 class="card-title">Expenses</h3>
+          <p class="card-text">Track operating costs and reimbursements.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="indigo" onclick="switchView('deliveryPricing')">
+          <span class="card-badge">Rates</span>
+          <span class="card-icon">🚴</span>
+          <h3 class="card-title">Delivery Boy Pricing</h3>
+          <p class="card-text">View rider payout and fare rules.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="purple" onclick="switchView('partners')">
+          <span class="card-badge">Accounts</span>
+          <span class="card-icon">🤝</span>
+          <h3 class="card-title">Partner Accounts</h3>
+          <p class="card-text">Store and partner setup remains available.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="sand" onclick="switchView('banners')">
+          <span class="card-badge">Media</span>
+          <span class="card-icon">🖼️</span>
+          <h3 class="card-title">Banners</h3>
+          <p class="card-text">No data available yet.</p>
+        </button>
+
+        <button type="button" class="dash-card" data-tone="slate" onclick="switchView('categories')">
+          <span class="card-badge">Catalog</span>
+          <span class="card-icon">🗂️</span>
+          <h3 class="card-title">Categories</h3>
+          <p class="card-text">No data available yet.</p>
+        </button>
       </div>
     </div>
+  </main>
 
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+  <!-- TAB 2: LIVE ORDERS DISPATCH QUEUE -->
+  <main id="ordersViewSection" class="hidden max-w-5xl mx-auto px-3 sm:px-6 py-6 space-y-5">
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Active orders in hub</h3>
+      </div>
+      <div id="metricActiveOrders" class="text-2xl font-black tracking-tight text-slate-900">0</div>
+    </section>
+
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Delivered today</h3>
+      </div>
+      <div id="metricDelivered" class="text-2xl font-black tracking-tight text-emerald-600">0</div>
+    </section>
+
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Active hub riders</h3>
+      </div>
+      <div id="activeHubRidersCount" class="text-2xl font-black tracking-tight text-slate-900">0</div>
+    </section>
+
+    <section class="rounded-[28px] border border-amber-200 bg-amber-50/70 shadow-sm p-5 sm:p-6">
+      <div class="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 class="text-base font-extrabold text-slate-900">Dark Store Dispatch Pipeline</h2>
-          <p class="text-xs text-slate-500">Tap colorful buttons for instant status change</p>
+          <h2 class="text-[20px] font-black leading-tight text-slate-900">Rider Verification Queue</h2>
+          <p class="mt-2 max-w-xl text-sm font-medium text-slate-600">Review identity documents before rider login is enabled.</p>
+        </div>
+        <button type="button" class="rounded-full bg-[#f3d26e] px-4 py-2 text-[12px] font-black text-slate-900 shadow-sm">Admin review</button>
+      </div>
+      <div id="riderVerificationQueue" class="grid gap-3">
+        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
+      </div>
+    </section>
+
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+      <div class="mb-4">
+        <h2 class="text-[20px] font-black leading-tight text-slate-900">Dark Store Dispatch Pipeline</h2>
+        <p class="mt-2 text-sm font-medium text-slate-600">Tap colorful buttons for instant status change</p>
+      </div>
+      <div id="adminQueueContainer" class="space-y-3">
+        <p class="text-sm font-bold text-slate-500">Loading dispatch queue...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- TAB 3: SALES & REPORTS -->
+  <main id="analyticsViewSection" class="hidden max-w-5xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+      <h1 class="text-[24px] font-black leading-tight text-slate-900">Daily Sales &amp; Operational Settlement</h1>
+      <p class="mt-2 text-sm font-medium text-slate-600">Select any specific date to view sales, collections and order history</p>
+
+      <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner sm:w-[280px]">
+          <input id="salesFilterDate" type="date" class="w-full border-0 bg-transparent text-xl font-black text-slate-900 outline-none" />
+        </div>
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="resetSalesToToday()" class="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-sm">Today</button>
+          <button type="button" onclick="exportDailyOrdersCSV()" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm">Download CSV</button>
         </div>
       </div>
-      <div id="adminQueueContainer" class="space-y-3"></div>
+    </section>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Total Revenue (All time)</h3>
+        <div id="statTodayRevenue" class="mt-3 text-2xl font-black tracking-tight text-slate-900">₹0</div>
+      </section>
+
+      <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">UPI Online Paid</h3>
+        <div id="statOnlinePaid" class="mt-3 text-2xl font-black tracking-tight text-slate-900">₹0</div>
+      </section>
+
+      <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">COD Cash Collected</h3>
+        <div id="statCodPaid" class="mt-3 text-2xl font-black tracking-tight text-amber-600">₹0</div>
+      </section>
+
+      <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Total Orders</h3>
+        <div id="statTotalOrders" class="mt-3 text-2xl font-black tracking-tight text-violet-600">0</div>
+      </section>
+    </div>
+
+    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div class="grid grid-cols-4 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+        <span>Order ID</span>
+        <span>Date &amp; Time</span>
+        <span>Phone</span>
+        <span>Address</span>
+      </div>
+      <div id="settlementTableBody" class="min-h-[140px] px-4 py-4 text-sm text-slate-500">
+        <p class="pt-8 text-center text-base font-medium text-slate-500">No orders found for the select</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- TAB 2: RIDER VERIFICATION -->
+  <main id="riderVerificationViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Rider Verification Queue</h2>
+          <p class="text-xs text-slate-500">Review identity documents before rider login is enabled.</p>
+        </div>
+        <span class="rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-black text-amber-900">Admin review</span>
+      </div>
+      <div id="riderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
+      </div>
     </div>
   </main>
 
-  <!-- TAB 2: SALES & DAILY REPORTS -->
-  <main id="analyticsViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-      <div>
-        <h2 class="text-lg font-black text-slate-900">Daily Sales & Operational Settlement</h2>
-        <p class="text-xs text-slate-500">Select any specific date to view sales, collections and order history</p>
+  <!-- TAB 3: EXPENSES -->
+  <main id="expensesViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Expenses Tracker</h2>
+          <p class="text-xs text-slate-500">Operating costs, reimbursements, and vendor payouts.</p>
+        </div>
       </div>
-      
-      <div class="flex flex-wrap items-center gap-2">
-        <input 
-          id="salesFilterDate" 
-          type="date" 
-          onchange="filterSalesByDate(this.value)" 
-          class="px-3 py-2 text-xs border border-slate-300 rounded-xl font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-amber-400"
-        >
-        <button onclick="resetSalesToToday()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
-          Today
-        </button>
-        <button onclick="exportDailyOrdersCSV()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow flex items-center gap-1">
-          Download CSV
-        </button>
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <p class="text-sm font-bold text-slate-500">No expense data available yet.</p>
       </div>
-    </div>
-
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-black uppercase text-slate-400">Total Revenue (<span id="activeDateLabel">Today</span>)</span>
-        <h3 id="statTodayRevenue" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">₹0</h3>
-      </div>
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-black uppercase text-slate-400">UPI Online Paid</span>
-        <h3 id="statOnlinePaid" class="text-xl sm:text-2xl font-black text-blue-600 mt-1">₹0</h3>
-      </div>
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-black uppercase text-slate-400">COD Cash Collected</span>
-        <h3 id="statCodPaid" class="text-xl sm:text-2xl font-black text-amber-600 mt-1">₹0</h3>
-      </div>
-      <div class="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <span class="text-[10px] font-black uppercase text-slate-400">Total Orders</span>
-        <h3 id="statTotalOrders" class="text-xl sm:text-2xl font-black text-purple-600 mt-1">0</h3>
-      </div>
-    </div>
-
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 overflow-x-auto">
-      <table class="w-full text-left text-xs min-w-[600px]">
-        <thead>
-          <tr class="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
-            <th class="py-2.5 px-3">Order ID</th>
-            <th class="py-2.5 px-3">Date & Time</th>
-            <th class="py-2.5 px-3">Phone</th>
-            <th class="py-2.5 px-3">Address</th>
-            <th class="py-2.5 px-3">Amount</th>
-            <th class="py-2.5 px-3">Payment</th>
-            <th class="py-2.5 px-3">Status</th>
-          </tr>
-        </thead>
-        <tbody id="settlementTableBody" class="divide-y divide-slate-100"></tbody>
-      </table>
     </div>
   </main>
 
-  <!-- TAB 3: INVENTORY (FIXED WITH ONSUBMIT FORM) -->
+  <!-- TAB 4: DELIVERY BOY PRICING -->
+  <main id="deliveryPricingViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+        <div>
+          <h2 class="text-base font-extrabold text-slate-900">Delivery Boy Pricing</h2>
+          <p class="text-xs text-slate-500">Base fares, per-km charges, and rider payout rules.</p>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <p class="text-sm font-bold text-slate-500">No pricing rules configured yet.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB 5: INVENTORY (FIXED WITH ONSUBMIT FORM) -->
   <main id="inventoryViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <h2 class="text-base font-extrabold text-slate-900 mb-4">
@@ -396,53 +1164,7 @@
     </div>
   </main>
 
-  <!-- TAB 4: RIDER VERIFICATION -->
-  <main id="riderVerificationViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
-    <div class="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 shadow-sm">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <div>
-          <h2 class="text-base font-extrabold text-slate-900">Rider Verification Queue</h2>
-          <p class="text-xs text-slate-500">Review identity documents before rider login is enabled.</p>
-        </div>
-        <span class="rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-black text-amber-900">Admin review</span>
-      </div>
-      <div id="riderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- TAB 5: EXPENSES -->
-  <main id="expensesViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
-      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
-        <div>
-          <h2 class="text-base font-extrabold text-slate-900">Expenses</h2>
-          <p class="text-xs text-slate-500">Operating costs, reimbursements, and vendor payouts.</p>
-        </div>
-      </div>
-      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-        <p class="text-sm font-bold text-slate-500">No data available yet.</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- TAB 6: DELIVERY BOY PRICING -->
-  <main id="deliveryPricingViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
-      <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
-        <div>
-          <h2 class="text-base font-extrabold text-slate-900">Delivery Boy Pricing</h2>
-          <p class="text-xs text-slate-500">Base fares, per-km charges, and rider payout rules.</p>
-        </div>
-      </div>
-      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-        <p class="text-sm font-bold text-slate-500">No data available yet.</p>
-      </div>
-    </div>
-  </main>
-
-  <!-- TAB 8: BANNERS -->
+  <!-- TAB 4: BANNER & CATEGORY MANAGER -->
   <main id="bannersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
@@ -478,6 +1200,7 @@
         <div class="flex flex-wrap gap-2"><button type="submit" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Save popup</button><button type="button" onclick="handleDeleteDailyOffer()" class="py-2.5 px-4 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl">Delete popup</button></div>
       </form>
     </section>
+
   </main>
 
   <!-- TAB 9: CATEGORIES -->

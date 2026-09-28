@@ -331,62 +331,58 @@ function verifyAdminAccess() {
 
 // 4-TAB SWITCHER
 function switchView(tab) {
+  const selectedTab = String(tab || 'home');
+  const homeSec = document.getElementById('homeViewSection');
   const ordersSec = document.getElementById('ordersViewSection');
   const analyticsSec = document.getElementById('analyticsViewSection');
-  const invSec = document.getElementById('inventoryViewSection');
-  const riderVerificationSec = document.getElementById('riderVerificationViewSection');
+  const riderSec = document.getElementById('riderVerificationViewSection');
   const expensesSec = document.getElementById('expensesViewSection');
-  const deliveryPricingSec = document.getElementById('deliveryPricingViewSection');
+  const pricingSec = document.getElementById('deliveryPricingViewSection');
+  const invSec = document.getElementById('inventoryViewSection');
   const partnersSec = document.getElementById('partnersViewSection');
   const banSec = document.getElementById('bannersViewSection');
   const categoriesSec = document.getElementById('categoriesViewSection');
 
-  const btnOrders = document.getElementById('tabBtnOrders');
-  const btnAnalytics = document.getElementById('tabBtnAnalytics');
-  const btnInv = document.getElementById('tabBtnInventory');
-  const btnRiderVerification = document.getElementById('tabBtnRiderVerification');
-  const btnExpenses = document.getElementById('tabBtnExpenses');
-  const btnDeliveryPricing = document.getElementById('tabBtnDeliveryPricing');
-  const btnPartners = document.getElementById('tabBtnPartners');
-  const btnBan = document.getElementById('tabBtnBanners');
-  const btnCategories = document.getElementById('tabBtnCategories');
+  const navbarButtons = Array.from(document.querySelectorAll('.nav-item'));
+  [homeSec, ordersSec, analyticsSec, riderSec, expensesSec, pricingSec, invSec, partnersSec, banSec, categoriesSec].forEach(el => el && el.classList.add('hidden'));
+  navbarButtons.forEach((item) => {
+    const itemTab = String(item.dataset.tab || '');
+    const active = itemTab === selectedTab;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-current', active ? 'page' : 'false');
+  });
 
-  [ordersSec, analyticsSec, invSec, riderVerificationSec, expensesSec, deliveryPricingSec, partnersSec, banSec, categoriesSec].forEach(el => el && el.classList.add('hidden'));
-  [btnOrders, btnAnalytics, btnInv, btnRiderVerification, btnExpenses, btnDeliveryPricing, btnPartners, btnBan, btnCategories].forEach(b => b && (b.className = "px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition"));
-
-  if (tab === 'orders') {
+  if (selectedTab === 'home') {
+    if (homeSec) homeSec.classList.remove('hidden');
+  } else if (selectedTab === 'orders') {
     if (ordersSec) ordersSec.classList.remove('hidden');
-    if (btnOrders) btnOrders.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-  } else if (tab === 'analytics') {
+    renderRiderVerificationQueue();
+    const container = document.getElementById('adminQueueContainer');
+    if (container) {
+      container.innerHTML = '<p class="text-sm font-bold text-slate-500">Loading dispatch queue...</p>';
+    }
+  } else if (selectedTab === 'analytics') {
     if (analyticsSec) analyticsSec.classList.remove('hidden');
-    if (btnAnalytics) btnAnalytics.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     initSalesDatePicker();
     calculateAndRenderAnalytics();
-  } else if (tab === 'inventory') {
-    if (invSec) invSec.classList.remove('hidden');
-    if (btnInv) btnInv.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-    loadAdminInventory();
-  } else if (tab === 'rider-verification') {
-    if (riderVerificationSec) riderVerificationSec.classList.remove('hidden');
-    if (btnRiderVerification) btnRiderVerification.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
+  } else if (selectedTab === 'riderVerification') {
+    if (riderSec) riderSec.classList.remove('hidden');
     renderRiderVerificationQueue();
-  } else if (tab === 'expenses') {
+  } else if (selectedTab === 'expenses') {
     if (expensesSec) expensesSec.classList.remove('hidden');
-    if (btnExpenses) btnExpenses.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-  } else if (tab === 'delivery-pricing') {
-    if (deliveryPricingSec) deliveryPricingSec.classList.remove('hidden');
-    if (btnDeliveryPricing) btnDeliveryPricing.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-  } else if (tab === 'partners') {
+  } else if (selectedTab === 'deliveryPricing') {
+    if (pricingSec) pricingSec.classList.remove('hidden');
+  } else if (selectedTab === 'inventory') {
+    if (invSec) invSec.classList.remove('hidden');
+    loadAdminInventory();
+  } else if (selectedTab === 'partners') {
     if (partnersSec) partnersSec.classList.remove('hidden');
-    if (btnPartners) btnPartners.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
-  } else if (tab === 'banners') {
+  } else if (selectedTab === 'banners') {
     if (banSec) banSec.classList.remove('hidden');
-    if (btnBan) btnBan.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadAdminBanners();
     loadAdminDailyOffer();
-  } else if (tab === 'categories') {
+  } else if (selectedTab === 'categories') {
     if (categoriesSec) categoriesSec.classList.remove('hidden');
-    if (btnCategories) btnCategories.className = "px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1.5 transition shadow";
     loadCategoryManager();
   }
 }
@@ -1070,18 +1066,67 @@ const adminCategoryDefaults = [
 let adminCategoryItems = [];
 let adminCategoryImages = {};
 
+const ADMIN_CATEGORY_API_BASE_URL = 'http://localhost:5000';
+
+function getAdminAccessToken() {
+  return sessionStorage.getItem('admin_access_token')
+    || localStorage.getItem('admin_access_token')
+    || sessionStorage.getItem('myshopzy_admin_access_token')
+    || localStorage.getItem('myshopzy_admin_access_token')
+    || '';
+}
+
+function buildAdminApiHeaders(additionalHeaders = {}) {
+  const headers = { ...additionalHeaders };
+  const token = getAdminAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+async function adminCategoryApiRequest(path, options = {}) {
+  const response = await fetch(`${ADMIN_CATEGORY_API_BASE_URL}${path}`, {
+    headers: buildAdminApiHeaders({
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {})
+    }),
+    ...options
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.message || `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+function normalizeCategoryList(rows) {
+  return rows
+    .filter(category => category && category.id && category.name)
+    .map(category => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug || '',
+      description: category.description || null,
+      parent_id: category.parent_id || null,
+      sort_order: Number.isFinite(Number(category.sort_order)) ? Number(category.sort_order) : 0,
+      is_active: category.is_active !== false,
+      image_url: category.image_url || null
+    }))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+}
+
 async function loadCategoryManager() {
   const container = document.getElementById('categoryManagerGrid');
   if (!container) return;
   try {
-    const [catalogSnapshot, imageSnapshot] = await Promise.all([
-      db.collection('settings').doc('category_catalog').get(),
-      db.collection('settings').doc('category_images').get()
-    ]);
-    adminCategoryItems = catalogSnapshot.exists && Array.isArray(catalogSnapshot.data().categories)
-      ? catalogSnapshot.data().categories.filter(category => category?.id && category?.name)
-      : adminCategoryDefaults.map(({ id, name }) => ({ id, name }));
+    const imageSnapshot = await db.collection('settings').doc('category_images').get();
     adminCategoryImages = imageSnapshot.exists ? imageSnapshot.data() : {};
+
+    const apiResponse = await adminCategoryApiRequest('/api/categories');
+    adminCategoryItems = normalizeCategoryList(apiResponse?.data || []);
+
     renderCategoryManager();
     renderAdminProductCategoryOptions();
   } catch (error) {
@@ -1133,23 +1178,17 @@ function renderAdminProductCategoryOptions() {
 }
 
 async function persistAdminCategoryState() {
-  const batch = db.batch();
-  batch.set(db.collection('settings').doc('category_catalog'), {
-    categories: adminCategoryItems.map(({ id, name }) => ({ id, name })),
-    updated_at: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  batch.set(db.collection('settings').doc('category_images'), adminCategoryImages);
-  await batch.commit();
-  renderCategoryManager();
-  renderAdminProductCategoryOptions();
+  return true;
 }
 
-function createCategoryId(name) {
-  const baseId = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `category-${Date.now()}`;
-  let id = baseId;
-  let suffix = 2;
-  while (adminCategoryItems.some(category => category.id === id)) id = `${baseId}-${suffix++}`;
-  return id;
+function slugifyAdminCategoryName(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120) || `category-${Date.now()}`;
 }
 
 async function handleNewCategoryDirectFile(event) {
@@ -1168,19 +1207,31 @@ async function handleAddCategory(event) {
   const name = document.getElementById('newCategoryNameInput').value.trim();
   const imageUrl = document.getElementById('newCategoryImageInput').value.trim();
   if (!name || !imageUrl) return alert('Enter a category name and choose or paste an image.');
-  const id = createCategoryId(name);
-  const previousImages = adminCategoryImages;
-  adminCategoryItems = [...adminCategoryItems, { id, name }];
-  adminCategoryImages = { ...adminCategoryImages, [id]: imageUrl };
+
   try {
-    await persistAdminCategoryState();
+    const payload = {
+      name,
+      slug: slugifyAdminCategoryName(name),
+      description: null,
+      parent_id: null,
+      sort_order: adminCategoryItems.length,
+      is_active: true
+    };
+
+    const response = await adminCategoryApiRequest('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    const createdCategory = response?.data || { id: '', name, slug: payload.slug };
+    adminCategoryItems = normalizeCategoryList([...adminCategoryItems, createdCategory]);
+    if (createdCategory.id) adminCategoryImages[createdCategory.id] = imageUrl;
+
     event.target.reset();
-    alert('Category added to the storefront.');
-  } catch (error) {
-    adminCategoryItems = adminCategoryItems.filter(category => category.id !== id);
-    adminCategoryImages = previousImages;
     renderCategoryManager();
     renderAdminProductCategoryOptions();
+    alert('Category added to the storefront.');
+  } catch (error) {
     alert(`Unable to add category: ${error.message}`);
   }
 }
@@ -1189,18 +1240,20 @@ async function deleteAdminCategory(encodedId) {
   const categoryId = decodeURIComponent(encodedId);
   const category = adminCategoryItems.find(item => item.id === categoryId);
   if (!category || !confirm(`Remove ${category.name} from the storefront? Its products will remain in inventory.`)) return;
-  const previousCategories = adminCategoryItems;
-  const previousImages = adminCategoryImages;
-  adminCategoryItems = adminCategoryItems.filter(item => item.id !== categoryId);
-  adminCategoryImages = { ...adminCategoryImages };
-  delete adminCategoryImages[categoryId];
+
   try {
-    await persistAdminCategoryState();
-  } catch (error) {
-    adminCategoryItems = previousCategories;
-    adminCategoryImages = previousImages;
+    await adminCategoryApiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
+      method: 'DELETE'
+    });
+
+    adminCategoryItems = adminCategoryItems.filter(item => item.id !== categoryId);
+    if (Object.prototype.hasOwnProperty.call(adminCategoryImages, categoryId)) {
+      delete adminCategoryImages[categoryId];
+    }
     renderCategoryManager();
     renderAdminProductCategoryOptions();
+    alert('Category removed from the storefront.');
+  } catch (error) {
     alert(`Unable to delete category: ${error.message}`);
   }
 }
@@ -1504,7 +1557,6 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleRestaurantProductFields();
   loadAdminInventory();
   loadCategoryManager();
-  renderRiderVerificationQueue();
   // ==========================================
 // 🗺️ LIVE RIDER TRACKING (Admin Side)
 // ==========================================
