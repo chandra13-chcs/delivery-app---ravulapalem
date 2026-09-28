@@ -2946,6 +2946,29 @@ function selectCategory(
   }
 }
 
+const CUSTOMER_SERVICE_ROUTES = {
+  groceries: { category: "staples", name: "Fresh Groceries" },
+  "fruits-vegetables": { category: "veggies", name: "Fruits & Vegetables" },
+  "food-delivery": { category: "restaurants", name: "Food Delivery" },
+  "meat-chicken": { category: "meat" },
+  "parcel-delivery": { destination: "service.html?type=parcel" },
+  "local-stores": { category: "home", name: "Local Stores" }
+};
+
+function openServiceCategory(serviceKey, targetEl = null) {
+  const route = CUSTOMER_SERVICE_ROUTES[serviceKey];
+  if (!route) return;
+
+  if (route.destination) {
+    window.location.href = route.destination;
+    return;
+  }
+
+  selectCategory(route.category, targetEl);
+  const heading = document.getElementById("categoryHeading");
+  if (heading && route.name) heading.innerText = route.name;
+}
+
 function scrollToProducts(productsGrid) {
   const productSection = productsGrid.parentElement || productsGrid;
   const headerOffset = (document.querySelector("header")?.getBoundingClientRect().height || 0) + 16;
@@ -4528,6 +4551,23 @@ function syncCustomerAuthUI() {
   }
 }
 
+function syncCustomerGreetingUI() {
+  const greetingName = document.getElementById("customerGreetingName");
+  if (!greetingName) return;
+
+  const phone = getCurrentCustomerPhone();
+  let displayName = "User";
+  if (phone) {
+    try {
+      const customerData = JSON.parse(localStorage.getItem(`myshopzy_customer_${phone}`) || "null");
+      if (customerData?.name) displayName = customerData.name;
+    } catch (error) {
+      console.warn("Customer greeting data unavailable:", error);
+    }
+  }
+  greetingName.innerText = displayName;
+}
+
 
 // ==========================================
 // 40. LOGIN
@@ -4660,6 +4700,7 @@ function verifyCustomerLoginOtp() {
 
   closeLoginModal();
   syncCustomerAuthUI();
+  syncCustomerGreetingUI();
   syncAccountDashboard();
   populateCheckoutAddressDropdown();
 
@@ -5502,6 +5543,7 @@ document.addEventListener(
 
 
     syncCustomerAuthUI();
+    syncCustomerGreetingUI();
 
 
     syncAccountDashboard();

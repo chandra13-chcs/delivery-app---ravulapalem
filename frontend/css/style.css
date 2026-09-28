@@ -2,6 +2,78 @@ body {
   font-family: 'Plus Jakarta Sans', sans-serif; 
 }
 
+.myshopzy-header {
+  background: linear-gradient(135deg, #0b132b 0%, #121f3d 58%, #0f766e 150%);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 10px 24px rgba(11, 19, 43, 0.16);
+}
+
+.myshopzy-header-inner { padding-top: 0.65rem; padding-bottom: 0.8rem; }
+.myshopzy-header-top, .myshopzy-location-row, .myshopzy-header-actions, .myshopzy-brand, .myshopzy-location-picker { display: flex; align-items: center; }
+.myshopzy-header-top { justify-content: space-between; gap: 0.75rem; }
+.myshopzy-brand { gap: 0.45rem; flex: 0 0 auto; color: white; }
+.myshopzy-brand-mark { display: block; width: 2rem; height: 2rem; border-radius: 0.7rem; object-fit: cover; box-shadow: 0 4px 10px rgba(15, 118, 110, 0.2); }
+.myshopzy-brand-copy { line-height: 1; }
+.myshopzy-brand-name { display: block; font-size: 1rem; font-weight: 900; letter-spacing: -0.02em; }
+.myshopzy-brand-name span { color: #fbbf24; }
+.myshopzy-brand-hub { display: block; margin-top: 0.22rem; color: #67e8f9; font-size: 0.5rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.myshopzy-welcome { flex: 1; min-width: 0; padding-left: 0.25rem; }
+.myshopzy-welcome-label { display: block; color: #94a3b8; font-size: 0.55rem; font-weight: 700; }
+.myshopzy-welcome strong { display: block; margin-top: 0.16rem; overflow: hidden; color: #f8fafc; font-size: 0.84rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.myshopzy-header-actions { gap: 0.3rem; flex: 0 0 auto; }
+.myshopzy-icon-button, .myshopzy-search-control, .myshopzy-search-submit { display: grid; place-items: center; border: 0; cursor: pointer; }
+.myshopzy-icon-button { width: 2rem; height: 2rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.7rem; background: rgba(28, 37, 65, 0.85); color: #e2e8f0; }
+.myshopzy-icon-button svg, .myshopzy-location-picker > svg, .myshopzy-search-wrap svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.myshopzy-text-action { align-items: center; gap: 0.3rem; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 0.65rem; background: rgba(28, 37, 65, 0.85); padding: 0.43rem 0.52rem; color: #e2e8f0; font-size: 0.62rem; font-weight: 800; }
+.myshopzy-login-button { display: flex; align-items: center; gap: 0.25rem; border: 0; border-radius: 0.65rem; background: #fbbf24; padding: 0.48rem 0.58rem; color: #0f172a; font-size: 0.62rem; font-weight: 900; }
+.myshopzy-user-chip { align-items: center; gap: 0.25rem; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 0.65rem; background: rgba(28, 37, 65, 0.85); padding: 0.35rem 0.45rem; color: white; font-size: 0.62rem; font-weight: 800; }
+.myshopzy-user-chip button { border: 0; background: transparent; color: #94a3b8; cursor: pointer; }
+.myshopzy-location-row { gap: 0.55rem; margin-top: 0.7rem; }
+.myshopzy-location-picker { gap: 0.42rem; min-width: 7.35rem; cursor: pointer; }
+.myshopzy-location-picker > svg:first-child { flex: 0 0 auto; color: #fbbf24; }
+.myshopzy-location-picker span { display: flex; min-width: 0; flex-direction: column; }
+.myshopzy-location-picker small { color: #94a3b8; font-size: 0.52rem; font-weight: 700; }
+.myshopzy-location-picker strong { max-width: 7rem; overflow: hidden; color: #f8fafc; font-size: 0.72rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.myshopzy-location-picker .myshopzy-chevron { width: 0.75rem; color: #94a3b8; }
+.myshopzy-search-wrap { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
+.myshopzy-search-wrap input { width: 100%; min-width: 0; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 0.8rem; background: #f8fafc; padding: 0.65rem 4rem 0.65rem 2.15rem; color: #0f172a; font-size: 0.68rem; outline: 0; }
+.myshopzy-search-wrap input::placeholder { color: #64748b; }
+.myshopzy-search-wrap input:focus { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2); }
+.myshopzy-search-icon { position: absolute; left: 0.72rem; color: #64748b; pointer-events: none; }
+.myshopzy-search-control, .myshopzy-search-submit { position: absolute; width: 1.65rem; height: 1.65rem; border-radius: 0.55rem; }
+.myshopzy-search-control { right: 2.3rem; background: transparent; color: #64748b; }
+.myshopzy-search-submit { right: 0.28rem; background: #fbbf24; color: #0f172a; }
+.myshopzy-search-control svg, .myshopzy-search-submit svg { width: 0.9rem; height: 0.9rem; }
+
+.myshopzy-service-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.myshopzy-service-card { display: block; overflow: hidden; aspect-ratio: 3 / 4; border: 1px solid #e2e8f0; border-radius: 1rem; background: #fff; box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08); cursor: pointer; padding: 0; transition: transform 180ms ease, box-shadow 180ms ease; }
+.myshopzy-service-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14); }
+.myshopzy-service-card:focus-visible { outline: 3px solid rgba(251, 191, 36, 0.65); outline-offset: 2px; }
+.myshopzy-service-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+@media (min-width: 640px) {
+  .myshopzy-service-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+}
+
+@media (min-width: 1024px) {
+  .myshopzy-service-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+@media (max-width: 380px) {
+  .myshopzy-welcome-label { display: none; }
+  .myshopzy-welcome strong { margin-top: 0; font-size: 0.75rem; }
+  .myshopzy-text-action { padding-inline: 0.42rem; }
+  .myshopzy-location-picker { min-width: 6.8rem; }
+  .myshopzy-location-picker strong { max-width: 6.4rem; }
+}
+
+@media (min-width: 640px) {
+  .myshopzy-header-inner { padding-top: 0.8rem; padding-bottom: 0.9rem; }
+  .myshopzy-brand-name { font-size: 1.15rem; }
+  .myshopzy-welcome strong { font-size: 0.95rem; }
+  .myshopzy-location-row { max-width: 42rem; }
+}
+
 .rider-welcome-screen {
   background: radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.22), transparent 34%), linear-gradient(145deg, #0b132b 0%, #172554 52%, #0f766e 145%);
   min-height: 31rem;

@@ -61,57 +61,58 @@
     ⚠️ Store is currently closed. Orders are available from 7:00 AM to 10:00 PM IST. You can still browse products!
   </div>
 
-  <!-- TOP NAV BAR (RESPONSIVE CLEAN MOBILE HEADER) -->
-  <header class="sticky top-0 z-40 bg-[#0B132B] text-white shadow-lg border-b border-slate-800">
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3">
+  <!-- TOP NAV BAR (RESPONSIVE CUSTOMER HEADER) -->
+  <header class="myshopzy-header sticky top-0 z-40 text-white">
+    <div class="myshopzy-header-inner max-w-7xl mx-auto px-3 sm:px-6">
       
-      <!-- Top Row: Logo & Separate Controls -->
-      <div class="flex items-center justify-between gap-2">
+      <div class="myshopzy-header-top">
         
         <!-- Brand Logo -->
-        <a href="index.html" class="flex items-center gap-1.5 shrink-0">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
-            ⚡
-          </div>
-          <div class="leading-tight">
-            <span class="text-base sm:text-xl font-black tracking-tight text-white block leading-none">
-              MyShopzy<span class="text-amber-400">.</span>
-            </span>
-            <span class="text-[8px] font-extrabold uppercase tracking-wider text-cyan-400 block mt-0.5">
-              Mandapeta Hub
-            </span>
-          </div>
+        <a href="index.html" class="myshopzy-brand" aria-label="MyShopzy home">
+          <img class="myshopzy-brand-mark" src="../assets/audio/categories/logo.png" alt="MyShopzy logo">
+          <span class="myshopzy-brand-copy">
+            <span class="myshopzy-brand-name">MyShopzy<span>.</span></span>
+            <span class="myshopzy-brand-hub">Mandapeta Hub</span>
+          </span>
         </a>
 
+        <div class="myshopzy-welcome">
+          <span class="myshopzy-welcome-label">Your quick delivery partner</span>
+          <strong>Hi <span id="customerGreetingName">User</span></strong>
+        </div>
+
         <!-- Right Side: Separate Controls (Order & Login/Account) -->
-        <div class="flex items-center gap-1.5 shrink-0">
+        <div class="myshopzy-header-actions">
+          <button type="button" class="myshopzy-icon-button" aria-label="Notifications" title="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+          </button>
           
           <!-- Hub Link (Desktop/Tablet) -->
-          <a href="../admin/admin.html" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition">
+          <a href="../admin/admin.html" class="myshopzy-text-action hidden sm:flex" aria-label="Open hub">
             <span>📊</span><span>Hub</span>
           </a>
 
           <!-- Separate Order Control -->
-          <button onclick="toggleOrdersView()" class="px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1 transition shadow-sm">
+          <button type="button" onclick="toggleOrdersView()" class="myshopzy-text-action" aria-label="View orders">
             <span>📦</span>
-            <span class="text-[11px]" data-i18n="orders">Orders</span>
+            <span class="hidden sm:inline" data-i18n="orders">Orders</span>
           </button>
 
-          <button onclick="openAccountModal()" class="hidden sm:flex px-2.5 py-1.5 rounded-xl bg-[#1C2541] hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 items-center gap-1 transition shadow-sm">
+          <button type="button" onclick="openAccountModal()" class="myshopzy-text-action hidden sm:flex" aria-label="Open account">
             <span>⚙️</span>
             <span class="text-[11px]" data-i18n="account">Account</span>
           </button>
 
           <!-- Separate Login / Account Control -->
           <div id="authContainer">
-            <button onclick="openLoginModal()" id="loginBtn" class="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1 shadow-md transition">
+            <button onclick="openLoginModal()" id="loginBtn" class="myshopzy-login-button">
               <span>👤</span>
               <span class="text-[11px]">Login</span>
             </button>
-            <div id="userChip" class="hidden flex items-center gap-1 bg-[#1C2541] border border-slate-700 px-2 py-1 rounded-xl">
+            <div id="userChip" class="hidden myshopzy-user-chip">
               <span class="text-xs">👤</span>
               <span id="userPhoneDisplay" class="text-xs font-black text-white"></span>
-              <button onclick="logoutCustomer()" title="Logout" class="text-slate-400 hover:text-rose-400 text-xs ml-1 font-black">✕</button>
+              <button onclick="logoutCustomer()" title="Logout" aria-label="Logout">✕</button>
             </div>
           </div>
 
@@ -119,30 +120,27 @@
 
       </div>
 
-      <!-- Second Row on Mobile: Location & Search Bar for clean spacing -->
-      <div class="mt-2.5 flex items-center gap-2">
+      <div class="myshopzy-location-row">
         <!-- Location Picker Button -->
-        <div onclick="openLocationModal()" class="cursor-pointer flex items-center gap-1.5 bg-[#1C2541] hover:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shrink-0 transition">
-          <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
-          <div class="text-left">
-            <p class="text-[8px] font-bold text-slate-400 uppercase leading-none" data-i18n="deliveryLocation">Delivery Location</p>
-            <p id="currentAddressHeader" class="text-[11px] font-black text-slate-200 truncate max-w-[120px] leading-tight mt-0.5">Mandapeta</p>
-          </div>
-          <span class="text-[10px] text-slate-400">▼</span>
+        <div onclick="openLocationModal()" class="myshopzy-location-picker" role="button" tabindex="0" aria-label="Change delivery location">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+          <span><small data-i18n="deliveryLocation">Delivering to</small><strong id="currentAddressHeader">Mandapeta</strong></span>
+          <svg class="myshopzy-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
         </div>
 
         <!-- Search Bar -->
-        <div class="relative flex-1 flex items-center gap-2">
+        <div class="myshopzy-search-wrap">
+          <svg class="myshopzy-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
           <input 
             id="searchInputMobile" 
             oninput="handleSearch(this.value)" 
             type="text" 
-            placeholder='Search groceries & essentials...' 
+            placeholder="Search groceries, restaurants & more" 
             data-i18n-placeholder="searchPlaceholder"
-            class="w-full px-3 py-1.5 text-xs bg-[#1C2541] border border-slate-700 text-white placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+            aria-label="Search groceries, restaurants and more"
           >
-          <button type="button" onclick="submitProductSearch(event)" aria-label="Search products" title="Search products" class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shrink-0">⌕</button>
-          <button type="button" onclick="startVoiceSearch(event)" aria-label="Voice search" title="Voice search" class="w-8 h-8 rounded-xl bg-slate-700 text-white font-black text-sm flex items-center justify-center shrink-0">🎙️</button>
+          <button type="button" onclick="startVoiceSearch(event)" class="myshopzy-search-control" aria-label="Voice search" title="Voice search"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" /></svg></button>
+          <button type="button" onclick="submitProductSearch(event)" class="myshopzy-search-submit" aria-label="Search products" title="Search products"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg></button>
         </div>
       </div>
 
@@ -184,51 +182,28 @@
 
     <div id="homepageBannerIndicators" class="mt-2 flex justify-center gap-1.5" aria-label="Homepage banner navigation"></div>
 
-    <!-- 3 Mini Category Promo Tiles -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-      <div onclick="selectCategory('instant', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
-        <div>
-          <h4 class="text-xs sm:text-sm font-black text-slate-900">Pharmacy at your doorstep!</h4>
-          <p class="text-[11px] text-slate-500 mt-0.5">Cough syrups, pain relief sprays & more</p>
-          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
-        </div>
-        <img src="https://images.pexels.com/photos/593451/pexels-photo-593451.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
-      </div>
-
-      <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
-        <div>
-          <h4 class="text-xs sm:text-sm font-black text-slate-900">Pet care supplies at your door</h4>
-          <p class="text-[11px] text-slate-500 mt-0.5">Food, treats, toys & more essentials</p>
-          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
-        </div>
-        <img src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
-      </div>
-
-      <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
-        <div>
-          <h4 class="text-xs sm:text-sm font-black text-slate-900">No time for a diaper run?</h4>
-          <p class="text-[11px] text-slate-500 mt-0.5">Get baby care essentials in minutes</p>
-          <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
-        </div>
-        <img src="https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0">
-      </div>
-    </div>
   </section>
 
   <!-- CLIENT SERVICE DIRECTORY -->
   <section id="serviceDirectory" class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <button type="button" onclick="showServiceSection('restaurant')" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md transition text-left flex items-center justify-between group">
-        <span><span class="block text-[10px] font-black uppercase tracking-wider text-amber-600">Service</span><strong class="block text-base font-black text-slate-900 mt-1">Restaurant</strong><span class="block text-[11px] text-slate-500 mt-1">Meals, tiffins & more</span></span>
-        <span class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl group-hover:scale-105 transition">🍽️</span>
+    <div class="myshopzy-service-grid">
+      <button type="button" onclick="openServiceCategory('groceries', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/groceries.jpg" alt="Fresh Groceries" loading="eager">
       </button>
-      <button type="button" onclick="showServiceSection('shop')" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md transition text-left flex items-center justify-between group">
-        <span><span class="block text-[10px] font-black uppercase tracking-wider text-emerald-600">Service</span><strong class="block text-base font-black text-slate-900 mt-1">Shop</strong><span class="block text-[11px] text-slate-500 mt-1">Groceries & daily needs</span></span>
-        <span class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl group-hover:scale-105 transition">🛒</span>
+      <button type="button" onclick="openServiceCategory('fruits-vegetables', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/fruits-vegetables.jpg" alt="Fruits & Vegetables" loading="eager">
       </button>
-      <button type="button" onclick="showServiceSection('parcel')" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition text-left flex items-center justify-between group">
-        <span><span class="block text-[10px] font-black uppercase tracking-wider text-blue-600">Service</span><strong class="block text-base font-black text-slate-900 mt-1">Parcel</strong><span class="block text-[11px] text-slate-500 mt-1">Send across Mandapeta</span></span>
-        <span class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl group-hover:scale-105 transition">📦</span>
+      <button type="button" onclick="openServiceCategory('food-delivery', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/food-delivery.jpg" alt="Food Delivery" loading="eager">
+      </button>
+      <button type="button" onclick="openServiceCategory('meat-chicken', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/meat-chicken.jpg" alt="Meat & Chicken" loading="lazy">
+      </button>
+      <button type="button" onclick="openServiceCategory('parcel-delivery', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/parcel-delivery.jpg" alt="Parcel Delivery" loading="lazy">
+      </button>
+      <button type="button" onclick="openServiceCategory('local-stores', this)" class="myshopzy-service-card">
+        <img src="../assets/audio/categories/local-stores.jpg" alt="Local Stores" loading="lazy">
       </button>
     </div>
 
@@ -260,6 +235,17 @@
         <button type="submit" class="sm:col-span-2 py-2.5 bg-[#0B132B] text-white rounded-xl text-xs font-black">Request parcel pickup</button>
       </form>
       <p id="parcelRequestStatus" class="hidden mt-2 text-[11px] font-bold text-emerald-700"></p>
+    </div>
+  </section>
+
+  <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+    <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
+      <div>
+        <h4 class="text-xs sm:text-sm font-black text-slate-900">Child care essentials at your door</h4>
+        <p class="text-[11px] text-slate-500 mt-0.5">Diapers, baby care & daily essentials</p>
+        <span class="inline-block mt-3 px-3 py-1 bg-[#0B132B] text-white rounded-lg text-[10px] font-extrabold group-hover:bg-brand-accent transition">Order Now</span>
+      </div>
+      <img src="https://images.pexels.com/photos/3845492/pexels-photo-3845492.jpeg?auto=compress&cs=tinysrgb&w=150" class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0" alt="Child care essentials">
     </div>
   </section>
 
