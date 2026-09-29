@@ -9,6 +9,7 @@ const partnerState = {
   shops: [],
   orders: [],
   products: [],
+  orderBucket: "active",
   unsubscribe: null,
   productUnsubscribe: null,
   profileAddress: ""
@@ -385,34 +386,25 @@ async function togglePartnerShopStatus() {
   }
 }
 
-function getPartnerItems(order) {
-  if (!Array.isArray(order.items)) return [];
-  return order.items.filter(item => {
-    if (partnerState.type === "meat") return item.pickup_source === "meat_partner" && item.partner_id === partnerState.id;
-    if (partnerState.type === "store") return item.pickup_source === "store_partner" && item.partner_id === partnerState.id;
-    return item.pickup_source === "restaurant" && (item.restaurant_id === partnerState.id || item.partner_id === partnerState.id);
-  });
-}
-
 function getPartnerStatus(order) {
-  const key = partnerState.id;
-  return order.partner_statuses?.[key] || order.status || "PLACED";
+  return order.status === "READY_FOR_PICKUP" ? "PACKED" : order.status || "PLACED";
 }
 
 function renderPartnerStatus(order) {
   const status = getPartnerStatus(order);
+  const nextStatus = { PLACED: "ACCEPTED", ACCEPTED: "PREPARING", PREPARING: "PACKED" }[status];
   const statuses = [
     ["ACCEPTED", "Accept"],
     ["PREPARING", "Preparing"],
     ["PACKED", "Ready for pickup"]
   ];
-  return `<div class="flex gap-1 overflow-x-auto pt-2">${statuses.map(([key, label]) => `<button type="button" onclick="setPartnerStatus('${escapePartnerHtml(order.id)}', '${key}')" class="px-2.5 py-1.5 rounded-lg border text-[10px] font-black shrink-0 ${status === key ? "bg-[#0B132B] text-white" : "bg-white text-slate-700"}">${status === key ? "✓ " : ""}${label}</button>`).join("")}</div>`;
+  return `<div class="flex gap-1 overflow-x-auto pt-2">${statuses.map(([key, label]) => `<button type="button" ${key !== nextStatus ? "disabled" : ""} onclick="setPartnerStatus('${escapePartnerHtml(order.id)}', '${key}')" class="px-2.5 py-1.5 rounded-lg border text-[10px] font-black shrink-0 ${status === key ? "bg-[#0B132B] text-white" : "bg-white text-slate-700"} ${key !== nextStatus ? "opacity-40" : ""}">${status === key ? "✓ " : ""}${label}</button>`).join("")}</div>`;
 }
 
 function renderPartnerOrders() {
   const container = document.getElementById("partnerOrdersContainer");
   if (!container) return;
-  const partnerOrders = partnerState.orders.map(order => ({ ...order, partnerItems: getPartnerItems(order) })).filter(order => order.partnerItems.length);
+  const partnerOrders = partnerState.orders;
   const newCount = partnerOrders.filter(order => ["PLACED", "ACCEPTED"].includes(getPartnerStatus(order))).length;
   const preparingCount = partnerOrders.filter(order => getPartnerStatus(order) === "PREPARING").length;
   const readyCount = partnerOrders.filter(order => getPartnerStatus(order) === "PACKED").length;
@@ -425,9 +417,9 @@ function renderPartnerOrders() {
     return;
   }
   container.innerHTML = partnerOrders.map(order => {
-    const items = order.partnerItems.map(item => `${item.quantity}x ${escapePartnerHtml(item.name)} · ₹${Number(item.price || 0)}`).join("<br>");
+    const items = order.items.map(item => `${item.quantity}x ${escapePartnerHtml(item.name)} · ₹${Number(item.price || 0)}`).join("<br>");
     return `<article class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-      <div class="flex items-start justify-between gap-3"><div><h3 class="text-sm font-black text-slate-900">${escapePartnerHtml(order.id)}</h3><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(order.customer_name || order.customer_phone || "Customer")}</p></div><span class="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black">${escapePartnerHtml(getPartnerStatus(order))}</span></div>
+      <div class="flex items-start justify-between gap-3"><div><h3 class="text-sm font-black text-slate-900">${escapePartnerHtml(order.order_number || order.id)}</h3><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(order.customer_name || order.customer_phone || "Customer")}</p></div><span class="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black">${escapePartnerHtml(getPartnerStatus(order))}</span></div>
       <p class="text-[11px] text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-2 mt-3">${items}</p>
       <p class="text-[11px] text-slate-500 mt-2">Pickup: ${escapePartnerHtml(order.delivery_address || "Customer delivery address")}</p>
       ${renderPartnerStatus(order)}
@@ -435,32 +427,27 @@ function renderPartnerOrders() {
   }).join("");
 }
 
-function startPartnerOrderListener() {
-  partnerState.unsubscribe?.();
-  partnerState.unsubscribe = db.collection("orders").onSnapshot(snapshot => {
-    partnerState.orders = [];
-    snapshot.forEach(doc => partnerState.orders.push({ id: doc.id, ...doc.data() }));
-    partnerState.orders.sort((a, b) => Number(b.created_at_ms || 0) - Number(a.created_at_ms || 0));
+async function startPartnerOrderListener(bucket = partnerState.orderBucket) {
+  partnerState.orderBucket = bucket;
+  try {
+    const orders = await partnerApiRequest(`/orders?bucket=${encodeURIComponent(bucket)}&shop_id=${encodeURIComponent(partnerState.shopId)}`);
+    partnerState.orders = Array.isArray(orders) ? orders : [];
     renderPartnerOrders();
-  }, error => {
-    console.error("Partner orders listener error:", error);
-    document.getElementById("partnerOrdersContainer").innerHTML = '<p class="text-center text-rose-500 py-10 text-xs">Unable to load partner orders. Check Firestore permissions.</p>';
-  });
+  } catch (error) {
+    console.error("Partner order API failed:", error);
+    document.getElementById("partnerOrdersContainer").innerHTML = `<p class="text-center text-rose-500 py-10 text-xs">${escapePartnerHtml(error.message)}</p>`;
+  }
 }
 
 async function setPartnerStatus(orderId, status) {
-  const key = partnerState.id;
-  const order = partnerState.orders.find(item => item.id === orderId);
-  const partnerStatuses = { ...(order?.partner_statuses || {}), [key]: status };
   try {
-    await db.collection("orders").doc(orderId).update({
-      status,
-      partner_statuses: partnerStatuses,
-      partner_updated_at_ms: Date.now(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}/shops/${encodeURIComponent(partnerState.shopId)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
     });
+    await startPartnerOrderListener();
   } catch (error) {
-    console.error("Partner status update failed:", error);
+    console.error("Partner order status update failed:", error);
     alert(`Unable to update order: ${error.message}`);
   }
 }

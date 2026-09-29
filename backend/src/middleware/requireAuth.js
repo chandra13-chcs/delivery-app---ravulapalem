@@ -4,6 +4,7 @@ const db = require("../config/db");
 const JWT_ISSUER = "myshopzy-api";
 const JWT_AUDIENCE = "myshopzy-admin";
 const ACCESS_TOKEN_USES = new Set(["admin_access", "user_access"]);
+const USER_ACCESS_ONLY = new Set(["user_access"]);
 
 function verifyAccessToken(req, allowedTokenUses = ACCESS_TOKEN_USES) {
   const secret = process.env.ADMIN_JWT_SECRET;
@@ -38,8 +39,8 @@ function sendAuthenticationError(res, error) {
   return res.status(error.status).json({ success: false, message: error.message });
 }
 
-async function requireAuth(req, res, next) {
-  const verification = verifyAccessToken(req);
+async function requireAuth(req, res, next, allowedTokenUses = ACCESS_TOKEN_USES) {
+  const verification = verifyAccessToken(req, allowedTokenUses);
   if (verification.error) return sendAuthenticationError(res, verification.error);
 
   try {
@@ -64,4 +65,8 @@ async function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth, verifyAccessToken, sendAuthenticationError };
+function requireUserAuth(req, res, next) {
+  return requireAuth(req, res, next, USER_ACCESS_ONLY);
+}
+
+module.exports = { requireAuth, requireUserAuth, verifyAccessToken, sendAuthenticationError };

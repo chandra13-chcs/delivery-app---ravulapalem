@@ -66,7 +66,7 @@
         <button type="button" onclick="switchPartnerView('products')" id="partnerProductsTab" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Products</button>
         <button type="button" onclick="switchPartnerView('profile')" id="partnerProfileTab" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Location</button>
       </div>
-      <div id="partnerOrdersView"><div id="partnerOrdersContainer" class="space-y-3"><p class="text-center text-slate-400 py-10 text-xs">Connecting to orders...</p></div></div>
+      <div id="partnerOrdersView"><div class="flex justify-end"><select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)" class="mb-2 px-2.5 py-2 border border-slate-200 rounded-xl bg-white text-[10px] font-bold"><option value="active">Active orders</option><option value="past">Past orders</option></select></div><div id="partnerOrdersContainer" class="space-y-3"><p class="text-center text-slate-400 py-10 text-xs">Connecting to orders...</p></div></div>
       <div id="partnerProductsView" class="hidden space-y-3">
         <form onsubmit="savePartnerProduct(event)" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input type="hidden" id="partnerProductId">

@@ -14,12 +14,20 @@ const {
   deactivatePartnerProduct,
   updatePartnerInventory
 } = require("../controllers/partnerManagementController");
+const {
+  listPartnerOrders,
+  getPartnerOrder,
+  updatePartnerOrderStatus
+} = require("../controllers/partnerOrderController");
 const { requirePartner } = require("../middleware/requirePartner");
 
 const router = express.Router();
 
 router.use(requirePartner);
 router.get("/me", getPartnerProfile);
+router.get("/orders", listPartnerOrders);
+router.get("/orders/:orderId", getPartnerOrder);
+router.patch("/orders/:orderId/shops/:shopId/status", updatePartnerOrderStatus);
 router.get("/shops", listPartnerShops);
 router.patch("/shops/:shopId/status", updatePartnerShopStatus);
 router.patch("/shops/:shopId", updatePartnerShop);

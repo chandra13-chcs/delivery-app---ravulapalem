@@ -44,6 +44,53 @@ const delaySupportShownFor = new Set();
 
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
+const CUSTOMER_ORDER_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/orders`;
+
+function getCustomerAccessToken() {
+  return sessionStorage.getItem("user_access_token")
+    || localStorage.getItem("user_access_token")
+    || sessionStorage.getItem("myshopzy_user_access_token")
+    || localStorage.getItem("myshopzy_user_access_token")
+    || "";
+}
+
+async function customerOrderApiRequest(path, options = {}) {
+  const token = getCustomerAccessToken();
+  if (!token) throw new Error("A secure customer session is required for orders.");
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {})
+  };
+  const response = await fetch(`${CUSTOMER_ORDER_API_BASE_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Order request failed (${response.status}).`);
+  return payload?.data;
+}
+
+function buildCustomerOrderAddress(address) {
+  if (!address) return null;
+  const mapPin = address.isMapPin === true;
+  return {
+    recipient_name: address.fullName || getCustomerDisplayName(),
+    recipient_phone_e164: address.mobile || getCurrentCustomerPhone(),
+    address_line1: mapPin ? address.street : [address.house, address.street].filter(Boolean).join(", "),
+    address_line2: mapPin ? null : address.street || null,
+    landmark: address.landmark || null,
+    locality: address.district || null,
+    city: address.city || "Mandapeta",
+    state: address.state || "Andhra Pradesh",
+    postal_code: address.pincode || "533238",
+    country_code: "IN",
+    latitude: address.latitude ?? null,
+    longitude: address.longitude ?? null
+  };
+}
 
 function getOrderDeadlineMs(order) {
   const explicitDeadline = Number(order?.delivery_deadline_ms);
@@ -118,15 +165,12 @@ function openCustomerRiderTracker(orderId, riderName) {
 
   if (riderTrackingUnsubscribe) riderTrackingUnsubscribe();
   riderTrackingDestination = null;
-  db.collection("orders").doc(orderId).get().then(orderDoc => {
-    if (orderDoc.exists) {
-      const order = orderDoc.data();
-      if (Number.isFinite(Number(order.delivery_latitude)) && Number.isFinite(Number(order.delivery_longitude))) {
-        riderTrackingDestination = {
-          lat: Number(order.delivery_latitude),
-          lng: Number(order.delivery_longitude)
-        };
-      }
+  customerOrderApiRequest(`/${encodeURIComponent(orderId)}`).then(order => {
+    if (Number.isFinite(Number(order?.delivery_latitude)) && Number.isFinite(Number(order?.delivery_longitude))) {
+      riderTrackingDestination = {
+        lat: Number(order.delivery_latitude),
+        lng: Number(order.delivery_longitude)
+      };
     }
   }).catch(error => console.warn("Tracking destination load failed:", error));
   if (!riderTrackingMap) {
@@ -2658,62 +2702,56 @@ function openServiceDish(productId) {
 
 async function submitParcelRequest(event) {
   event.preventDefault();
+  if (!getCustomerAccessToken()) return alert("A secure customer session is required to request a parcel delivery.");
   const pickup = document.getElementById("parcelPickupInput")?.value.trim();
   const drop = document.getElementById("parcelDropInput")?.value.trim();
   const description = document.getElementById("parcelDescriptionInput")?.value.trim();
-  const orderId = `PX-${Math.floor(100000 + Math.random() * 900000)}`;
-  const [pickupLocation, dropLocation] = await Promise.all([geocodeParcelAddress(pickup), geocodeParcelAddress(drop)]);
+  const [pickupLocation, dropLocation] = await Promise.all([
+    geocodeParcelAddress(pickup),
+    geocodeParcelAddress(drop)
+  ]);
+  const pickupLatitude = pickupLocation?.lat ?? null;
+  const pickupLongitude = pickupLocation?.lng ?? null;
   const dropLatitude = dropLocation?.lat ?? currentCustomerCoords.lat;
   const dropLongitude = dropLocation?.lng ?? currentCustomerCoords.lng;
-  const parcelFee = 50;
-  const order = {
-    id: orderId,
-    order_type: "PARCEL",
-    customer_phone: getCurrentCustomerPhone() || "guest",
-    customer_name: getCustomerDisplayName(),
-    delivery_address: drop,
-    parcel_pickup_address: pickup,
-    parcel_drop_address: drop,
-    parcel_description: description,
-    pickup_latitude: pickupLocation?.lat || null,
-    pickup_longitude: pickupLocation?.lng || null,
-    delivery_latitude: dropLatitude,
-    delivery_longitude: dropLongitude,
-    items: [{
-      id: `parcel-item-${orderId}`,
-      name: `Parcel: ${description}`,
-      unit: "1 parcel",
-      quantity: 1,
-      price: parcelFee,
-      pickup_source: "parcel",
-      pickup_source_name: "Parcel Pickup",
-      pickup_source_address: pickup
-    }],
-    subtotal: parcelFee,
-    delivery_fee: 0,
-    total_amount: parcelFee,
-    status: "PLACED",
-    delivery_deadline_ms: Date.now() + (60 * 60 * 1000),
-    payment_mode: "COD",
-    delivery_otp: Math.floor(1000 + Math.random() * 9000).toString(),
-    created_at_ms: Date.now()
-  };
-
+  let order;
   try {
-    await db.collection("orders").doc(orderId).set({
-      ...order,
-      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    order = await customerOrderApiRequest("", {
+      method: "POST",
+      body: JSON.stringify({
+        order_type: "PARCEL",
+        payment_method: "COD",
+        address: {
+          recipient_name: getCustomerDisplayName(),
+          recipient_phone_e164: getCurrentCustomerPhone(),
+          address_line1: drop,
+          city: "Mandapeta",
+          state: "Andhra Pradesh",
+          postal_code: "533238",
+          country_code: "IN",
+          latitude: dropLatitude,
+          longitude: dropLongitude
+        },
+        parcel: {
+          pickup_address: pickup,
+          pickup_latitude: pickupLatitude,
+          pickup_longitude: pickupLongitude,
+          drop_address: drop,
+          drop_latitude: dropLatitude,
+          drop_longitude: dropLongitude,
+          description
+        }
+      })
     });
   } catch (error) {
     console.error("Parcel order creation failed:", error);
-    localStorage.setItem("myshopzy_last_parcel_request", JSON.stringify(order));
-    alert("Parcel request could not sync online. It was saved on this device for retry.");
+    alert(`Parcel request was not placed: ${error.message}`);
     return;
   }
 
   const status = document.getElementById("parcelRequestStatus");
   if (status) {
-    status.innerText = `Parcel ${orderId} created. A rider will be assigned shortly.`;
+    status.innerText = `Parcel ${order.order_number || order.id} created. A rider will be assigned shortly.`;
     status.classList.remove("hidden");
   }
   event.target.reset();
@@ -4034,6 +4072,11 @@ async function processPaymentFlow() {
     return;
   }
 
+  if (!getCustomerAccessToken()) {
+    alert("A secure customer session is required to place orders.");
+    return;
+  }
+
 
   const select =
     document.getElementById(
@@ -4149,28 +4192,7 @@ async function finalizeOrderAndLaunch(
   }
 
 
-  const {
-    sub,
-    deliveryFee,
-    offerDiscount,
-    riderTip,
-    grandTotal
-  } =
-    calculateCartTotals();
-
-
-  if (
-    grandTotal <= 0
-  ) {
-
-    alert(
-      "Your cart is empty."
-    );
-
-    return;
-  }
-
-
+  const riderTip = riderTipAmount;
   let orderItems = [];
 
 
@@ -4188,68 +4210,7 @@ async function finalizeOrderAndLaunch(
       if (!item) return;
 
 
-      orderItems.push({
-
-        id:
-          item.id,
-
-        name:
-          item.name,
-
-        unit:
-          `${item.qty_value || 1} ${item.qty_unit || "pc"}`,
-
-        quantity:
-          cartState[id],
-
-        price:
-          getProductPrice(item),
-
-        selected_weight:
-          supportsWeightOptions(item) ? formatWeight(getSelectedProductWeight(item)) : null,
-
-        pickup_source:
-          item.pickup_source ||
-          (item.category === "restaurants"
-            ? "restaurant"
-            : item.category === "veggies"
-              ? "vegetable_partner"
-              : item.category === "meat"
-                ? "meat_partner"
-                : "store"),
-
-        pickup_source_name:
-          item.pickup_source_name ||
-          item.restaurant_name ||
-          (item.category === "veggies"
-            ? "Local Vegetable Partner"
-            : item.category === "meat"
-              ? "Fresh Meat Partner"
-              : "MyShopzy Store"),
-
-        pickup_source_address:
-          item.pickup_source_address ||
-          item.restaurant_address ||
-          (item.category === "restaurants"
-            ? "Restaurant partner address"
-            : item.category === "veggies"
-              ? "Assigned vegetable market partner"
-              : item.category === "meat"
-                ? "Assigned meat partner"
-                : "Mandapeta Dark Store"),
-
-        restaurant_id:
-          item.restaurant_id || null,
-
-        restaurant_name:
-          item.restaurant_name || null,
-
-        partner_id:
-          item.partner_id || item.restaurant_id || null,
-
-        partner_name:
-          item.partner_name || item.restaurant_name || item.pickup_source_name || null
-      });
+      orderItems.push({ id: item.id, quantity: cartState[id] });
     }
   );
 
@@ -4266,174 +4227,30 @@ async function finalizeOrderAndLaunch(
   }
 
 
-  const orderId =
-    "QD-" +
-    Math.floor(
-      100000 +
-      Math.random() *
-      900000
-    );
-
-
-  const fullAddressString = chosenAddr.isMapPin
-    ? `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.street}, Exact pin ${chosenAddr.latitude.toFixed(6)}, ${chosenAddr.longitude.toFixed(6)}`
-    : `${chosenAddr.fullName} (${chosenAddr.mobile}), ${chosenAddr.house}, ${chosenAddr.street}, ${chosenAddr.city}, ${chosenAddr.state} - ${chosenAddr.pincode}`;
-
-
-  // IMPORTANT:
-  // Order ownership is ALWAYS the
-  // logged-in customer phone.
-  //
-  // NOT chosenAddr.mobile.
-  //
-  // This allows:
-  // Customer A -> delivers to mother/father
-  // without changing account ownership.
-  //
-  const orderPayload = {
-
-    id:
-      orderId,
-
-    customer_phone:
-      customerPhone,
-
-    customer_name:
-      getCustomerDisplayName(),
-
-    delivery_address:
-      fullAddressString,
-
-    delivery_latitude:
-      chosenAddr.latitude ?? null,
-
-    delivery_longitude:
-      chosenAddr.longitude ?? null,
-
-    delivery_accuracy:
-      chosenAddr.accuracy ?? null,
-
-    items:
-      orderItems,
-
-    subtotal:
-      sub,
-
-    delivery_fee:
-      deliveryFee,
-
-    rider_tip:
-      riderTip,
-
-    offer_discount:
-      offerDiscount,
-
-    total_amount:
-      grandTotal,
-
-    status:
-      "PLACED",
-
-    delivery_deadline_ms:
-      Date.now() + (25 * 60 * 1000),
-
-    payment_mode:
-      selectedPaymentMode,
-
-    delivery_otp:
-      Math.floor(
-        1000 +
-        Math.random() *
-        9000
-      ).toString(),
-
-    created_at_ms:
-      Date.now()
-  };
-
-
+  let orderId;
   try {
-
-    await db
-      .collection(
-        "orders"
-      )
-      .doc(orderId)
-      .set(
-        {
-          ...orderPayload,
-
-          created_at:
-            firebase.firestore.FieldValue.serverTimestamp()
-        }
-      );
-
-
-    // Local backup for this customer
-    const localOrderKey =
-      `orders_${customerPhone}`;
-
-
-    const localOrders =
-      JSON.parse(
-        localStorage.getItem(
-          localOrderKey
-        ) || "[]"
-      );
-
-
-    localOrders.push(
-      orderPayload
-    );
-
-
-    localStorage.setItem(
-      localOrderKey,
-      JSON.stringify(
-        localOrders
-      )
-    );
-
-
+    const result = await customerOrderApiRequest("", {
+      method: "POST",
+      body: JSON.stringify({
+        items: orderItems.map(item => {
+          const product = liveCatalog.find(entry => String(entry.id) === String(item.id));
+          return {
+            product_id: item.id,
+            variant_id: item.variant_id || product?.variant_id || product?.default_variant_id || null,
+            quantity: item.quantity,
+            selected_weight: product && supportsWeightOptions(product) ? getSelectedProductWeight(product) : null
+          };
+        }),
+        address: buildCustomerOrderAddress(chosenAddr),
+        payment_method: selectedPaymentMode,
+        rider_tip: riderTip
+      })
+    });
+    orderId = result.id || result.order_number;
   } catch (error) {
-
-    console.error(
-      "Firebase order save failed:",
-      error
-    );
-
-
-    // Local backup even if Firebase fails
-    const localOrderKey =
-      `orders_${customerPhone}`;
-
-
-    const localOrders =
-      JSON.parse(
-        localStorage.getItem(
-          localOrderKey
-        ) || "[]"
-      );
-
-
-    localOrders.push(
-      orderPayload
-    );
-
-
-   localStorage.setItem(
-    localOrderKey,
-    JSON.stringify(localOrders)
-);
-
-alert(
-    "⚠️ Internet/Firebase issue.\n\nOrder saved locally on this device."
-);
-
-
-    alert(
-      "⚠️ Internet/Firebase issue.\n\nOrder saved locally on this device."
-    );
+    console.error("PostgreSQL order creation failed:", error);
+    alert(`Order was not placed: ${error.message}`);
+    return;
   }
 
 
@@ -4943,54 +4760,7 @@ async function toggleOrdersView() {
 
   try {
 
-    const snapshot =
-      await db
-        .collection(
-          "orders"
-        )
-        .where(
-          "customer_phone",
-          "==",
-          currentLoginPhone
-        )
-        .get();
-
-
-    let userCloudOrders =
-      [];
-
-
-    snapshot.forEach(
-      doc => {
-
-        userCloudOrders.push(
-          {
-            id:
-              doc.id,
-
-            ...doc.data()
-          }
-        );
-      }
-    );
-
-
-    // Local backup
-    if (
-      userCloudOrders.length === 0
-    ) {
-
-      const localKey =
-        `orders_${currentLoginPhone}`;
-
-
-      userCloudOrders =
-        JSON.parse(
-          localStorage.getItem(
-            localKey
-          ) || "[]"
-        );
-    }
+    const userCloudOrders = await customerOrderApiRequest("?bucket=all");
 
 
     userCloudOrders.sort(
@@ -5105,90 +4875,8 @@ async function toggleOrdersView() {
 
 
   } catch (error) {
-
-    console.error(
-      "Error fetching orders:",
-      error
-    );
-
-
-    // Local fallback
-    const localKey =
-      `orders_${currentLoginPhone}`;
-
-
-    const localOrders =
-      JSON.parse(
-        localStorage.getItem(
-          localKey
-        ) || "[]"
-      );
-
-
-    if (
-      localOrders.length > 0
-    ) {
-
-      feed.innerHTML =
-        "";
-
-
-      localOrders
-        .sort(
-          (a, b) =>
-            (b.created_at_ms || 0) -
-            (a.created_at_ms || 0)
-        )
-        .forEach(
-          order => {
-
-            feed.innerHTML += `
-              <div
-                onclick="openOrderDetailReceipt('${escapeAttribute(order.id)}')"
-                class="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1 cursor-pointer"
-              >
-
-                <div class="flex justify-between font-black">
-
-                  <span>
-                    ${escapeHtml(order.id)}
-                  </span>
-
-                  <span>
-                    ₹${Number(
-                      order.total_amount || 0
-                    )}
-                  </span>
-
-                </div>
-
-                <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
-                  <span>Dedicated delivery time</span>
-                  <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
-                </div>
-
-                <p class="text-[10px] text-slate-400">
-                  📍
-                  ${escapeHtml(
-                    order.delivery_address ||
-                    ""
-                  )}
-                </p>
-
-              </div>
-            `;
-          }
-        );
-
-    } else {
-
-      feed.innerHTML = `
-        <div class="text-center py-6 text-rose-500 font-bold">
-          Failed to load orders.
-        </div>
-      `;
-    }
-
+    console.error("Customer order API failed:", error);
+    feed.innerHTML = `<div class="text-center py-6 text-rose-500 font-bold">${escapeHtml(error.message)}</div>`;
   }
 
   startCustomerCountdowns();
@@ -5239,79 +4927,11 @@ async function openOrderDetailReceipt(
 
 
   try {
-
-    const doc =
-      await db
-        .collection(
-          "orders"
-        )
-        .doc(orderId)
-        .get();
-
-
-    if (!doc.exists) {
-
-      // Try local order
-      const phone =
-        getCurrentCustomerPhone();
-
-
-      const localOrders =
-        JSON.parse(
-          localStorage.getItem(
-            `orders_${phone}`
-          ) || "[]"
-        );
-
-
-      const localOrder =
-        localOrders.find(
-          order =>
-            order.id === orderId
-        );
-
-
-      if (!localOrder) {
-
-        alert(
-          "Order details not found!"
-        );
-
-        return;
-      }
-
-
-      renderReceipt(
-        orderId,
-        localOrder
-      );
-
-
-      return;
-    }
-
-
-    const targetOrder =
-      doc.data();
-
-
-    renderReceipt(
-      orderId,
-      targetOrder
-    );
-
-
+    const targetOrder = await customerOrderApiRequest(`/${encodeURIComponent(orderId)}`);
+    renderReceipt(targetOrder.order_number || orderId, targetOrder);
   } catch (error) {
-
-    console.error(
-      "Error loading receipt:",
-      error
-    );
-
-
-    alert(
-      "Unable to load order details."
-    );
+    console.error("Customer order detail API failed:", error);
+    alert(`Unable to load order details: ${error.message}`);
   }
 }
 

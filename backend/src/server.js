@@ -10,6 +10,8 @@ const productRoutes = require("./routes/productRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const adminAuthRoutes = require("./routes/adminAuthRoutes");
 const partnerRoutes = require("./routes/partnerRoutes");
+const orderRoutes = require("./routes/orderRoutes");
+const adminOrderRoutes = require("./routes/adminOrderRoutes");
 
 const app = express();
 
@@ -20,7 +22,9 @@ app.use("/api/shops", shopRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/admin/auth", adminAuthRoutes);
+app.use("/api/admin/orders", adminOrderRoutes);
 app.use("/api/partner", partnerRoutes);
+app.use("/api/orders", orderRoutes);
 
 app.get("/", (req, res) => {
   res.json({
