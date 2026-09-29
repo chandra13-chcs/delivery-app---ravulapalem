@@ -106,7 +106,8 @@ async function listPartnerShopProducts(req, res) {
     const result = await db.query(
       `SELECT p.id, p.shop_id, p.category_id, p.name, p.description, p.brand,
               p.status, p.created_at, p.updated_at,
-              COALESCE(variants.items, '[]'::jsonb) AS variants
+              COALESCE(variants.items, '[]'::jsonb) AS variants,
+              COALESCE(images.items, '[]'::jsonb) AS images
        FROM products p
        JOIN shops s ON s.id = p.shop_id
        LEFT JOIN LATERAL (
@@ -131,6 +132,14 @@ async function listPartnerShopProducts(req, res) {
          LEFT JOIN inventory i ON i.variant_id = pv.id
          WHERE pv.product_id = p.id AND pv.deleted_at IS NULL
        ) variants ON true
+       LEFT JOIN LATERAL (
+         SELECT jsonb_agg(
+           jsonb_build_object('public_url', pi.public_url, 'alt_text', pi.alt_text, 'sort_order', pi.sort_order)
+           ORDER BY pi.sort_order ASC, pi.id ASC
+         ) AS items
+         FROM product_images pi
+         WHERE pi.product_id = p.id
+       ) images ON true
        WHERE p.shop_id = $1
          AND s.partner_id = ANY($2::uuid[])
          AND s.deleted_at IS NULL

@@ -1,13 +1,44 @@
 const partnerState = {
   type: "restaurant",
   id: "",
+  shopId: "",
   name: "",
   label: "",
+  shopStatus: "",
+  memberRole: "",
+  shops: [],
   orders: [],
+  products: [],
   unsubscribe: null,
   productUnsubscribe: null,
   profileAddress: ""
 };
+
+const PARTNER_API_ROOT = `http://${window.location.hostname || "localhost"}:5000/api`;
+const PARTNER_API_BASE_URL = `${PARTNER_API_ROOT}/partner`;
+
+function getPartnerAccessToken() {
+  return sessionStorage.getItem("admin_access_token")
+    || localStorage.getItem("admin_access_token")
+    || sessionStorage.getItem("myshopzy_admin_access_token")
+    || localStorage.getItem("myshopzy_admin_access_token")
+    || "";
+}
+
+async function partnerApiRequest(path, options = {}) {
+  const headers = { Accept: "application/json" };
+  const token = getPartnerAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body) headers["Content-Type"] = "application/json";
+
+  const response = await fetch(`${PARTNER_API_BASE_URL}${path}`, {
+    ...options,
+    headers: { ...headers, ...(options.headers || {}) }
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Partner API request failed (${response.status}).`);
+  return payload?.data;
+}
 
 function escapePartnerHtml(value) {
   return String(value ?? "")
@@ -34,84 +65,80 @@ function setPartnerType(type) {
 }
 
 function loadPartnerRestaurants() {
-  db.collection("restaurants").onSnapshot(snapshot => {
-    const select = document.getElementById("partnerRestaurantSelect");
-    if (!select) return;
-    const restaurants = [];
-    snapshot.forEach(doc => restaurants.push({ id: doc.id, ...doc.data() }));
-    select.innerHTML = restaurants.length
-      ? restaurants.map((restaurant, index) => `<option value="${escapePartnerHtml(restaurant.id)}" data-partner-name="${escapePartnerHtml(restaurant.name)}">Restaurant ${index + 1} - ${escapePartnerHtml(restaurant.name)}${restaurant.address ? ` · ${escapePartnerHtml(restaurant.address)}` : ""}</option>`).join("")
-      : '<option value="">No restaurants configured</option>';
+  partnerApiRequest("/shops").then(shops => {
+    partnerState.shops = Array.isArray(shops) ? shops : [];
+    const selectors = [
+      ["partnerRestaurantSelect", shop => shop.business_type === "RESTAURANT"],
+      ["meatPartnerName", shop => shop.business_type === "MEAT"],
+      ["storePartnerName", shop => ["GROCERY", "OTHER"].includes(shop.business_type)]
+    ];
+    selectors.forEach(([id, predicate]) => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      const matchingShops = partnerState.shops.filter(predicate);
+      select.innerHTML = matchingShops.length
+        ? matchingShops.map(shop => `<option value="${escapePartnerHtml(shop.id)}" data-partner-id="${escapePartnerHtml(shop.partner_id)}" data-partner-name="${escapePartnerHtml(shop.partner_name)}" data-shop-name="${escapePartnerHtml(shop.name)}" data-shop-status="${escapePartnerHtml(shop.status)}">${escapePartnerHtml(shop.name)} · ${escapePartnerHtml(shop.city)}</option>`).join("")
+        : '<option value="">No authorized shops</option>';
+    });
     openRequestedPartnerFromUrl();
-  }, error => console.error("Partner restaurant listener error:", error));
+  }).catch(error => {
+    console.error("Partner shops could not be loaded:", error);
+    ["partnerRestaurantSelect", "meatPartnerName", "storePartnerName"].forEach(id => {
+      const select = document.getElementById(id);
+      if (select) select.innerHTML = '<option value="">Sign in with an authorized partner account</option>';
+    });
+  });
+}
+
+async function loadPartnerProductCategories() {
+  try {
+    const response = await fetch(`${PARTNER_API_ROOT}/categories`, { headers: { Accept: "application/json" } });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Unable to load categories.");
+    const select = document.getElementById("partnerProductCategory");
+    if (!select) return;
+    select.innerHTML = '<option value="">No category</option>' + (payload.data || []).map(category =>
+      `<option value="${escapePartnerHtml(category.id)}">${escapePartnerHtml(category.name)}</option>`
+    ).join("");
+  } catch (error) {
+    console.error("Partner product categories could not be loaded:", error);
+  }
 }
 
 async function openRequestedPartnerFromUrl() {
   const requestedId = new URLSearchParams(window.location.search).get("partnerId");
   if (!requestedId || document.getElementById("partnerDesk")?.classList.contains("hidden") === false) return;
-  try {
-    const accountSnapshot = await db.collection("partner_accounts").doc(requestedId).get();
-    if (accountSnapshot.exists) {
-      const account = { id: accountSnapshot.id, ...accountSnapshot.data() };
-      if (account.enabled === false) return alert("This partner console is currently disabled. Contact the store administrator.");
-      if (!["restaurant", "meat", "store"].includes(account.type)) return alert("This partner account has an unsupported partner type.");
-      if (account.type === "restaurant") {
-        const restaurantSelect = document.getElementById("partnerRestaurantSelect");
-        if (!Array.from(restaurantSelect?.options || []).some(option => option.value === account.id)) {
-          return alert("This restaurant is no longer available in the partner directory.");
-        }
-      }
-      setPartnerType(account.type);
-      openPartnerDesk(account);
-      return;
-    }
-  } catch (error) {
-    console.error("Partner account lookup failed:", error);
-  }
-
-  if (requestedId.startsWith("meat_partner_")) {
-    setPartnerType("meat");
-    const field = document.getElementById("meatPartnerName");
-    if (field) field.value = requestedId;
-  } else if (requestedId.startsWith("store_partner_")) {
-    setPartnerType("store");
-    const field = document.getElementById("storePartnerName");
-    if (field) field.value = requestedId;
-  } else {
-    setPartnerType("restaurant");
-    const field = document.getElementById("partnerRestaurantSelect");
-    if (!field || !Array.from(field.options).some(option => option.value === requestedId)) return;
-    field.value = requestedId;
-  }
+  const shop = partnerState.shops.find(item => item.id === requestedId || item.partner_id === requestedId);
+  if (!shop) return alert("This link does not match an authorized partner shop.");
+  const type = shop.business_type === "RESTAURANT" ? "restaurant"
+    : shop.business_type === "MEAT" ? "meat" : "store";
+  setPartnerType(type);
+  const selectorId = type === "restaurant" ? "partnerRestaurantSelect"
+    : type === "meat" ? "meatPartnerName" : "storePartnerName";
+  const select = document.getElementById(selectorId);
+  if (select) select.value = shop.id;
   openPartnerDesk();
 }
 
-function openPartnerDesk(account = null) {
-  if (account) {
-    partnerState.id = account.id;
-    partnerState.name = account.name || "Partner";
-    partnerState.label = partnerState.name;
-  } else if (partnerState.type === "restaurant") {
-    const select = document.getElementById("partnerRestaurantSelect");
-    partnerState.id = select?.value || "";
-    partnerState.name = select?.selectedOptions[0]?.dataset.partnerName || "Restaurant Partner";
-    partnerState.label = select?.selectedOptions[0]?.textContent || partnerState.name;
-    if (!partnerState.id) return alert("Select a restaurant first.");
-  } else if (partnerState.type === "meat") {
-    partnerState.id = document.getElementById("meatPartnerName")?.value || "meat_partner_1";
-    partnerState.name = document.getElementById("meatPartnerName")?.selectedOptions[0]?.textContent || "Meat Partner";
-    partnerState.label = partnerState.name;
-  } else {
-    partnerState.id = document.getElementById("storePartnerName")?.value || "store_partner_1";
-    partnerState.name = document.getElementById("storePartnerName")?.selectedOptions[0]?.textContent || "Extra Store";
-    partnerState.label = partnerState.name;
-  }
+function openPartnerDesk() {
+  const selectorId = partnerState.type === "restaurant" ? "partnerRestaurantSelect"
+    : partnerState.type === "meat" ? "meatPartnerName" : "storePartnerName";
+  const shopId = document.getElementById(selectorId)?.value || "";
+  const shop = partnerState.shops.find(item => item.id === shopId);
+  if (!shop) return alert("Select an authorized shop first.");
+
+  partnerState.shopId = shop.id;
+  partnerState.id = shop.partner_id;
+  partnerState.name = shop.partner_name || "Partner";
+  partnerState.label = shop.name || "Partner shop";
+  partnerState.shopStatus = shop.status;
 
   document.getElementById("partnerSetup")?.classList.add("hidden");
   document.getElementById("partnerDesk")?.classList.remove("hidden");
   document.getElementById("partnerDeskTitle").innerText = `${partnerState.label || partnerState.name} orders`;
   document.getElementById("partnerHeaderSubtitle").innerText = `${partnerState.label || partnerState.name} · live order desk`;
   document.getElementById("partnerProfileName").value = partnerState.name;
+  renderPartnerShopStatus();
   startPartnerOrderListener();
   startPartnerProductListener();
   loadPartnerProfile();
@@ -122,6 +149,7 @@ function closePartnerDesk() {
   partnerState.unsubscribe = null;
   partnerState.productUnsubscribe?.();
   partnerState.productUnsubscribe = null;
+  partnerState.shopId = "";
   document.getElementById("partnerDesk")?.classList.add("hidden");
   document.getElementById("partnerSetup")?.classList.remove("hidden");
 }
@@ -136,37 +164,58 @@ function switchPartnerView(view) {
   });
 }
 
-function getPartnerProductQuery(product) {
-  return product.partner_id === partnerState.id || product.restaurant_id === partnerState.id;
-}
-
-function startPartnerProductListener() {
-  partnerState.productUnsubscribe?.();
-  partnerState.productUnsubscribe = db.collection("products").onSnapshot(snapshot => {
-    const products = [];
-    snapshot.forEach(doc => {
-      const product = { id: doc.id, ...doc.data() };
-      if (getPartnerProductQuery(product)) products.push(product);
-    });
-    renderPartnerProducts(products);
-  }, error => console.error("Partner products listener error:", error));
+async function startPartnerProductListener() {
+  try {
+    const products = await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products`);
+    partnerState.products = Array.isArray(products) ? products : [];
+    renderPartnerProducts(partnerState.products);
+  } catch (error) {
+    console.error("Partner product load failed:", error);
+    document.getElementById("partnerProductsContainer").innerHTML = `<p class="col-span-full text-center text-rose-500 py-8 text-xs">${escapePartnerHtml(error.message)}</p>`;
+  }
 }
 
 function renderPartnerProducts(products) {
   const container = document.getElementById("partnerProductsContainer");
   if (!container) return;
-  container.innerHTML = products.length ? products.map(product => `
+  container.innerHTML = products.length ? products.map(product => {
+    const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
+    const imageUrl = product.images?.[0]?.public_url || "";
+    return `
     <article class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-3">
-      <img src="${escapePartnerHtml(product.image_url || "")}" class="w-16 h-16 rounded-xl object-contain bg-slate-50" onerror="this.style.display='none'" alt="">
-      <div class="flex-1 min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(product.qty_unit || "Unit")}</p><strong class="block text-sm text-emerald-700 mt-1">₹${Number(product.price || 0)}</strong><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit</button><button type="button" onclick="deletePartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black">Delete</button></div></div>
+      <img src="${escapePartnerHtml(imageUrl)}" class="w-16 h-16 rounded-xl object-contain bg-slate-50" onerror="this.style.display='none'" alt="">
+      <div class="flex-1 min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(variant.unit_label || "Unit")} · ${variant.is_active === false ? "Unavailable" : "Available"}</p><strong class="block text-sm text-emerald-700 mt-1">₹${Number(variant.price || 0)}</strong><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit</button><button type="button" onclick="deletePartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black">Deactivate</button></div><div class="flex items-center gap-2 mt-2"><label class="text-[10px] text-slate-500">Stock <input id="partnerStock_${escapePartnerHtml(variant.id || product.id)}" type="number" min="0" step="0.001" value="${Number(variant.quantity_on_hand || 0)}" class="w-20 ml-1 px-2 py-1 border border-slate-200 rounded-lg"></label><label class="flex items-center gap-1 text-[10px] text-slate-500"><input id="partnerAvailable_${escapePartnerHtml(variant.id || product.id)}" type="checkbox" ${variant.is_active === false ? "" : "checked"}>Available</label><button type="button" onclick="savePartnerInventory('${escapePartnerHtml(variant.id || "")}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black">Update</button></div></div>
     </article>
-  `).join("") : '<p class="col-span-full text-center text-slate-400 py-8 text-xs">No products assigned to this partner.</p>';
+  `; }).join("") : '<p class="col-span-full text-center text-slate-400 py-8 text-xs">No products assigned to this partner.</p>';
+}
+
+async function savePartnerInventory(variantId) {
+  if (!variantId) return alert("This product has no active variant to update.");
+  const stockInput = document.getElementById(`partnerStock_${variantId}`);
+  const availableInput = document.getElementById(`partnerAvailable_${variantId}`);
+  try {
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/inventory/${encodeURIComponent(variantId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        quantity_on_hand: Number(stockInput.value),
+        is_active: availableInput.checked
+      })
+    });
+    await startPartnerProductListener();
+  } catch (error) {
+    console.error("Partner inventory update failed:", error);
+    alert(`Unable to update inventory: ${error.message}`);
+  }
 }
 
 function resetPartnerProductForm() {
   document.getElementById("partnerProductId").value = "";
   document.getElementById("partnerProductName").value = "";
+  document.getElementById("partnerProductVariantName").value = "";
+  document.getElementById("partnerProductCategory").value = "";
+  document.getElementById("partnerProductSku").value = "";
   document.getElementById("partnerProductPrice").value = "";
+  document.getElementById("partnerProductComparePrice").value = "";
   document.getElementById("partnerProductUnit").value = "";
   document.getElementById("partnerProductImage").value = "";
   document.getElementById("partnerProductFile").value = "";
@@ -190,7 +239,13 @@ function loadPartnerImageFile(file) {
       canvas.width = Math.max(1, Math.round(image.width * scale));
       canvas.height = Math.max(1, Math.round(image.height * scale));
       canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/webp", 0.82);
+      let quality = 0.82;
+      let dataUrl = canvas.toDataURL("image/webp", quality);
+      while (dataUrl.length > 76000 && quality > 0.42) {
+        quality = Math.max(0.42, quality - 0.1);
+        dataUrl = canvas.toDataURL("image/webp", quality);
+      }
+      if (dataUrl.length > 80000) return alert("Please choose a smaller image.");
       document.getElementById("partnerProductImage").value = dataUrl;
       const preview = document.getElementById("partnerProductPreview");
       preview.src = dataUrl;
@@ -209,26 +264,31 @@ function copyPartnerConsoleLink() {
 async function savePartnerProduct(event) {
   event.preventDefault();
   const productId = document.getElementById("partnerProductId").value;
-  const existing = productId ? await db.collection("products").doc(productId).get() : null;
-  const oldProduct = existing?.exists ? existing.data() : {};
-  const profileAddress = document.getElementById("partnerProfileAddress").value.trim();
+  const name = document.getElementById("partnerProductName").value.trim();
+  const compareAtPrice = document.getElementById("partnerProductComparePrice").value;
   const product = {
-    name: document.getElementById("partnerProductName").value.trim(),
-    price: Number(document.getElementById("partnerProductPrice").value),
-    qty_unit: document.getElementById("partnerProductUnit").value.trim() || "1 pc",
-    image_url: document.getElementById("partnerProductImage").value.trim() || oldProduct.image_url || "",
-    partner_id: partnerState.id,
-    partner_name: partnerState.name,
-    pickup_source: partnerState.type === "restaurant" ? "restaurant" : partnerState.type === "meat" ? "meat_partner" : "store_partner",
-    pickup_source_name: partnerState.name,
-    pickup_source_address: profileAddress || partnerState.profileAddress || `${partnerState.name} pickup desk`,
-    category: oldProduct.category || (partnerState.type === "restaurant" ? "restaurants" : partnerState.type === "meat" ? "meat" : "home"),
-    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    name,
+    category_id: document.getElementById("partnerProductCategory").value || null,
+    image_url: document.getElementById("partnerProductImage").value.trim() || null,
+    variant: {
+      name: document.getElementById("partnerProductVariantName").value.trim() || name,
+      sku: document.getElementById("partnerProductSku").value.trim() || null,
+      price: Number(document.getElementById("partnerProductPrice").value),
+      compare_at_price: compareAtPrice === "" ? null : Number(compareAtPrice),
+      unit_label: document.getElementById("partnerProductUnit").value.trim() || "1 pc",
+      unit_quantity: 1,
+      is_active: true
+    }
   };
   try {
-    if (productId) await db.collection("products").doc(productId).update(product);
-    else await db.collection("products").add({ ...product, created_at: firebase.firestore.FieldValue.serverTimestamp() });
+    const method = productId ? "PATCH" : "POST";
+    const suffix = productId ? `/${encodeURIComponent(productId)}` : "";
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products${suffix}`, {
+      method,
+      body: JSON.stringify(product)
+    });
     resetPartnerProductForm();
+    await startPartnerProductListener();
     alert("Product saved.");
   } catch (error) {
     console.error("Partner product save failed:", error);
@@ -237,14 +297,18 @@ async function savePartnerProduct(event) {
 }
 
 async function editPartnerProduct(productId) {
-  const snapshot = await db.collection("products").doc(productId).get();
-  if (!snapshot.exists) return;
-  const product = snapshot.data();
+  const product = partnerState.products.find(item => item.id === productId);
+  if (!product) return;
+  const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
   document.getElementById("partnerProductId").value = productId;
   document.getElementById("partnerProductName").value = product.name || "";
-  document.getElementById("partnerProductPrice").value = product.price || "";
-  document.getElementById("partnerProductUnit").value = product.qty_unit || "";
-  document.getElementById("partnerProductImage").value = product.image_url || "";
+  document.getElementById("partnerProductCategory").value = product.category_id || "";
+  document.getElementById("partnerProductVariantName").value = variant.name || "";
+  document.getElementById("partnerProductSku").value = variant.sku || "";
+  document.getElementById("partnerProductPrice").value = variant.price ?? "";
+  document.getElementById("partnerProductComparePrice").value = variant.compare_at_price ?? "";
+  document.getElementById("partnerProductUnit").value = variant.unit_label || "";
+  document.getElementById("partnerProductImage").value = product.images?.[0]?.public_url || "";
   switchPartnerView("products");
   document.getElementById("partnerProductName").focus();
 }
@@ -252,7 +316,8 @@ async function editPartnerProduct(productId) {
 async function deletePartnerProduct(productId) {
   if (!confirm("Delete this product from your partner catalog?")) return;
   try {
-    await db.collection("products").doc(productId).delete();
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products/${encodeURIComponent(productId)}`, { method: "DELETE" });
+    await startPartnerProductListener();
   } catch (error) {
     console.error("Partner product delete failed:", error);
     alert(`Unable to delete product: ${error.message}`);
@@ -261,35 +326,62 @@ async function deletePartnerProduct(productId) {
 
 async function loadPartnerProfile() {
   try {
-    const snapshot = await db.collection("partner_accounts").doc(partnerState.id).get();
-    const data = snapshot.exists ? snapshot.data() : {};
-    const address = data.address || "";
-    partnerState.profileAddress = address;
-    document.getElementById("partnerProfileAddress").value = address;
+    const [shop, profile] = await Promise.all([
+      partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`),
+      partnerApiRequest("/me")
+    ]);
+    partnerState.shopStatus = shop.status;
+    partnerState.memberRole = profile.partners.find(item => item.partner_id === shop.partner_id)?.member_role || "";
+    partnerState.profileAddress = shop.address_line1 || "";
+    document.getElementById("partnerProfileName").value = shop.name || "";
+    document.getElementById("partnerProfileAddress").value = partnerState.profileAddress;
+    renderPartnerShopStatus();
   } catch (error) {
-    console.warn("Partner profile load failed:", error);
+    console.warn("Partner shop profile load failed:", error);
   }
 }
 
 async function savePartnerProfile(event) {
   event.preventDefault();
-  const name = document.getElementById("partnerProfileName").value.trim() || partnerState.name;
+  const name = document.getElementById("partnerProfileName").value.trim() || partnerState.label;
   const address = document.getElementById("partnerProfileAddress").value.trim();
   try {
-    await db.collection("partner_accounts").doc(partnerState.id).set({
-      partner_id: partnerState.id,
-      type: partnerState.type,
-      name,
-      address,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    partnerState.name = name;
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name, address_line1: address })
+    });
+    partnerState.label = name;
     partnerState.profileAddress = address;
     document.getElementById("partnerDeskTitle").innerText = `${name} orders`;
+    document.getElementById("partnerHeaderSubtitle").innerText = `${name} · live order desk`;
     alert("Location details saved.");
   } catch (error) {
-    console.error("Partner profile save failed:", error);
+    console.error("Partner shop profile save failed:", error);
     alert(`Unable to save location: ${error.message}`);
+  }
+}
+
+function renderPartnerShopStatus() {
+  const button = document.getElementById("partnerShopStatusButton");
+  if (!button) return;
+  const canManageStatus = ["OWNER", "MANAGER"].includes(partnerState.memberRole);
+  button.textContent = partnerState.shopStatus === "ACTIVE" ? "Pause shop" : "Open shop";
+  button.disabled = !canManageStatus || !["ACTIVE", "PAUSED"].includes(partnerState.shopStatus);
+  button.title = button.disabled ? "Only a partner owner or manager can change shop status." : `Current status: ${partnerState.shopStatus}`;
+}
+
+async function togglePartnerShopStatus() {
+  const status = partnerState.shopStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
+  try {
+    const result = await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    partnerState.shopStatus = result.status;
+    renderPartnerShopStatus();
+  } catch (error) {
+    console.error("Partner shop status update failed:", error);
+    alert(`Unable to update shop status: ${error.message}`);
   }
 }
 
@@ -374,6 +466,7 @@ async function setPartnerStatus(orderId, status) {
 }
 
 document.addEventListener("DOMContentLoaded", loadPartnerRestaurants);
+document.addEventListener("DOMContentLoaded", loadPartnerProductCategories);
 document.addEventListener("DOMContentLoaded", () => {
   const dropzone = document.getElementById("partnerImageDropzone");
   if (!dropzone) return;

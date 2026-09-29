@@ -6,6 +6,14 @@ const {
   listPartnerShopProducts,
   listPartnerShopInventory
 } = require("../controllers/partnerController");
+const {
+  updatePartnerShop,
+  updatePartnerShopStatus,
+  createPartnerProduct,
+  updatePartnerProduct,
+  deactivatePartnerProduct,
+  updatePartnerInventory
+} = require("../controllers/partnerManagementController");
 const { requirePartner } = require("../middleware/requirePartner");
 
 const router = express.Router();
@@ -13,8 +21,14 @@ const router = express.Router();
 router.use(requirePartner);
 router.get("/me", getPartnerProfile);
 router.get("/shops", listPartnerShops);
+router.patch("/shops/:shopId/status", updatePartnerShopStatus);
+router.patch("/shops/:shopId", updatePartnerShop);
 router.get("/shops/:shopId/products", listPartnerShopProducts);
 router.get("/shops/:shopId/inventory", listPartnerShopInventory);
+router.post("/shops/:shopId/products", createPartnerProduct);
+router.patch("/shops/:shopId/products/:productId", updatePartnerProduct);
+router.delete("/shops/:shopId/products/:productId", deactivatePartnerProduct);
 router.get("/shops/:shopId", getPartnerShop);
+router.patch("/shops/:shopId/inventory/:variantId", updatePartnerInventory);
 
 module.exports = router;
