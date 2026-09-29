@@ -9,6 +9,7 @@ const shopRoutes = require("./routes/shopRoutes");
 const productRoutes = require("./routes/productRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const adminAuthRoutes = require("./routes/adminAuthRoutes");
+const partnerRoutes = require("./routes/partnerRoutes");
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use("/api/shops", shopRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/admin/auth", adminAuthRoutes);
+app.use("/api/partner", partnerRoutes);
 
 app.get("/", (req, res) => {
   res.json({
