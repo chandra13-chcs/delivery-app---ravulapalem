@@ -441,34 +441,40 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
 let selectedProductBase64 = "";
 let adminRestaurants = [];
 let adminPartnerAccounts = [];
+let adminBackendCategories = [];
 
 function toggleRestaurantProductFields() {
   const category = document.getElementById('pCategory')?.value;
   const source = document.getElementById('pPickupSource')?.value;
   const fields = document.getElementById('restaurantProductFields');
   const partnerFields = document.getElementById('partnerProductFields');
-  if (fields) fields.classList.toggle('hidden', category !== 'restaurants' && source !== 'restaurant');
-  if (partnerFields) partnerFields.classList.toggle('hidden', source !== 'meat_partner' && source !== 'store_partner');
+  const legacyRestaurant = source === 'restaurant' || (source === 'auto' && category === 'restaurants');
+  const postgresMeat = source === 'meat_partner' || (source === 'auto' && category === 'meat');
+  const postgresVegetables = source === 'vegetable_partner' || (source === 'auto' && category === 'veggies');
+  if (fields) fields.classList.toggle('hidden', !legacyRestaurant);
+  if (partnerFields) partnerFields.classList.toggle('hidden', !(postgresMeat || postgresVegetables || ['store_partner', 'restaurant_partner'].includes(source)));
   refreshAdminPartnerProductOptions();
 }
 
 function refreshAdminPartnerProductOptions() {
   const select = document.getElementById('pPartner');
   if (!select) return;
-  const type = document.getElementById('pPickupSource')?.value === 'meat_partner' ? 'meat' : 'store';
+  const source = document.getElementById('pPickupSource')?.value;
+  const category = document.getElementById('pCategory')?.value;
+  const type = source === 'meat_partner' || (source === 'auto' && category === 'meat')
+    ? 'meat' : source === 'restaurant_partner' ? 'restaurant' : 'store';
   const selectedId = select.value;
-  const accounts = adminPartnerAccounts.filter(account => account.type === type && account.enabled !== false);
+  const accounts = adminPartnerAccounts.filter(account => account.type === type && account.enabled);
   select.innerHTML = accounts.length
-    ? accounts.map(account => `<option value="${escapeAdminHtml(account.id)}">${escapeAdminHtml(account.name || 'Unnamed partner')}</option>`).join('')
-    : '<option value="">Create an active partner account first</option>';
+    ? accounts.map(account => `<option value="${escapeAdminHtml(account.id)}">${escapeAdminHtml(account.name || 'Unnamed shop')}</option>`).join('')
+    : '<option value="">Create an active partner shop first</option>';
   if (accounts.some(account => account.id === selectedId)) select.value = selectedId;
 }
 
 function loadAdminRestaurants() {
   const select = document.getElementById('pRestaurant');
   const list = document.getElementById('adminRestaurantsList');
-  const accountRestaurantSelect = document.getElementById('partnerAccountRestaurant');
-  if (!select && !list && !accountRestaurantSelect) return;
+  if (!select && !list) return;
 
   db.collection('restaurants').onSnapshot(snapshot => {
     adminRestaurants = [];
@@ -482,16 +488,6 @@ function loadAdminRestaurants() {
         select.innerHTML += `<option value="${restaurant.id}">${restaurant.name}</option>`;
       });
     }
-    if (accountRestaurantSelect) {
-      const selectedId = accountRestaurantSelect.value;
-      accountRestaurantSelect.innerHTML = adminRestaurants.length
-        ? '<option value="">Select a restaurant...</option>'
-        : '<option value="">Add a restaurant in Inventory first</option>';
-      adminRestaurants.forEach(restaurant => {
-        accountRestaurantSelect.innerHTML += `<option value="${escapeAdminHtml(restaurant.id)}">${escapeAdminHtml(restaurant.name || 'Unnamed restaurant')}</option>`;
-      });
-      accountRestaurantSelect.value = selectedId;
-    }
     if (list) {
       list.innerHTML = adminRestaurants.length ? adminRestaurants.map(restaurant => `
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
@@ -504,45 +500,23 @@ function loadAdminRestaurants() {
   }, error => console.error('Restaurant listener error:', error));
 }
 
-function toggleAdminPartnerAccountFields() {
-  const type = document.getElementById('partnerAccountType')?.value;
-  document.getElementById('partnerAccountNameField')?.classList.toggle('hidden', type === 'restaurant');
-  document.getElementById('partnerAccountRestaurantField')?.classList.toggle('hidden', type !== 'restaurant');
-  const nameInput = document.getElementById('partnerAccountName');
-  const restaurantSelect = document.getElementById('partnerAccountRestaurant');
-  if (nameInput) nameInput.required = type !== 'restaurant';
-  if (restaurantSelect) restaurantSelect.required = type === 'restaurant';
-}
-
 async function createAdminPartnerAccount(event) {
   event.preventDefault();
-  const type = document.getElementById('partnerAccountType')?.value;
-  let partnerId;
-  let name;
-  if (type === 'restaurant') {
-    partnerId = document.getElementById('partnerAccountRestaurant')?.value;
-    const restaurant = adminRestaurants.find(item => item.id === partnerId);
-    if (!restaurant) return alert('Select an existing restaurant first.');
-    name = restaurant.name || 'Restaurant Partner';
-  } else {
-    name = document.getElementById('partnerAccountName')?.value.trim();
-    if (!name) return alert('Enter a partner name.');
-    partnerId = db.collection('partner_accounts').doc().id;
-  }
-
   try {
-    await db.collection('partner_accounts').doc(partnerId).set({
-      partner_id: partnerId,
-      type,
-      name,
-      enabled: true,
-      created_at_ms: Date.now(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    document.getElementById('partnerAccountName').value = '';
-    alert(`Partner account created for ${name}. Use its console link below.`);
+    const result = await adminPartnerApiRequest('', {
+      method: 'POST',
+      body: JSON.stringify({
+        legal_name: document.getElementById('partnerLegalName').value.trim(),
+        display_name: document.getElementById('partnerDisplayName').value.trim(),
+        business_type: document.getElementById('partnerBusinessType').value,
+        tax_identifier: document.getElementById('partnerTaxIdentifier').value.trim() || null
+      })
+    });
+    event.target.reset();
+    await loadAdminPartnerAccounts();
+    alert(`Partner created with status ${result.status}. Add its shop and member from the partner list.`);
   } catch (error) {
-    alert(`Unable to create partner account: ${error.message}`);
+    alert(`Unable to create partner: ${error.message}`);
   }
 }
 
@@ -562,28 +536,154 @@ async function copyAdminPartnerConsoleLink(partnerId) {
   }
 }
 
-function loadAdminPartnerAccounts() {
-  db.collection('partner_accounts').onSnapshot(snapshot => {
-    const container = document.getElementById('adminPartnerAccountsList');
-    if (!container) return;
-    const accounts = [];
-    snapshot.forEach(doc => accounts.push({ id: doc.id, ...doc.data() }));
-    adminPartnerAccounts = accounts;
-    accounts.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+function renderAdminPartnerCard(partner) {
+  const shops = Array.isArray(partner.shops) ? partner.shops : [];
+  const members = Array.isArray(partner.members) ? partner.members : [];
+  const id = escapeAdminHtml(partner.id);
+  const typeOptions = ['RESTAURANT', 'GROCERY', 'MEAT', 'OTHER'].map(type =>
+    `<option value="${type}" ${partner.business_type === type ? 'selected' : ''}>${type}</option>`
+  ).join('');
+  return `<article class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+    <form onsubmit="saveAdminPartner(event,'${id}')" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <input name="legal_name" aria-label="Legal name" value="${escapeAdminHtml(partner.legal_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
+      <input name="display_name" aria-label="Display name" value="${escapeAdminHtml(partner.display_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
+      <select name="business_type" aria-label="Business type" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">${typeOptions}</select>
+      <input name="tax_identifier" aria-label="Tax identifier" value="${escapeAdminHtml(partner.tax_identifier || '')}" maxlength="100" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Tax identifier">
+      <div class="flex flex-wrap items-center gap-2 sm:col-span-2"><strong class="text-sm text-slate-900">${escapeAdminHtml(partner.display_name)}</strong><span class="rounded-full px-2 py-1 text-[10px] font-black ${partner.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${escapeAdminHtml(partner.status)}</span><span class="text-[10px] text-slate-500">${shops.length} shops · ${partner.product_count} products · ${partner.active_product_count} active · ${partner.member_count} members</span></div>
+      <button type="submit" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black">Save partner</button>
+      <button type="button" onclick="setAdminPartnerStatus('${id}','${partner.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-[10px] font-black">${partner.status === 'ACTIVE' ? 'Suspend' : 'Activate'}</button>
+    </form>
+    <div class="flex items-center justify-between border-t border-slate-200 pt-2"><strong class="text-xs text-slate-800">Shops</strong><button type="button" onclick="toggleAdminPartnerShopForm('${id}')" class="px-2.5 py-1.5 rounded-lg bg-cyan-50 text-cyan-900 text-[10px] font-black">Add shop</button></div>
+    <form id="adminPartnerShopForm_${id}" onsubmit="createAdminPartnerShop(event,'${id}')" class="hidden grid grid-cols-2 gap-2 rounded-xl bg-white p-3">
+      <input name="name" required maxlength="200" placeholder="Shop name" class="col-span-2 px-2.5 py-2 border rounded-lg text-xs"><input name="address_line1" required maxlength="500" placeholder="Address" class="col-span-2 px-2.5 py-2 border rounded-lg text-xs"><input name="city" required placeholder="City" class="px-2.5 py-2 border rounded-lg text-xs"><input name="state" required placeholder="State" class="px-2.5 py-2 border rounded-lg text-xs"><input name="postal_code" required maxlength="16" placeholder="Postal code" class="px-2.5 py-2 border rounded-lg text-xs"><input name="phone_e164" placeholder="+91 phone" class="px-2.5 py-2 border rounded-lg text-xs"><button class="col-span-2 px-3 py-2 rounded-lg bg-[#0B132B] text-white text-[10px] font-black">Create shop</button>
+    </form>
+    <div class="space-y-2">${shops.map(shop => renderAdminPartnerShop(partner, shop)).join('') || '<p class="text-[11px] text-slate-500">No shops yet.</p>'}</div>
+    <div class="border-t border-slate-200 pt-2"><strong class="text-xs text-slate-800">Members</strong><form onsubmit="addAdminPartnerMember(event,'${id}')" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2"><input name="user_id" required placeholder="Existing user UUID" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><select name="member_role" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><option>STAFF</option><option>MANAGER</option><option>OWNER</option></select><button class="px-3 py-2 rounded-lg bg-slate-800 text-white text-[10px] font-black">Add member</button></form><div class="mt-2 space-y-1">${members.map(member => `<form onsubmit="updateAdminPartnerMember(event,'${id}','${escapeAdminHtml(member.user_id)}')" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 text-[10px]"><span class="truncate">${escapeAdminHtml(member.display_name || member.user_id)}</span><select name="member_role" class="px-2 py-1 border rounded"><option ${member.member_role === 'OWNER' ? 'selected' : ''}>OWNER</option><option ${member.member_role === 'MANAGER' ? 'selected' : ''}>MANAGER</option><option ${member.member_role === 'STAFF' ? 'selected' : ''}>STAFF</option></select><select name="status" class="px-2 py-1 border rounded"><option ${member.status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option><option ${member.status === 'SUSPENDED' ? 'selected' : ''}>SUSPENDED</option><option ${member.status === 'REMOVED' ? 'selected' : ''}>REMOVED</option></select><button class="px-2 py-1 rounded bg-slate-100 font-bold">Save</button></form>`).join('')}</div></div>
+  </article>`;
+}
+
+function renderAdminPartnerShop(partner, shop) {
+  const partnerId = escapeAdminHtml(partner.id);
+  const shopId = escapeAdminHtml(shop.id);
+  return `<details class="rounded-xl border border-slate-200 bg-white p-3"><summary class="flex cursor-pointer list-none items-center justify-between gap-2"><span class="text-xs font-bold text-slate-800">${escapeAdminHtml(shop.name)}</span><span class="text-[10px] text-slate-500">${escapeAdminHtml(shop.status)} · ${shop.active_product_count}/${shop.product_count} active · ${Number(shop.stock_quantity || 0)} stock</span></summary>
+    <form onsubmit="saveAdminPartnerShop(event,'${partnerId}','${shopId}')" class="mt-3 grid grid-cols-2 gap-2">
+      <input name="name" required value="${escapeAdminHtml(shop.name)}" placeholder="Shop name" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><textarea name="description" placeholder="Description" class="col-span-2 px-2 py-1.5 border rounded text-[10px]">${escapeAdminHtml(shop.description || '')}</textarea><input name="phone_e164" value="${escapeAdminHtml(shop.phone_e164 || '')}" placeholder="Phone" class="px-2 py-1.5 border rounded text-[10px]"><input name="email" type="email" value="${escapeAdminHtml(shop.email || '')}" placeholder="Email" class="px-2 py-1.5 border rounded text-[10px]"><input name="address_line1" required value="${escapeAdminHtml(shop.address_line1)}" placeholder="Address" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><input name="address_line2" value="${escapeAdminHtml(shop.address_line2 || '')}" placeholder="Address line 2" class="px-2 py-1.5 border rounded text-[10px]"><input name="locality" value="${escapeAdminHtml(shop.locality || '')}" placeholder="Locality" class="px-2 py-1.5 border rounded text-[10px]"><input name="city" required value="${escapeAdminHtml(shop.city)}" placeholder="City" class="px-2 py-1.5 border rounded text-[10px]"><input name="state" required value="${escapeAdminHtml(shop.state)}" placeholder="State" class="px-2 py-1.5 border rounded text-[10px]"><input name="postal_code" required value="${escapeAdminHtml(shop.postal_code)}" placeholder="Postal code" class="px-2 py-1.5 border rounded text-[10px]"><button class="px-2 py-1.5 rounded bg-slate-900 text-white text-[10px] font-bold">Save shop</button><button type="button" onclick="setAdminShopStatus('${partnerId}','${shopId}','${shop.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'}')" class="px-2 py-1.5 rounded bg-amber-50 text-amber-900 text-[10px] font-bold">${shop.status === 'ACTIVE' ? 'Pause shop' : 'Activate shop'}</button>
+    </form><div class="mt-2 flex gap-2"><button type="button" onclick="loadAdminShopCatalog('${partnerId}','${shopId}')" class="px-2 py-1 rounded bg-cyan-50 text-cyan-900 text-[10px] font-bold">View products and inventory</button></div><div id="adminShopCatalog_${shopId}" class="mt-2"></div></details>`;
+}
+
+async function loadAdminPartnerAccounts() {
+  const container = document.getElementById('adminPartnerAccountsList');
+  if (!container) return;
+  container.textContent = 'Loading partners...';
+  try {
+    const [partners, categoryResponse] = await Promise.all([
+      adminPartnerApiRequest(''),
+      fetch(`${ADMIN_CATEGORY_API_BASE_URL}/api/categories`, { headers: { Accept: 'application/json' } })
+        .then(async response => {
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(payload?.message || 'Unable to load product categories.');
+          return payload?.data || [];
+        })
+    ]);
+    adminBackendCategories = Array.isArray(categoryResponse) ? categoryResponse : [];
+    const details = await Promise.all((Array.isArray(partners) ? partners : []).map(partner =>
+      adminPartnerApiRequest(`/${encodeURIComponent(partner.id)}`)
+    ));
+    const partnerDetails = details.sort((left, right) => String(left.display_name).localeCompare(String(right.display_name)));
+    adminPartnerAccounts = partnerDetails.flatMap(partner => partner.shops.map(shop => ({
+      id: shop.id,
+      partner_id: partner.id,
+      name: `${partner.display_name} · ${shop.name}`,
+      type: partner.business_type === 'MEAT' ? 'meat' : partner.business_type === 'RESTAURANT' ? 'restaurant' : 'store',
+      enabled: partner.status === 'ACTIVE' && shop.status !== 'CLOSED'
+    })));
     refreshAdminPartnerProductOptions();
-    container.innerHTML = accounts.length ? accounts.map(account => {
-      const typeLabels = { meat: 'Meat partner', store: 'Extra store', restaurant: 'Restaurant' };
-      const consoleUrl = getAdminPartnerConsoleUrl(account.id);
-      return `<article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div class="flex items-start justify-between gap-3"><div><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(account.name || 'Unnamed partner')}</h3><p class="text-[10px] font-bold uppercase text-slate-500 mt-1">${escapeAdminHtml(typeLabels[account.type] || account.type || 'Partner')} · ${escapeAdminHtml(account.id)}</p></div><span class="rounded-full px-2 py-1 text-[10px] font-black ${account.enabled === false ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">${account.enabled === false ? 'Disabled' : 'Active'}</span></div>
-        <div class="mt-3 flex flex-wrap gap-2"><a href="${escapeAdminHtml(consoleUrl)}" target="_blank" rel="noopener" class="rounded-lg bg-[#0B132B] px-3 py-2 text-[10px] font-black text-white">Open console</a><button type="button" onclick="copyAdminPartnerConsoleLink('${encodeURIComponent(account.id)}')" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Copy partner link</button></div>
-      </article>`;
-    }).join('') : '<p class="text-xs text-slate-500">No partner accounts configured yet.</p>';
-  }, error => {
-    console.error('Partner account listener error:', error);
-    const container = document.getElementById('adminPartnerAccountsList');
-    if (container) container.innerHTML = '<p class="text-xs font-bold text-rose-600">Unable to load partner accounts. Check Firestore access.</p>';
-  });
+    container.innerHTML = partnerDetails.length
+      ? partnerDetails.map(renderAdminPartnerCard).join('')
+      : '<p class="text-xs text-slate-500">No partners configured yet.</p>';
+  } catch (error) {
+    console.error('PostgreSQL partner list failed:', error);
+    container.innerHTML = `<p class="text-xs font-bold text-rose-600">Unable to load partners: ${escapeAdminHtml(error.message)}</p>`;
+  }
+}
+
+async function saveAdminPartner(event, partnerId) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ legal_name: data.get('legal_name'), display_name: data.get('display_name'), business_type: data.get('business_type'), tax_identifier: data.get('tax_identifier') || null })
+    });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to save partner: ${error.message}`); }
+}
+
+async function setAdminPartnerStatus(partnerId, status) {
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to update partner status: ${error.message}`); }
+}
+
+function toggleAdminPartnerShopForm(partnerId) {
+  document.getElementById(`adminPartnerShopForm_${partnerId}`)?.classList.toggle('hidden');
+}
+
+async function createAdminPartnerShop(event, partnerId) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops`, { method: 'POST', body: JSON.stringify(data) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to create shop: ${error.message}`); }
+}
+
+async function saveAdminPartnerShop(event, partnerId, shopId) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}`, { method: 'PATCH', body: JSON.stringify(data) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to save shop: ${error.message}`); }
+}
+
+async function setAdminShopStatus(partnerId, shopId, status) {
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to update shop status: ${error.message}`); }
+}
+
+async function addAdminPartnerMember(event, partnerId) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/members`, { method: 'POST', body: JSON.stringify(data) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to add partner member: ${error.message}`); }
+}
+
+async function updateAdminPartnerMember(event, partnerId, userId) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  try {
+    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/members/${encodeURIComponent(userId)}`, { method: 'PATCH', body: JSON.stringify(data) });
+    await loadAdminPartnerAccounts();
+  } catch (error) { alert(`Unable to update partner member: ${error.message}`); }
+}
+
+async function loadAdminShopCatalog(partnerId, shopId) {
+  const container = document.getElementById(`adminShopCatalog_${shopId}`);
+  if (!container) return;
+  container.textContent = 'Loading products and inventory...';
+  try {
+    const [products, inventory] = await Promise.all([
+      adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}/products`),
+      adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}/inventory`)
+    ]);
+    container.innerHTML = products.length ? `<div class="space-y-2">${products.map(product => `<div class="rounded-lg border border-slate-100 p-2"><strong class="text-[11px]">${escapeAdminHtml(product.name)}</strong><span class="ml-2 text-[10px] text-slate-500">${escapeAdminHtml(product.status)}</span><div class="mt-1 flex flex-wrap gap-2 text-[10px]">${product.variants.map(variant => `<span>${escapeAdminHtml(variant.name)} · ₹${Number(variant.price).toFixed(2)} · stock ${Number(variant.quantity_on_hand)}</span>`).join('')}</div></div>`).join('')}<p class="text-[10px] text-slate-500">${inventory.length} inventory variants</p></div>` : '<p class="text-[10px] text-slate-500">No products.</p>';
+  } catch (error) { container.textContent = `Unable to load shop catalog: ${error.message}`; }
 }
 
 async function handleAddRestaurant(event) {
@@ -664,7 +764,9 @@ async function handleAddNewProduct(e) {
     alert('Select a restaurant before adding menu food.');
     return;
   }
-  const partnerType = pickupSource === 'meat_partner' ? 'meat' : pickupSource === 'store_partner' ? 'store' : '';
+  const partnerType = pickupSource === 'meat_partner' ? 'meat'
+    : pickupSource === 'restaurant_partner' ? 'restaurant'
+      : ['store_partner', 'vegetable_partner'].includes(pickupSource) ? 'store' : '';
   if (partnerType && !adminPartnerAccounts.some(account => account.id === partnerId && account.type === partnerType && account.enabled !== false)) {
     alert('Create or select an active account for this partner type first.');
     return;
@@ -673,13 +775,56 @@ async function handleAddNewProduct(e) {
   const btn = document.getElementById('saveProdBtn');
   if (btn) { btn.innerText = "Saving to Storefront..."; btn.disabled = true; }
 
-  const isPartnerProduct = pickupSource === 'meat_partner' || pickupSource === 'store_partner';
+  const isPartnerProduct = ['meat_partner', 'store_partner', 'restaurant_partner', 'vegetable_partner'].includes(pickupSource);
   const resolvedPartnerId = pickupSource === 'restaurant' ? restaurantId : isPartnerProduct ? partnerId : null;
   const resolvedPartnerName = pickupSource === 'restaurant'
     ? restaurant?.name || null
     : isPartnerProduct
       ? partnerName
       : null;
+
+  if (isPartnerProduct) {
+    const shop = adminPartnerAccounts.find(account => account.id === partnerId && account.enabled);
+    const categoryRecord = adminBackendCategories.find(item => item.slug === category);
+    if (!shop) {
+      if (btn) btn.disabled = false;
+      return alert('Select an active PostgreSQL partner shop first.');
+    }
+    if (category && !categoryRecord) {
+      if (btn) btn.disabled = false;
+      return alert('This category is not available in the PostgreSQL catalog.');
+    }
+    try {
+      await adminPartnerApiRequest(`/${encodeURIComponent(shop.partner_id)}/shops/${encodeURIComponent(shop.id)}/products`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          description: document.getElementById('pDesc')?.value.trim() || null,
+          category_id: categoryRecord?.id || null,
+          image_url: selectedProductBase64,
+          variant: {
+            name,
+            price,
+            compare_at_price: old_price > price ? old_price : null,
+            unit_label: `${qtyValue} ${qtyUnit}`,
+            unit_quantity: qtyValue,
+            is_active: true
+          }
+        })
+      });
+      document.getElementById('addProductForm').reset();
+      document.getElementById('addPreviewBox')?.classList.add('hidden');
+      document.getElementById('fileUploadStatusBadge')?.classList.add('hidden');
+      selectedProductBase64 = '';
+      if (btn) { btn.innerText = '+ Add Product to Storefront'; btn.disabled = false; }
+      alert('Partner product added to PostgreSQL.');
+      await loadAdminPartnerAccounts();
+    } catch (error) {
+      alert(`Unable to create partner product: ${error.message}`);
+      if (btn) btn.disabled = false;
+    }
+    return;
+  }
 
   const newProd = {
     name: name,
@@ -1121,6 +1266,21 @@ async function adminNotificationsApiRequest(path, options = {}) {
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.message || `Notification request failed (${response.status}).`);
+  return payload?.data;
+}
+
+async function adminPartnerApiRequest(path, options = {}) {
+  const response = await fetch(`${ADMIN_CATEGORY_API_BASE_URL}/api/admin/partners${path}`, {
+    ...options,
+    cache: 'no-store',
+    headers: buildAdminApiHeaders({
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {})
+    })
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Partner request failed (${response.status}).`);
   return payload?.data;
 }
 
@@ -1610,7 +1770,6 @@ document.addEventListener('DOMContentLoaded', () => {
   startRegisteredRiderListener();
   loadAdminRestaurants();
   loadAdminPartnerAccounts();
-  toggleAdminPartnerAccountFields();
   toggleRestaurantProductFields();
   loadAdminInventory();
   loadCategoryManager();

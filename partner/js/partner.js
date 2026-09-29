@@ -19,7 +19,11 @@ const PARTNER_API_ROOT = `http://${window.location.hostname || "localhost"}:5000
 const PARTNER_API_BASE_URL = `${PARTNER_API_ROOT}/partner`;
 
 function getPartnerAccessToken() {
-  return sessionStorage.getItem("admin_access_token")
+  return sessionStorage.getItem("user_access_token")
+    || localStorage.getItem("user_access_token")
+    || sessionStorage.getItem("myshopzy_user_access_token")
+    || localStorage.getItem("myshopzy_user_access_token")
+    || sessionStorage.getItem("admin_access_token")
     || localStorage.getItem("admin_access_token")
     || sessionStorage.getItem("myshopzy_admin_access_token")
     || localStorage.getItem("myshopzy_admin_access_token")
@@ -180,12 +184,15 @@ function renderPartnerProducts(products) {
   const container = document.getElementById("partnerProductsContainer");
   if (!container) return;
   container.innerHTML = products.length ? products.map(product => {
-    const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
-    const imageUrl = product.images?.[0]?.public_url || "";
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const sourceImage = product.images?.[0]?.public_url || "";
+    const imageUrl = /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(sourceImage)
+      ? sourceImage
+      : (() => { try { const image = new URL(sourceImage); return ["http:", "https:"].includes(image.protocol) ? image.href : ""; } catch { return ""; } })();
     return `
     <article class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-3">
       <img src="${escapePartnerHtml(imageUrl)}" class="w-16 h-16 rounded-xl object-contain bg-slate-50" onerror="this.style.display='none'" alt="">
-      <div class="flex-1 min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(variant.unit_label || "Unit")} · ${variant.is_active === false ? "Unavailable" : "Available"}</p><strong class="block text-sm text-emerald-700 mt-1">₹${Number(variant.price || 0)}</strong><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit</button><button type="button" onclick="deletePartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black">Deactivate</button></div><div class="flex items-center gap-2 mt-2"><label class="text-[10px] text-slate-500">Stock <input id="partnerStock_${escapePartnerHtml(variant.id || product.id)}" type="number" min="0" step="0.001" value="${Number(variant.quantity_on_hand || 0)}" class="w-20 ml-1 px-2 py-1 border border-slate-200 rounded-lg"></label><label class="flex items-center gap-1 text-[10px] text-slate-500"><input id="partnerAvailable_${escapePartnerHtml(variant.id || product.id)}" type="checkbox" ${variant.is_active === false ? "" : "checked"}>Available</label><button type="button" onclick="savePartnerInventory('${escapePartnerHtml(variant.id || "")}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black">Update</button></div></div>
+      <div class="flex-1 min-w-0"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[10px] text-slate-500 mt-1">${escapePartnerHtml(product.status)}</p></div><button type="button" onclick="togglePartnerProductStatus('${escapePartnerHtml(product.id)}','${product.status === "ACTIVE" ? "PAUSED" : "ACTIVE"}')" class="shrink-0 px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">${product.status === "ACTIVE" ? "Deactivate" : "Activate"}</button></div><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(product.description || "")}</p><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit product</button><button type="button" onclick="addPartnerVariant('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-cyan-50 text-cyan-900 text-[10px] font-black">Add variant</button></div><div class="mt-2 space-y-2">${variants.map(variant => `<div class="rounded-lg border border-slate-100 p-2"><div class="flex items-center justify-between gap-2"><div><strong class="text-[11px] text-slate-800">${escapePartnerHtml(variant.name || "Variant")}</strong><span class="ml-1 text-[10px] text-slate-500">${escapePartnerHtml(variant.unit_label || "Unit")}</span><p class="text-[11px] text-emerald-700">₹${Number(variant.price || 0).toFixed(2)} · Stock ${Number(variant.quantity_on_hand || 0)}</p></div><div class="flex gap-1"><button type="button" onclick="editPartnerVariant('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold">Edit</button><button type="button" onclick="savePartnerVariantAvailability('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}',${variant.is_active === false})" class="px-2 py-1 rounded bg-amber-50 text-amber-800 text-[10px] font-bold">${variant.is_active === false ? "Enable" : "Pause"}</button></div></div><div class="flex items-center gap-2 mt-2"><label class="text-[10px] text-slate-500">Stock <input id="partnerStock_${escapePartnerHtml(variant.id)}" type="number" min="0" step="0.001" value="${Number(variant.quantity_on_hand || 0)}" class="w-20 ml-1 px-2 py-1 border border-slate-200 rounded-lg"></label><button type="button" onclick="savePartnerInventory('${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black">Update stock</button></div></div>`).join("")}</div></div>
     </article>
   `; }).join("") : '<p class="col-span-full text-center text-slate-400 py-8 text-xs">No products assigned to this partner.</p>';
 }
@@ -193,13 +200,11 @@ function renderPartnerProducts(products) {
 async function savePartnerInventory(variantId) {
   if (!variantId) return alert("This product has no active variant to update.");
   const stockInput = document.getElementById(`partnerStock_${variantId}`);
-  const availableInput = document.getElementById(`partnerAvailable_${variantId}`);
   try {
     await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/inventory/${encodeURIComponent(variantId)}`, {
       method: "PATCH",
       body: JSON.stringify({
-        quantity_on_hand: Number(stockInput.value),
-        is_active: availableInput.checked
+        quantity_on_hand: Number(stockInput.value)
       })
     });
     await startPartnerProductListener();
@@ -212,15 +217,25 @@ async function savePartnerInventory(variantId) {
 function resetPartnerProductForm() {
   document.getElementById("partnerProductId").value = "";
   document.getElementById("partnerProductName").value = "";
+  document.getElementById("partnerProductDescription").value = "";
+  document.getElementById("partnerProductVariantId").value = "";
+  document.getElementById("partnerProductMode").value = "";
   document.getElementById("partnerProductVariantName").value = "";
   document.getElementById("partnerProductCategory").value = "";
   document.getElementById("partnerProductSku").value = "";
   document.getElementById("partnerProductPrice").value = "";
   document.getElementById("partnerProductComparePrice").value = "";
   document.getElementById("partnerProductUnit").value = "";
+  document.getElementById("partnerProductUnitQuantity").value = "1";
+  document.getElementById("partnerProductVariantActive").checked = true;
   document.getElementById("partnerProductImage").value = "";
   document.getElementById("partnerProductFile").value = "";
   document.getElementById("partnerProductPreview").classList.add("hidden");
+  ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
+    document.getElementById(id).disabled = false;
+  });
+  document.getElementById("partnerImageDropzone").classList.remove("hidden");
+  document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save product";
 }
 
 function handlePartnerImageFile(event) {
@@ -265,32 +280,37 @@ function copyPartnerConsoleLink() {
 async function savePartnerProduct(event) {
   event.preventDefault();
   const productId = document.getElementById("partnerProductId").value;
+  const variantId = document.getElementById("partnerProductVariantId").value;
+  const mode = document.getElementById("partnerProductMode").value;
   const name = document.getElementById("partnerProductName").value.trim();
   const compareAtPrice = document.getElementById("partnerProductComparePrice").value;
+  const variant = {
+    name: document.getElementById("partnerProductVariantName").value.trim() || name,
+    sku: document.getElementById("partnerProductSku").value.trim() || null,
+    price: Number(document.getElementById("partnerProductPrice").value),
+    compare_at_price: compareAtPrice === "" ? null : Number(compareAtPrice),
+    unit_label: document.getElementById("partnerProductUnit").value.trim() || "1 pc",
+    unit_quantity: Number(document.getElementById("partnerProductUnitQuantity").value),
+    is_active: document.getElementById("partnerProductVariantActive").checked
+  };
   const product = {
     name,
+    description: document.getElementById("partnerProductDescription").value.trim() || null,
     category_id: document.getElementById("partnerProductCategory").value || null,
     image_url: document.getElementById("partnerProductImage").value.trim() || null,
-    variant: {
-      name: document.getElementById("partnerProductVariantName").value.trim() || name,
-      sku: document.getElementById("partnerProductSku").value.trim() || null,
-      price: Number(document.getElementById("partnerProductPrice").value),
-      compare_at_price: compareAtPrice === "" ? null : Number(compareAtPrice),
-      unit_label: document.getElementById("partnerProductUnit").value.trim() || "1 pc",
-      unit_quantity: 1,
-      is_active: true
-    }
+    variant
   };
   try {
-    const method = productId ? "PATCH" : "POST";
-    const suffix = productId ? `/${encodeURIComponent(productId)}` : "";
-    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products${suffix}`, {
-      method,
-      body: JSON.stringify(product)
-    });
+    if (mode === "add_variant" || mode === "edit_variant") {
+      const suffix = `/shops/${encodeURIComponent(partnerState.shopId)}/products/${encodeURIComponent(productId)}/variants${variantId ? `/${encodeURIComponent(variantId)}` : ""}`;
+      await partnerApiRequest(suffix, { method: variantId ? "PATCH" : "POST", body: JSON.stringify(variant) });
+    } else {
+      const suffix = `/shops/${encodeURIComponent(partnerState.shopId)}/products${productId ? `/${encodeURIComponent(productId)}` : ""}`;
+      await partnerApiRequest(suffix, { method: productId ? "PATCH" : "POST", body: JSON.stringify(product) });
+    }
     resetPartnerProductForm();
     await startPartnerProductListener();
-    alert("Product saved.");
+    alert(mode ? "Variant saved." : "Product saved.");
   } catch (error) {
     console.error("Partner product save failed:", error);
     alert(`Unable to save product: ${error.message}`);
@@ -301,17 +321,83 @@ async function editPartnerProduct(productId) {
   const product = partnerState.products.find(item => item.id === productId);
   if (!product) return;
   const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
+  resetPartnerProductForm();
   document.getElementById("partnerProductId").value = productId;
   document.getElementById("partnerProductName").value = product.name || "";
+  document.getElementById("partnerProductDescription").value = product.description || "";
   document.getElementById("partnerProductCategory").value = product.category_id || "";
   document.getElementById("partnerProductVariantName").value = variant.name || "";
   document.getElementById("partnerProductSku").value = variant.sku || "";
   document.getElementById("partnerProductPrice").value = variant.price ?? "";
   document.getElementById("partnerProductComparePrice").value = variant.compare_at_price ?? "";
   document.getElementById("partnerProductUnit").value = variant.unit_label || "";
+  document.getElementById("partnerProductUnitQuantity").value = variant.unit_quantity ?? 1;
+  document.getElementById("partnerProductVariantActive").checked = variant.is_active !== false;
   document.getElementById("partnerProductImage").value = product.images?.[0]?.public_url || "";
   switchPartnerView("products");
   document.getElementById("partnerProductName").focus();
+}
+
+function preparePartnerVariantForm(productId) {
+  const product = partnerState.products.find(item => item.id === productId);
+  if (!product) return null;
+  resetPartnerProductForm();
+  document.getElementById("partnerProductId").value = product.id;
+  document.getElementById("partnerProductName").value = product.name || "";
+  document.getElementById("partnerProductMode").value = "add_variant";
+  ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+  document.getElementById("partnerImageDropzone").classList.add("hidden");
+  document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save variant";
+  return product;
+}
+
+function addPartnerVariant(productId) {
+  const product = preparePartnerVariantForm(productId || document.getElementById("partnerProductId").value);
+  if (!product) return;
+  switchPartnerView("products");
+  document.getElementById("partnerProductVariantName").focus();
+}
+
+function editPartnerVariant(productId, variantId) {
+  const product = preparePartnerVariantForm(productId);
+  const variant = product?.variants?.find(item => item.id === variantId);
+  if (!variant) return;
+  document.getElementById("partnerProductMode").value = "edit_variant";
+  document.getElementById("partnerProductVariantId").value = variant.id;
+  document.getElementById("partnerProductVariantName").value = variant.name || "";
+  document.getElementById("partnerProductSku").value = variant.sku || "";
+  document.getElementById("partnerProductPrice").value = variant.price ?? "";
+  document.getElementById("partnerProductComparePrice").value = variant.compare_at_price ?? "";
+  document.getElementById("partnerProductUnit").value = variant.unit_label || "";
+  document.getElementById("partnerProductUnitQuantity").value = variant.unit_quantity ?? 1;
+  document.getElementById("partnerProductVariantActive").checked = variant.is_active !== false;
+  switchPartnerView("products");
+  document.getElementById("partnerProductVariantName").focus();
+}
+
+async function savePartnerVariantAvailability(productId, variantId, isActive) {
+  try {
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive })
+    });
+    await startPartnerProductListener();
+  } catch (error) {
+    alert(`Unable to update variant availability: ${error.message}`);
+  }
+}
+
+async function togglePartnerProductStatus(productId, status) {
+  try {
+    await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products/${encodeURIComponent(productId)}/status`, {
+      method: "PATCH", body: JSON.stringify({ status })
+    });
+    await startPartnerProductListener();
+  } catch (error) {
+    alert(`Unable to update product status: ${error.message}`);
+  }
 }
 
 async function deletePartnerProduct(productId) {
@@ -331,25 +417,57 @@ async function loadPartnerProfile() {
       partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`),
       partnerApiRequest("/me")
     ]);
+    const dashboard = await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/dashboard`);
     partnerState.shopStatus = shop.status;
     partnerState.memberRole = profile.partners.find(item => item.partner_id === shop.partner_id)?.member_role || "";
     partnerState.profileAddress = shop.address_line1 || "";
     document.getElementById("partnerProfileName").value = shop.name || "";
     document.getElementById("partnerProfileAddress").value = partnerState.profileAddress;
+    document.getElementById("partnerProfileDescription").value = shop.description || "";
+    document.getElementById("partnerProfileAddress2").value = shop.address_line2 || "";
+    document.getElementById("partnerProfileLocality").value = shop.locality || "";
+    document.getElementById("partnerProfileCity").value = shop.city || "";
+    document.getElementById("partnerProfileState").value = shop.state || "";
+    document.getElementById("partnerProfilePostal").value = shop.postal_code || "";
+    document.getElementById("partnerProfilePhone").value = shop.phone_e164 || "";
+    document.getElementById("partnerProfileEmail").value = shop.email || "";
+    renderPartnerDashboard(dashboard);
     renderPartnerShopStatus();
   } catch (error) {
     console.warn("Partner shop profile load failed:", error);
   }
 }
 
+function renderPartnerDashboard(data) {
+  document.getElementById("partnerTotalProducts").textContent = Number(data.total_products || 0).toLocaleString();
+  document.getElementById("partnerActiveProducts").textContent = Number(data.active_products || 0).toLocaleString();
+  document.getElementById("partnerStockQuantity").textContent = Number(data.stock_quantity || 0).toLocaleString();
+  document.getElementById("partnerPendingOrders").textContent = Number(data.pending_orders || 0).toLocaleString();
+  document.getElementById("partnerCompletedOrders").textContent = Number(data.completed_orders || 0).toLocaleString();
+  document.getElementById("partnerCancelledOrders").textContent = Number(data.cancelled_orders || 0).toLocaleString();
+  document.getElementById("partnerDeliveredValue").textContent = `₹${Number(data.delivered_item_value || 0).toFixed(2)}`;
+}
+
 async function savePartnerProfile(event) {
   event.preventDefault();
   const name = document.getElementById("partnerProfileName").value.trim() || partnerState.label;
   const address = document.getElementById("partnerProfileAddress").value.trim();
+  const body = {
+    name,
+    description: document.getElementById("partnerProfileDescription").value.trim() || null,
+    address_line1: address,
+    address_line2: document.getElementById("partnerProfileAddress2").value.trim() || null,
+    locality: document.getElementById("partnerProfileLocality").value.trim() || null,
+    city: document.getElementById("partnerProfileCity").value.trim(),
+    state: document.getElementById("partnerProfileState").value.trim(),
+    postal_code: document.getElementById("partnerProfilePostal").value.trim(),
+    phone_e164: document.getElementById("partnerProfilePhone").value.trim() || null,
+    email: document.getElementById("partnerProfileEmail").value.trim() || null
+  };
   try {
     await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`, {
       method: "PATCH",
-      body: JSON.stringify({ name, address_line1: address })
+      body: JSON.stringify(body)
     });
     partnerState.label = name;
     partnerState.profileAddress = address;

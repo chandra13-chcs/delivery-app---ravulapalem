@@ -95,6 +95,52 @@ async function getPartnerShop(req, res) {
   }
 }
 
+async function getPartnerShopDashboard(req, res) {
+  const { shopId } = req.params;
+  if (!isValidUuid(shopId)) return invalidIdResponse(res);
+  try {
+    const result = await db.query(
+      `SELECT s.id AS shop_id, s.partner_id, p.display_name AS partner_name,
+              s.name AS shop_name, s.status AS shop_status,
+              (SELECT count(*) FROM products pr
+               WHERE pr.shop_id = s.id AND pr.deleted_at IS NULL)::int AS total_products,
+              (SELECT count(*) FROM products pr
+               WHERE pr.shop_id = s.id AND pr.status = 'ACTIVE' AND pr.deleted_at IS NULL)::int AS active_products,
+              (SELECT COALESCE(sum(i.quantity_on_hand), 0)
+               FROM products pr JOIN product_variants pv ON pv.product_id = pr.id AND pv.deleted_at IS NULL
+               JOIN inventory i ON i.variant_id = pv.id
+               WHERE pr.shop_id = s.id AND pr.deleted_at IS NULL) AS stock_quantity,
+              (SELECT count(DISTINCT o.id) FROM order_fulfillments f JOIN orders o ON o.id = f.order_id
+               WHERE f.shop_id = s.id AND f.status IN ('PLACED', 'ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP', 'PICKING_UP'))::int AS pending_orders,
+              (SELECT count(DISTINCT o.id) FROM order_fulfillments f JOIN orders o ON o.id = f.order_id
+               WHERE f.shop_id = s.id AND o.status = 'DELIVERED')::int AS completed_orders,
+              (SELECT count(DISTINCT o.id) FROM order_fulfillments f JOIN orders o ON o.id = f.order_id
+               WHERE f.shop_id = s.id AND o.status IN ('CANCELLED', 'REJECTED'))::int AS cancelled_orders,
+                (SELECT COALESCE(sum(oi.line_total), 0)
+                 FROM order_fulfillments f JOIN orders o ON o.id = f.order_id
+                 JOIN order_items oi ON oi.fulfillment_id = f.id
+                 WHERE f.shop_id = s.id AND o.status = 'DELIVERED') AS delivered_item_value
+       FROM shops s JOIN partners p ON p.id = s.partner_id
+       WHERE s.id = $1 AND s.partner_id = ANY($2::uuid[])
+         AND s.deleted_at IS NULL AND p.status = 'ACTIVE' AND p.deleted_at IS NULL`,
+      [shopId, req.partnerIds]
+    );
+    if (!result.rows[0]) return notFoundResponse(res);
+    const row = result.rows[0];
+    return res.json({
+      success: true,
+      data: {
+        ...row,
+        stock_quantity: Number(row.stock_quantity),
+        delivered_item_value: Number(row.delivered_item_value)
+      }
+    });
+  } catch (error) {
+    console.error("Partner dashboard retrieval failed:", error.message);
+    return res.status(500).json({ success: false, message: "Unable to retrieve shop dashboard.", data: null });
+  }
+}
+
 async function listPartnerShopProducts(req, res) {
   const { shopId } = req.params;
   if (!isValidUuid(shopId)) return invalidIdResponse(res);
@@ -194,6 +240,7 @@ module.exports = {
   getPartnerProfile,
   listPartnerShops,
   getPartnerShop,
+  getPartnerShopDashboard,
   listPartnerShopProducts,
   listPartnerShopInventory
 };

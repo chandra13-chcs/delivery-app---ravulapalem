@@ -384,10 +384,12 @@ async function createCustomerOrder(req, res) {
                   COALESCE(i.quantity_reserved, 0) AS quantity_reserved
            FROM products p
            JOIN shops s ON s.id = p.shop_id
+           JOIN partners partner ON partner.id = s.partner_id
            JOIN product_variants pv ON pv.product_id = p.id
            LEFT JOIN inventory i ON i.variant_id = pv.id
            WHERE p.id = $1 AND p.status = 'ACTIVE' AND p.deleted_at IS NULL
              AND s.status = 'ACTIVE' AND s.deleted_at IS NULL
+             AND partner.status = 'ACTIVE' AND partner.deleted_at IS NULL
              AND pv.is_active = true AND pv.deleted_at IS NULL
              AND ($2::uuid IS NULL OR pv.id = $2)
              AND ($3::numeric IS NULL OR pv.unit_quantity = $3)

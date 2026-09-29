@@ -1063,6 +1063,7 @@
               <option value="store_partner">Extra Store Partner</option>
               <option value="vegetable_partner">Vegetable Partner</option>
               <option value="meat_partner">Meat Partner</option>
+              <option value="restaurant_partner">Restaurant Partner (PostgreSQL)</option>
               <option value="restaurant">Restaurant Partner</option>
             </select>
           </div>
@@ -1216,42 +1217,45 @@
     </section>
   </main>
 
-  <!-- PARTNER ACCOUNT MANAGER -->
+  <!-- PARTNER MANAGEMENT -->
   <main id="partnersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
-        <h2 class="text-base font-extrabold text-slate-900">Create Partner Console</h2>
-        <p class="text-xs text-slate-500">Choose the partner type. Each account gets a direct link to its matching console.</p>
+        <h2 class="text-base font-extrabold text-slate-900">Create Partner</h2>
+        <p class="text-xs text-slate-500">Partner records, shops, members, and catalog summaries are managed in PostgreSQL.</p>
       </div>
-      <form onsubmit="createAdminPartnerAccount(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+      <form onsubmit="createAdminPartnerAccount(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
         <div>
-          <label for="partnerAccountType" class="text-[11px] font-bold text-slate-500 uppercase">Partner type *</label>
-          <select id="partnerAccountType" onchange="toggleAdminPartnerAccountFields()" required class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-bold">
-            <option value="meat">Meat partner</option>
-            <option value="store">Extra store</option>
-            <option value="restaurant">Restaurant</option>
+          <label for="partnerBusinessType" class="text-[11px] font-bold text-slate-500 uppercase">Business type *</label>
+          <select id="partnerBusinessType" required class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-bold">
+            <option value="RESTAURANT">Restaurant</option>
+            <option value="GROCERY">Grocery</option>
+            <option value="MEAT">Meat</option>
+            <option value="OTHER">Other</option>
           </select>
         </div>
-        <div id="partnerAccountNameField">
-          <label for="partnerAccountName" class="text-[11px] font-bold text-slate-500 uppercase">Partner name *</label>
-          <input id="partnerAccountName" required maxlength="80" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl font-bold" placeholder="e.g. Ravi Fresh Meat">
+        <div>
+          <label for="partnerLegalName" class="text-[11px] font-bold text-slate-500 uppercase">Legal name *</label>
+          <input id="partnerLegalName" required maxlength="200" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl font-bold">
         </div>
-        <div id="partnerAccountRestaurantField" class="hidden">
-          <label for="partnerAccountRestaurant" class="text-[11px] font-bold text-slate-500 uppercase">Restaurant *</label>
-          <select id="partnerAccountRestaurant" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-bold">
-            <option value="">Loading restaurants...</option>
-          </select>
+        <div>
+          <label for="partnerDisplayName" class="text-[11px] font-bold text-slate-500 uppercase">Display name *</label>
+          <input id="partnerDisplayName" required maxlength="200" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl font-bold">
         </div>
-        <button type="submit" class="py-2.5 px-4 bg-[#0B132B] text-white rounded-xl text-xs font-black">Create partner account</button>
+        <div>
+          <label for="partnerTaxIdentifier" class="text-[11px] font-bold text-slate-500 uppercase">Tax identifier</label>
+          <input id="partnerTaxIdentifier" maxlength="100" class="w-full mt-1 px-3 py-2.5 text-xs border border-slate-300 rounded-xl font-bold">
+        </div>
+        <button type="submit" class="py-2.5 px-4 bg-[#0B132B] text-white rounded-xl text-xs font-black">Create partner</button>
       </form>
     </section>
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
-        <h2 class="text-base font-extrabold text-slate-900">Configured Partner Accounts</h2>
+        <h2 class="text-base font-extrabold text-slate-900">Partners and Shops</h2>
         <a href="../partner/partner.html" target="_blank" class="text-xs font-black text-cyan-800 underline">Open setup console</a>
       </div>
       <div id="adminPartnerAccountsList" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <p class="text-xs font-bold text-slate-500">Loading partner accounts...</p>
+        <p class="text-xs font-bold text-slate-500">Loading partners...</p>
       </div>
     </section>
   </main>

@@ -38,20 +38,14 @@
       </div>
       <div id="meatPartnerField" class="hidden">
         <label class="block text-[10px] font-black uppercase text-slate-500">Partner desk name</label>
-        <select id="meatPartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <option value="meat_partner_1">Meat Partner 1</option>
-          <option value="meat_partner_2">Meat Partner 2</option>
-        </select>
+        <select id="meatPartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"><option value="">Loading authorized shops...</option></select>
       </div>
       <div id="storePartnerField" class="hidden">
         <label class="block text-[10px] font-black uppercase text-slate-500">Partner desk name</label>
-        <select id="storePartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <option value="store_partner_1">Extra Store 1</option>
-          <option value="store_partner_2">Extra Store 2</option>
-        </select>
+        <select id="storePartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"><option value="">Loading authorized shops...</option></select>
       </div>
       <button type="button" onclick="openPartnerDesk()" class="w-full py-3 rounded-xl bg-[#0B132B] text-white text-xs font-black">Open order console</button>
-      <p class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2">Partner login/PIN should be enforced with Firebase Authentication and Firestore rules before production use.</p>
+      <p class="text-[10px] text-slate-500">Partner tools require an authenticated account with active shop membership.</p>
     </section>
 
     <section id="partnerDesk" class="hidden space-y-4">
@@ -59,6 +53,17 @@
         <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">New</span><strong id="partnerNewCount" class="block text-xl font-black text-amber-600">0</strong></div>
         <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">Preparing</span><strong id="partnerPreparingCount" class="block text-xl font-black text-blue-600">0</strong></div>
         <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">Ready</span><strong id="partnerReadyCount" class="block text-xl font-black text-emerald-600">0</strong></div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-live="polite">
+        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Products</span><strong id="partnerTotalProducts" class="block text-lg font-black text-slate-800">0</strong></div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Active</span><strong id="partnerActiveProducts" class="block text-lg font-black text-emerald-700">0</strong></div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Stock units</span><strong id="partnerStockQuantity" class="block text-lg font-black text-blue-700">0</strong></div>
+        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Delivered item value</span><strong id="partnerDeliveredValue" class="block text-lg font-black text-emerald-700">₹0</strong></div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+        <p>Pending orders: <strong id="partnerPendingOrders" class="text-slate-900">0</strong></p>
+        <p>Completed: <strong id="partnerCompletedOrders" class="text-slate-900">0</strong></p>
+        <p>Cancelled: <strong id="partnerCancelledOrders" class="text-slate-900">0</strong></p>
       </div>
       <div class="flex items-center justify-between gap-3"><div><h2 id="partnerDeskTitle" class="text-base font-black text-slate-900">Partner orders</h2><p class="text-[11px] text-slate-500">Accept, prepare, and hand off orders to the rider.</p></div><div class="flex gap-1.5"><button type="button" id="partnerShopStatusButton" onclick="togglePartnerShopStatus()" class="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black">Shop status</button><button type="button" onclick="copyPartnerConsoleLink()" class="px-3 py-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] font-black">Copy Console Link</button><button type="button" onclick="closePartnerDesk()" class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black">Switch partner</button></div></div>
       <div class="flex gap-1 bg-slate-200/70 p-1 rounded-xl">
@@ -70,17 +75,22 @@
       <div id="partnerProductsView" class="hidden space-y-3">
         <form onsubmit="savePartnerProduct(event)" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-2">
           <input type="hidden" id="partnerProductId">
+          <input type="hidden" id="partnerProductVariantId">
+          <input type="hidden" id="partnerProductMode">
           <input id="partnerProductName" required placeholder="Product or dish name" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <select id="partnerProductCategory" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold bg-white"><option value="">No category</option></select>
+          <input id="partnerProductDescription" maxlength="2000" placeholder="Description" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs">
           <input id="partnerProductVariantName" maxlength="200" placeholder="Variant name (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <input id="partnerProductPrice" required type="number" min="0" step="0.01" placeholder="Price (₹)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <input id="partnerProductComparePrice" type="number" min="0" step="0.01" placeholder="Compare-at price (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <input id="partnerProductSku" maxlength="200" placeholder="SKU (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <input id="partnerProductUnit" placeholder="Unit e.g. 1 plate / 500g" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
+          <input id="partnerProductUnitQuantity" required type="number" min="0.001" max="999999999.999" step="0.001" value="1" placeholder="Unit quantity" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
           <input id="partnerProductImage" type="text" placeholder="Image URL (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs">
           <label id="partnerImageDropzone" class="sm:col-span-2 flex items-center justify-center min-h-12 px-3 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 text-[11px] font-bold text-slate-500 cursor-pointer text-center">Drop image here or choose from laptop/gallery<input id="partnerProductFile" type="file" accept="image/*" class="hidden" onchange="handlePartnerImageFile(event)"></label>
           <img id="partnerProductPreview" class="hidden sm:col-span-3 w-24 h-24 rounded-xl object-contain bg-slate-50 border border-slate-200" alt="Product preview">
           <button type="submit" class="py-2.5 bg-[#0B132B] text-white rounded-xl text-xs font-black">Save product</button>
+          <label class="flex items-center gap-2 text-[11px] font-bold text-slate-600"><input id="partnerProductVariantActive" type="checkbox" checked>Variant available</label>
           <button type="button" onclick="resetPartnerProductForm()" class="py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-black sm:col-span-3">Clear form</button>
         </form>
         <div id="partnerProductsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
@@ -88,7 +98,9 @@
       <div id="partnerProfileView" class="hidden">
         <form onsubmit="savePartnerProfile(event)" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div><label class="block text-[10px] font-black uppercase text-slate-500">Partner name</label><input id="partnerProfileName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></div>
-          <div><label class="block text-[10px] font-black uppercase text-slate-500">Pickup / kitchen address</label><textarea id="partnerProfileAddress" rows="3" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></textarea></div>
+          <div><label class="block text-[10px] font-black uppercase text-slate-500">Description</label><textarea id="partnerProfileDescription" rows="2" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></textarea></div>
+          <div><label class="block text-[10px] font-black uppercase text-slate-500">Pickup / kitchen address</label><input id="partnerProfileAddress" required class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></div>
+          <div class="grid grid-cols-2 gap-2"><input id="partnerProfileAddress2" placeholder="Address line 2" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileLocality" placeholder="Locality" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileCity" required placeholder="City" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileState" required placeholder="State" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfilePostal" required placeholder="Postal code" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfilePhone" placeholder="+91 phone" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileEmail" type="email" placeholder="Email" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"></div>
           <button type="submit" class="w-full py-2.5 bg-[#0B132B] text-white rounded-xl text-xs font-black">Save location details</button>
         </form>
       </div>

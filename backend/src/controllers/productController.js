@@ -39,6 +39,10 @@ async function listProductsByCategory(req, res) {
          ON s.id = p.shop_id
         AND s.status = 'ACTIVE'
         AND s.deleted_at IS NULL
+       JOIN partners partner
+         ON partner.id = s.partner_id
+        AND partner.status = 'ACTIVE'
+        AND partner.deleted_at IS NULL
        LEFT JOIN LATERAL (
          SELECT pv.price, pv.unit_label, pv.unit_quantity
          FROM product_variants pv
