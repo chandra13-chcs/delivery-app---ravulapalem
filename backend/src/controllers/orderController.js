@@ -20,7 +20,8 @@ const ORDER_PROJECTION = `
          parcel.parcel_pickup_address, parcel.parcel_drop_address, parcel.parcel_description,
          COALESCE(item_data.items, '[]'::jsonb) AS items,
          COALESCE(fulfillment_data.items, '[]'::jsonb) AS fulfillments,
-         rider.rider_name, rider.rider_phone
+         rider.assignment_id, rider.assignment_status,
+         rider.rider_id, rider.rider_name, rider.rider_phone
   FROM orders o
   JOIN users u ON u.id = o.customer_user_id
   LEFT JOIN order_addresses oa ON oa.order_id = o.id
@@ -71,7 +72,10 @@ const ORDER_PROJECTION = `
     WHERE f.order_id = o.id
   ) fulfillment_data ON true
   LEFT JOIN LATERAL (
-    SELECT rider_user.display_name AS rider_name, rider_user.phone_e164 AS rider_phone
+    SELECT assignment.id AS assignment_id, assignment.status AS assignment_status,
+           CASE WHEN assignment.status <> 'OFFERED' THEN r.id END AS rider_id,
+           CASE WHEN assignment.status <> 'OFFERED' THEN rider_user.display_name END AS rider_name,
+           CASE WHEN assignment.status <> 'OFFERED' THEN rider_user.phone_e164 END AS rider_phone
     FROM delivery_assignments assignment
     JOIN riders r ON r.id = assignment.rider_id
     JOIN users rider_user ON rider_user.id = r.user_id
@@ -231,6 +235,9 @@ function presentOrder(row) {
     delivered_at: row.delivered_at,
     cancelled_at: row.cancelled_at,
     assigned_rider: row.rider_name,
+    assigned_rider_id: row.rider_id,
+    assignment_id: row.assignment_id,
+    assignment_status: row.assignment_status,
     rider_phone: row.rider_phone,
     items,
     fulfillments: Array.isArray(row.fulfillments) ? row.fulfillments : []
@@ -556,6 +563,33 @@ async function cancelCustomerOrder(req, res) {
         `INSERT INTO fulfillment_status_history (fulfillment_id, from_status, to_status, changed_by_user_id, reason)
          VALUES ($1, $2, 'CANCELLED', $3, $4)`,
         [fulfillment.id, fulfillment.status, req.user.id, reason]
+      );
+    }
+    const assignments = await client.query(
+      `SELECT da.id, da.status, r.user_id
+       FROM delivery_assignments da
+       JOIN riders r ON r.id = da.rider_id
+       WHERE da.order_id = $1
+         AND da.status IN ('OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY')
+       FOR UPDATE OF da`,
+      [orderId]
+    );
+    for (const assignment of assignments.rows) {
+      await client.query(
+        `UPDATE delivery_assignments
+         SET status = 'CANCELLED', updated_at = now()
+         WHERE id = $1`,
+        [assignment.id]
+      );
+      await client.query(
+        `INSERT INTO delivery_tracking (assignment_id, event_type, actor_user_id, details)
+         VALUES ($1, 'CANCELLED', $2, $3::jsonb)`,
+        [assignment.id, req.user.id, JSON.stringify({ reason, source: "CUSTOMER_API" })]
+      );
+      await client.query(
+        `INSERT INTO notifications (user_id, channel, status, title, body, payload)
+         VALUES ($1, 'IN_APP', 'PENDING', 'Delivery cancelled', $2, $3::jsonb)`,
+        [assignment.user_id, `Order ${orderId} was cancelled by the customer.`, JSON.stringify({ event: "delivery.assignment.cancelled", order_id: orderId, assignment_id: assignment.id })]
       );
     }
     await client.query(

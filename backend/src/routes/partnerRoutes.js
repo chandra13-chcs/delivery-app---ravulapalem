@@ -19,6 +19,7 @@ const {
   getPartnerOrder,
   updatePartnerOrderStatus
 } = require("../controllers/partnerOrderController");
+const { issuePickupOtp } = require("../controllers/deliveryController");
 const { requirePartner } = require("../middleware/requirePartner");
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.get("/me", getPartnerProfile);
 router.get("/orders", listPartnerOrders);
 router.get("/orders/:orderId", getPartnerOrder);
 router.patch("/orders/:orderId/shops/:shopId/status", updatePartnerOrderStatus);
+router.post("/orders/:orderId/shops/:shopId/pickup-otp", issuePickupOtp);
 router.get("/shops", listPartnerShops);
 router.patch("/shops/:shopId/status", updatePartnerShopStatus);
 router.patch("/shops/:shopId", updatePartnerShop);

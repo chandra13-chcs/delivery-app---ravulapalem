@@ -36,7 +36,7 @@ let leafletMap = null;
 let customerMarker = null;
 let riderTrackingMap = null;
 let riderTrackingMarker = null;
-let riderTrackingUnsubscribe = null;
+let riderTrackingPollTimer = null;
 let riderTrackingDestination = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
@@ -174,15 +174,19 @@ function formatOrderDateTime(order) {
   return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
-function openCustomerRiderTracker(orderId, riderName) {
+function openCustomerRiderTracker(orderId) {
   const modal = document.getElementById("customerRiderTrackingModal");
   const status = document.getElementById("customerRiderTrackingStatus");
-  if (!modal || !riderName) return;
+  if (!modal) return;
 
   modal.classList.remove("hidden");
-  if (status) status.innerText = `Connecting to ${riderName}'s live location...`;
+  if (status) status.innerText = "Connecting to delivery tracking...";
 
-  if (riderTrackingUnsubscribe) riderTrackingUnsubscribe();
+  if (riderTrackingPollTimer) clearInterval(riderTrackingPollTimer);
+  if (riderTrackingMarker) {
+    riderTrackingMarker.remove();
+    riderTrackingMarker = null;
+  }
   riderTrackingDestination = null;
   customerOrderApiRequest(`/${encodeURIComponent(orderId)}`).then(order => {
     if (Number.isFinite(Number(order?.delivery_latitude)) && Number.isFinite(Number(order?.delivery_longitude))) {
@@ -202,42 +206,52 @@ function openCustomerRiderTracker(orderId, riderName) {
     setTimeout(() => riderTrackingMap.invalidateSize(), 200);
   }
 
-  riderTrackingUnsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
-    if (!doc.exists || !Number.isFinite(Number(doc.data().lat)) || !Number.isFinite(Number(doc.data().lng))) {
-      if (status) status.innerText = `${riderName} has not started live GPS yet.`;
-      return;
-    }
+  const refresh = async () => {
+    try {
+      const tracking = await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/tracking`);
+      if (!tracking?.available) {
+        if (status) status.innerText = "Live tracking becomes available after the rider accepts the delivery.";
+        return;
+      }
+      if (!tracking.location) {
+        if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is assigned; waiting for a location update.`;
+        return;
+      }
 
-    const location = doc.data();
-    const position = [Number(location.lat), Number(location.lng)];
-    if (riderTrackingMarker) {
-      riderTrackingMarker.setLatLng(position);
-    } else {
-      riderTrackingMarker = L.marker(position, {
-        icon: L.divIcon({ className: "customer-rider-icon", html: "<div style=\"font-size: 28px\">🛵</div>", iconSize: [32, 32] })
-      }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(riderName)}</b><br>Live delivery partner`).openPopup();
+      const location = tracking.location;
+      const latitude = Number(location.latitude);
+      const longitude = Number(location.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+      const position = [latitude, longitude];
+      if (riderTrackingMarker) {
+        riderTrackingMarker.setLatLng(position);
+      } else {
+        riderTrackingMarker = L.marker(position, {
+          icon: L.divIcon({ className: "customer-rider-icon", html: "<div style=\"font-size: 28px\">🛵</div>", iconSize: [32, 32] })
+        }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(tracking.rider_name || 'Delivery partner')}</b><br>Live delivery partner`).openPopup();
+      }
+      riderTrackingMap.setView(position, 16);
+      let etaText = "";
+      if (riderTrackingDestination) {
+        const distance = calculateDistanceKm(position[0], position[1], riderTrackingDestination.lat, riderTrackingDestination.lng);
+        const etaMinutes = Math.max(1, Math.ceil((distance / 25) * 60));
+        etaText = ` · Approx. ${etaMinutes} min (${distance.toFixed(1)} km)`;
+      }
+      if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is live. Updated ${new Date(location.recorded_at).toLocaleTimeString()}${etaText}`;
+    } catch (error) {
+      console.error("Customer rider tracking request failed:", error);
+      if (status) status.innerText = error.message || "Live location is temporarily unavailable.";
     }
-    riderTrackingMap.setView(position, 16);
-    let etaText = "";
-    if (riderTrackingDestination) {
-      const distance = calculateDistanceKm(position[0], position[1], riderTrackingDestination.lat, riderTrackingDestination.lng);
-      const etaMinutes = Math.max(1, Math.ceil((distance / 25) * 60));
-      etaText = ` · Approx. ${etaMinutes} min (${distance.toFixed(1)} km)`;
-    }
-    if (status) status.innerText = `${riderName} is live. Last update: ${location.updated_at ? "just now" : "location received"}${etaText}`;
-  }, error => {
-    console.error("Customer rider tracking error:", error);
-    if (status) status.innerText = "Live location is temporarily unavailable.";
-  });
+  };
+  refresh();
+  riderTrackingPollTimer = setInterval(refresh, 4000);
 }
 
 function closeCustomerRiderTracker() {
   const modal = document.getElementById("customerRiderTrackingModal");
   if (modal) modal.classList.add("hidden");
-  if (riderTrackingUnsubscribe) {
-    riderTrackingUnsubscribe();
-    riderTrackingUnsubscribe = null;
-  }
+  if (riderTrackingPollTimer) clearInterval(riderTrackingPollTimer);
+  riderTrackingPollTimer = null;
 }
 
 
@@ -4927,7 +4941,7 @@ async function toggleOrdersView() {
 function renderCustomerRiderContact(order) {
   const status = String(order.status || "").toUpperCase();
   const riderPhone = String(order.rider_phone || "").replace(/\D/g, "");
-  if (!riderPhone || !["PICKING_UP", "OUT FOR DELIVERY", "DELIVERED"].includes(status)) return "";
+  if (!riderPhone || !["PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(status)) return "";
   const riderName = escapeHtml(order.rider_name || order.assigned_rider || "Delivery partner");
   const whatsapp = `https://wa.me/${riderPhone}?text=${encodeURIComponent(`Hi ${order.rider_name || "rider"}, I am contacting you about order ${order.id}.`)}`;
   return `<div class="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-2.5">
@@ -5062,14 +5076,18 @@ function renderReceipt(
 
   const trackingBox = document.getElementById("customerRiderTrackingBox");
   if (trackingBox) {
-    if (targetOrder.assigned_rider && targetOrder.status !== "DELIVERED" && targetOrder.status !== "Delivered") {
+    const currentStatus = String(targetOrder.status || '').toUpperCase();
+    if (targetOrder.assignment_id && !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(currentStatus)) {
       trackingBox.innerHTML = `
-        <button onclick="openCustomerRiderTracker('${escapeAttribute(orderId)}', '${escapeAttribute(targetOrder.assigned_rider)}')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2">
-          <span>🛵</span> Track ${escapeHtml(targetOrder.assigned_rider)} live
-        </button>
+        <div class="space-y-2">
+          <button onclick="openCustomerRiderTracker('${escapeAttribute(orderId)}')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2">
+            <span>🛵</span> Track ${escapeHtml(targetOrder.assigned_rider || 'rider')} live
+          </button>
+          ${currentStatus === 'OUT_FOR_DELIVERY' ? `<button onclick="requestCustomerDeliveryOtp('${escapeAttribute(orderId)}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black">Send delivery code</button>` : ''}
+        </div>
       `;
     } else {
-      trackingBox.innerHTML = targetOrder.status === "DELIVERED" || targetOrder.status === "Delivered"
+      trackingBox.innerHTML = currentStatus === "DELIVERED"
         ? `<p class="text-[11px] text-emerald-700 font-bold text-center">Delivery completed</p>`
         : `<p class="text-[11px] text-slate-500 font-bold text-center">A rider will be assigned soon.</p>`;
     }
@@ -5215,6 +5233,18 @@ function renderReceipt(
 
     printBtn.onclick =
       () => window.print();
+  }
+}
+
+async function requestCustomerDeliveryOtp(orderId) {
+  try {
+    await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/delivery-otp`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    alert("Delivery code sent to the phone number on this order.");
+  } catch (error) {
+    alert(error.message || "Unable to send the delivery code.");
   }
 }
 

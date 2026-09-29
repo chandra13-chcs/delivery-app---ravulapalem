@@ -5,11 +5,12 @@
 const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
-let ADMIN_RIDER_NAMES = [];
 let ADMIN_RIDER_PROFILES = [];
-const adminRiderLocations = {};
-const adminRiderLocationUnsubscribers = [];
+let ADMIN_DELIVERY_RIDERS = [];
 let adminOrderIdsInitialized = false;
+let adminOrderPollTimer = null;
+let adminTrackingPollTimer = null;
+let adminKnownOrderIds = new Set();
 let adminCountdownTimer = null;
 let pendingAdminOrderAlerts = [];
 let adminAlertSoundStopped = false;
@@ -62,22 +63,11 @@ function stopAdminOrderAlertSound() {
 }
 
 async function acceptAdminOrderAlert() {
-  const order = pendingAdminOrderAlerts[0];
-  if (!order) return;
-  try {
-    const acceptanceUpdate = {
-        status: "ACCEPTED",
-        accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
-        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    await db.collection("orders").doc(order.id).update(acceptanceUpdate);
-      pendingAdminOrderAlerts.shift();
-      adminAlertSoundStopped = false;
-      stopAdminOrderSound();
-      showNextAdminOrderAlert();
-    } catch (error) {
-      alert(`Unable to accept order: ${error.message}`);
-  }
+  if (!pendingAdminOrderAlerts.length) return;
+  pendingAdminOrderAlerts.shift();
+  adminAlertSoundStopped = false;
+  stopAdminOrderSound();
+  showNextAdminOrderAlert();
 }
 
 function getAdminOrderDeadlineMs(order) {
@@ -130,36 +120,6 @@ function getAdminOrderDateKey(order) {
   return "";
 }
 
-function calculateDistanceKm(lat1, lng1, lat2, lng2) {
-  const earthRadiusKm = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(lat1 * Math.PI / 180)
-    * Math.cos(lat2 * Math.PI / 180)
-    * Math.sin(dLng / 2) ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function startAdminRiderLocationListeners() {
-  renderAdminRiderStatus();
-  ADMIN_RIDER_NAMES.forEach(riderName => {
-    subscribeToAdminRiderLocation(riderName);
-  });
-}
-
-function subscribeToAdminRiderLocation(riderName) {
-  if (adminRiderLocations[`${riderName}_listener`]) return;
-  const unsubscribe = db.collection("riders_location").doc(riderName).onSnapshot(doc => {
-    if (doc.exists) adminRiderLocations[riderName] = doc.data();
-    else delete adminRiderLocations[riderName];
-    renderAdminRiderStatus();
-    refreshAdminRiderAssignmentFields();
-  }, error => console.error(`Rider location listener error (${riderName}):`, error));
-  adminRiderLocations[`${riderName}_listener`] = unsubscribe;
-  adminRiderLocationUnsubscribers.push(unsubscribe);
-}
-
 async function startRegisteredRiderListener() {
   try {
     const result = await adminRiderApiRequest('/api/admin/riders');
@@ -171,13 +131,22 @@ async function startRegisteredRiderListener() {
       email: profile.email || '-',
       verification_status: profile.verification_status || 'PENDING'
     }));
-    ADMIN_RIDER_NAMES = [...new Set(ADMIN_RIDER_PROFILES.map(profile => profile.name).filter(Boolean))];
-    ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
+    await loadEligibleDeliveryRiders();
     renderAdminRiderStatus();
     renderRiderVerificationQueue();
     refreshAdminRiderAssignmentFields();
   } catch (error) {
     console.error("Registered rider listener error:", error);
+  }
+}
+
+async function loadEligibleDeliveryRiders() {
+  try {
+    const result = await adminRiderApiRequest('/api/admin/deliveries/riders');
+    ADMIN_DELIVERY_RIDERS = Array.isArray(result?.data) ? result.data : [];
+  } catch (error) {
+    ADMIN_DELIVERY_RIDERS = [];
+    console.error('Eligible delivery rider lookup failed:', error);
   }
 }
 
@@ -289,31 +258,51 @@ async function reviewRiderVerification(encodedId, status) {
 function renderAdminRiderStatus() {
   const container = document.getElementById("adminRiderStatusList");
   if (!container) return;
-  container.innerHTML = ADMIN_RIDER_NAMES.map(name => `
+  container.innerHTML = ADMIN_DELIVERY_RIDERS.map(rider => `
     <span class="text-[10px] font-bold text-slate-800 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
-      🛵 ${name}: <strong class="${adminRiderLocations[name]?.available === true ? "text-emerald-600" : "text-slate-400"}">${adminRiderLocations[name]?.available === true ? "Online" : "Offline"}</strong>
+      🛵 ${escapeAdminHtml(rider.name)}: <strong class="text-emerald-600">Available</strong>
     </span>
   `).join("");
 }
 
 function renderRiderAssignment(order) {
-  const selectedRider = order.assigned_rider || "";
+  const assignmentIsActive = ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(order.assignment_status);
+  if (order.assignment_id && assignmentIsActive) {
+    const status = order.assignment_status;
+    const assignedName = order.assigned_rider || 'Rider response pending';
+    return `
+      <div class="flex flex-wrap items-center gap-2 mt-2">
+        <span class="text-[11px] font-bold text-slate-700">${escapeAdminHtml(assignedName)} · ${escapeAdminHtml(status)}</span>
+        <button onclick="openAdminRiderTracker('${escapeAdminHtml(order.assignment_id)}')" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold">Track rider</button>
+      </div>`;
+  }
+
+  const eligible = order.order_type === 'PARCEL'
+    ? order.status === 'PLACED'
+    : order.status === 'READY_FOR_PICKUP'
+      && Array.isArray(order.fulfillments)
+      && order.fulfillments.length > 0
+      && order.fulfillments.every(fulfillment => fulfillment.status === 'READY_FOR_PICKUP');
+  if (!eligible) {
+    return order.assignment_status
+      ? `<p class="mt-2 text-[10px] font-bold text-slate-500">Last assignment: ${escapeAdminHtml(order.assigned_rider || 'Rider')} · ${escapeAdminHtml(order.assignment_status)}</p>`
+      : '<p class="mt-2 text-[10px] font-bold text-slate-500">Assignment opens when the order is ready for pickup.</p>';
+  }
 
   return `
     <div class="flex flex-wrap items-center gap-2 mt-2">
-      <select data-admin-rider-select="true" data-order-id="${order.id}" onchange="assignOrderToRider('${order.id}', this.value)" class="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700">
+      ${order.assignment_status ? `<span class="text-[10px] font-bold text-slate-500">Previous: ${escapeAdminHtml(order.assignment_status)}</span>` : ''}
+      <select data-admin-rider-select="true" data-order-id="${escapeAdminHtml(order.id)}" onchange="assignOrderToRider('${escapeAdminHtml(order.id)}', this.value)" class="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-700">
         <option value="">Assign rider...</option>
-        ${renderAdminRiderOptions(selectedRider)}
+        ${renderAdminRiderOptions()}
       </select>
-      ${selectedRider ? `<button onclick="openAdminRiderTracker('${selectedRider}')" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold">Track ${selectedRider}</button>` : ""}
     </div>
   `;
 }
 
-function renderAdminRiderOptions(selectedRider = "") {
-  return ADMIN_RIDER_NAMES.map(name => {
-    const online = adminRiderLocations[name]?.available === true ? "Online" : "GPS offline";
-    return `<option value="${name}" ${selectedRider === name ? "selected" : ""}>${name} - ${online}</option>`;
+function renderAdminRiderOptions(selectedRiderId = "") {
+  return ADMIN_DELIVERY_RIDERS.map(rider => {
+    return `<option value="${rider.id}" ${selectedRiderId === rider.id ? "selected" : ""}>${escapeAdminHtml(rider.name)} - Available</option>`;
   }).join("");
 }
 
@@ -325,14 +314,15 @@ function refreshAdminRiderAssignmentFields() {
   });
 }
 
-async function assignOrderToRider(orderId, riderName) {
-  if (!riderName) return;
+async function assignOrderToRider(orderId, riderId) {
+  if (!riderId) return;
   try {
-    await db.collection("orders").doc(orderId).update({
-      assigned_rider: riderName,
-      assigned_at: firebase.firestore.FieldValue.serverTimestamp(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    await adminRiderApiRequest('/api/admin/deliveries/assignments', {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId, rider_id: riderId })
     });
+    await loadEligibleDeliveryRiders();
+    await startLiveOrderQueue();
   } catch (error) {
     console.error("Rider assignment failed:", error);
     alert("Unable to assign rider: " + error.message);
@@ -1287,23 +1277,22 @@ function renderStatusPills(orderId, currentStatus) {
     { key: "ACCEPTED", label: "Accepted" },
     { key: "PREPARING", label: "Preparing" },
     { key: "PICKING_UP", label: "Picking Up" },
-    { key: "PACKED", label: "Packed" },
-    { key: "DISPATCHED", label: "Dispatched" },
-    { key: "DELIVERED", label: "Delivered" }
+    { key: "READY_FOR_PICKUP", label: "Ready" },
+    { key: "OUT_FOR_DELIVERY", label: "Out for delivery" },
+    { key: "DELIVERED", label: "Delivered" },
+    { key: "CANCELLED", label: "Cancelled" },
+    { key: "REJECTED", label: "Rejected" },
+    { key: "DELIVERY_FAILED", label: "Delivery failed" }
   ];
 
   return `
     <div class="flex items-center gap-1 p-1 bg-white rounded-xl border border-slate-200 overflow-x-auto">
       ${statuses.map(s => {
-        const isCurrent = (currentStatus || "PLACED") === s.key;
+        const isCurrent = String(currentStatus || "PLACED").toUpperCase() === s.key;
         return `
-          <button 
-            type="button"
-            onclick="quickSetStatus('${orderId}', '${s.key}')" 
-            class="px-2 py-1 rounded-lg text-xs font-bold border transition shrink-0 ${isCurrent ? 'bg-[#0B132B] text-white font-black scale-105 shadow' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}"
-          >
+          <span class="px-2 py-1 rounded-lg text-xs font-bold border shrink-0 ${isCurrent ? 'bg-[#0B132B] text-white font-black' : 'bg-slate-50 text-slate-400'}">
             ${isCurrent ? '✓ ' : ''}${s.label}
-          </button>
+          </span>
         `;
       }).join('')}
     </div>
@@ -1311,19 +1300,12 @@ function renderStatusPills(orderId, currentStatus) {
 }
 
 function renderAdminPickupSummary(order) {
-  if (!Array.isArray(order.items)) return '';
-  const sources = {};
-  order.items.forEach(item => {
-    const key = item.pickup_source || 'store';
-    if (!sources[key]) sources[key] = { name: item.pickup_source_name || 'MyShopzy Store', count: 0 };
-    sources[key].count += Number(item.quantity || 0);
-  });
-  const progress = order.pickup_progress || {};
+  if (!Array.isArray(order.fulfillments) || !order.fulfillments.length) return '';
   return `
     <div class="mt-2 flex flex-wrap gap-1">
-      ${Object.entries(sources).map(([key, source]) => `
-        <span class="text-[10px] font-bold px-2 py-1 rounded-lg ${progress[key] ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}">
-          ${progress[key] ? '✓' : '○'} ${source.name} · ${source.count} item${source.count === 1 ? '' : 's'}
+      ${order.fulfillments.map(fulfillment => `
+        <span class="text-[10px] font-bold px-2 py-1 rounded-lg ${fulfillment.status === 'READY_FOR_PICKUP' || fulfillment.status === 'PICKING_UP' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}">
+          ${escapeAdminHtml(fulfillment.shop_name || 'Pickup')} · ${escapeAdminHtml(fulfillment.status || 'PLACED')}
         </span>
       `).join('')}
     </div>
@@ -1333,49 +1315,29 @@ function renderAdminPickupSummary(order) {
 async function quickSetStatus(orderId, newStatus) {
   try {
     // 1. Firebase Firestore లో అప్‌డేట్ చేయడం
-    await db.collection("orders").doc(orderId).update({
-      status: newStatus,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
 
     // 2. LocalStorage లో కూడా సేవ్ అయి ఉంటే అక్కడ కూడా అప్‌డేట్ చేయడం (ഡెమో కోసం ఇన్‌స్టంట్ సింక్)
-    for (let i = 0; i < localStorage.length; i++) {
-      let key = localStorage.key(i);
-      if (key && key.startsWith('orders_')) {
-        let ords = JSON.parse(localStorage.getItem(key) || '[]');
-        let index = ords.findIndex(o => o.id === orderId);
-        if (index !== -1) {
-          ords[index].status = newStatus;
-          localStorage.setItem(key, JSON.stringify(ords));
-          break;
-        }
-      }
-    }
 
-    console.log(`Order ${orderId} status updated to ${newStatus}`);
-  } catch(e) {
-    console.error("Error updating status: ", e);
-    alert("Failed to update status. Check console.");
+  } catch (error) {
+    console.warn(`Status ${newStatus} is owned by the partner or rider workflow for order ${orderId}.`, error);
   }
 }
 
 function renderAdminOrders(orders) {
   const container = document.getElementById('adminQueueContainer');
   if (!container) return;
-
   const today = getAdminLocalDateKey(new Date());
   orders = orders.filter(order => getAdminOrderDateKey(order) === today);
 
-  const activeCount = orders.filter(o => String(o.status || '').toUpperCase() !== "DELIVERED").length;
-  const deliveredCount = orders.filter(o => String(o.status || '').toUpperCase() === "DELIVERED").length;
-    
-  const mActive = document.getElementById('metricActiveOrders');
-  const mDel = document.getElementById('metricDelivered');
-  if (mActive) mActive.innerText = activeCount;
-  if (mDel) mDel.innerText = deliveredCount;
+  const activeCount = orders.filter(order => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(String(order.status || '').toUpperCase())).length;
+  const deliveredCount = orders.filter(order => String(order.status || '').toUpperCase() === 'DELIVERED').length;
+  const activeMetric = document.getElementById('metricActiveOrders');
+  const deliveredMetric = document.getElementById('metricDelivered');
+  if (activeMetric) activeMetric.innerText = activeCount;
+  if (deliveredMetric) deliveredMetric.innerText = deliveredCount;
 
-  if (orders.length === 0) {
-    container.innerHTML = `<p class="text-center text-slate-400 py-10">No orders received yet.</p>`;
+  if (!orders.length) {
+    container.innerHTML = '<p class="text-center text-slate-400 py-10">No orders received yet.</p>';
     return;
   }
 
@@ -1392,18 +1354,17 @@ function renderAdminOrders(orders) {
     row.innerHTML = `
         <div class="space-y-1 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-extrabold text-[#0B132B] text-sm">${o.id}</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">${o.status || 'PLACED'}</span>
-            <span class="text-[11px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">OTP: ${o.delivery_otp || '4821'}</span>
+            <span class="font-extrabold text-[#0B132B] text-sm">${escapeAdminHtml(o.id)}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">${escapeAdminHtml(o.status || 'PLACED')}</span>
           </div>
           <p class="text-[11px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</p>
           <p class="text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 inline-flex gap-1.5">
             <span>Dedicated delivery:</span>
-            <span data-admin-delivery-deadline="${getAdminOrderDeadlineMs(o) || ""}" data-order-id="${String(o.id)}">${formatAdminCountdown(o)}</span>
+            <span data-admin-delivery-deadline="${getAdminOrderDeadlineMs(o) || ""}" data-order-id="${escapeAdminHtml(o.id)}">${formatAdminCountdown(o)}</span>
           </p>
-          <p class="text-xs text-slate-800 font-bold">${o.delivery_address} • 📞 ${o.customer_phone}</p>
-          ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 inline-block font-bold">📍 Parcel pickup: ${o.parcel_pickup_address || 'Pickup address pending'} → Drop: ${o.parcel_drop_address || o.delivery_address}</p>` : ''}
-          ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${itemsSummary}</p>` : ''}
+          <p class="text-xs text-slate-800 font-bold">${escapeAdminHtml(o.delivery_address || '')} · ${escapeAdminHtml(o.customer_phone || '')}</p>
+          ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 inline-block font-bold">Parcel pickup: ${escapeAdminHtml(o.parcel_pickup_address || 'Pickup address pending')} → Drop: ${escapeAdminHtml(o.parcel_drop_address || o.delivery_address || '')}</p>` : ''}
+          ${itemsSummary ? `<p class="text-[11px] text-slate-600 bg-white p-1.5 rounded-xl border border-slate-200 inline-block font-semibold">📦 ${escapeAdminHtml(itemsSummary)}</p>` : ''}
           ${renderAdminPickupSummary(o)}
           ${renderRiderAssignment(o)}
         </div>
@@ -1423,37 +1384,33 @@ function renderAdminOrders(orders) {
 function startLiveOrderQueue() {
   const container = document.getElementById('adminQueueContainer');
   if (!container) return;
-
-  db.collection("orders").onSnapshot((snapshot) => {
-    const orders = [];
-    snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
-    orders.sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
-    const activeOrderIds = new Set(orders
-      .filter(order => !["ACCEPTED", "DELIVERED"].includes(String(order.status || "").toUpperCase()))
-      .map(order => order.id));
-    pendingAdminOrderAlerts = pendingAdminOrderAlerts.filter(order => activeOrderIds.has(order.id));
-    const hasNewOrder = adminOrderIdsInitialized && snapshot.docChanges().some(change => change.type === "added");
-    allFetchedOrders = orders;
-    const today = getAdminLocalDateKey(new Date());
-    renderAdminOrders(orders.filter(order => getAdminOrderDateKey(order) === today));
-    if (hasNewOrder) {
-      snapshot.docChanges()
-        .filter(change => change.type === "added")
-        .forEach(change => {
-          if (!pendingAdminOrderAlerts.some(order => order.id === change.doc.id)) {
-            pendingAdminOrderAlerts.push({ id: change.doc.id, ...change.doc.data() });
-            adminAlertSoundStopped = false;
-          }
-        });
+  if (adminOrderPollTimer) clearInterval(adminOrderPollTimer);
+  const refresh = async () => {
+    try {
+      const result = await adminRiderApiRequest('/api/admin/deliveries/orders?bucket=all');
+      const orders = Array.isArray(result?.data) ? result.data : [];
+      const currentIds = new Set(orders.map(order => order.id));
+      const newOrders = adminOrderIdsInitialized
+        ? orders.filter(order => !adminKnownOrderIds.has(order.id) && order.status === 'PLACED')
+        : [];
+      adminKnownOrderIds = currentIds;
+      allFetchedOrders = orders;
+      const activeOrderIds = new Set(orders.filter(order => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(String(order.status || '').toUpperCase())).map(order => order.id));
+      pendingAdminOrderAlerts = pendingAdminOrderAlerts.filter(order => activeOrderIds.has(order.id));
+      newOrders.forEach(order => pendingAdminOrderAlerts.push(order));
+      if (newOrders.length) adminAlertSoundStopped = false;
+      const today = getAdminLocalDateKey(new Date());
+      renderAdminOrders(orders.filter(order => getAdminOrderDateKey(order) === today));
       showNextAdminOrderAlert();
+      if (!pendingAdminOrderAlerts.length) stopAdminOrderSound();
+      adminOrderIdsInitialized = true;
+    } catch (error) {
+      console.error('Admin order API failed:', error);
+      container.innerHTML = `<p class="text-center text-rose-500 py-10">Unable to load orders: ${escapeAdminHtml(error.message)}</p>`;
     }
-    if (!pendingAdminOrderAlerts.length) stopAdminOrderSound();
-    showNextAdminOrderAlert();
-    adminOrderIdsInitialized = true;
-  }, error => {
-    console.error("Admin orders listener error:", error);
-    container.innerHTML = `<p class="text-center text-rose-500 py-10">Unable to load orders. Check Firestore permissions.</p>`;
-  });
+  };
+  refresh();
+  adminOrderPollTimer = setInterval(refresh, 5000);
 }
 
 // --- SALES & REPORTS ENGINE ---
@@ -1513,13 +1470,13 @@ function calculateAndRenderAnalytics() {
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="py-2.5 px-3 font-bold text-slate-900">${o.id}</td>
-        <td class="py-2.5 px-3 text-slate-500">${selectedFilterDate} ${timeStr}</td>
-        <td class="py-2.5 px-3">${o.customer_phone || 'N/A'}</td>
-        <td class="py-2.5 px-3 truncate max-w-[150px]">${o.delivery_address || 'Mandapeta'}</td>
+        <td class="py-2.5 px-3 font-bold text-slate-900">${escapeAdminHtml(o.id)}</td>
+        <td class="py-2.5 px-3 text-slate-500">${escapeAdminHtml(selectedFilterDate)} ${escapeAdminHtml(timeStr)}</td>
+        <td class="py-2.5 px-3">${escapeAdminHtml(o.customer_phone || 'N/A')}</td>
+        <td class="py-2.5 px-3 truncate max-w-[150px]">${escapeAdminHtml(o.delivery_address || 'Mandapeta')}</td>
         <td class="py-2.5 px-3 font-black text-slate-900">₹${amt}</td>
-        <td class="py-2.5 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${o.payment_mode || 'UPI'}</td>
-        <td class="py-2.5 px-3 font-bold text-emerald-600">${o.status || 'PLACED'}</td>
+        <td class="py-2.5 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${escapeAdminHtml(o.payment_mode || 'UPI')}</td>
+        <td class="py-2.5 px-3 font-bold text-emerald-600">${escapeAdminHtml(o.status || 'PLACED')}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -1571,7 +1528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     switchView('orders');
   }
   startLiveOrderQueue();
-  startAdminRiderLocationListeners();
   startRegisteredRiderListener();
   loadAdminRestaurants();
   loadAdminPartnerAccounts();
@@ -1586,7 +1542,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let adminMap = null;
 let riderLiveMarker = null;
 
-function openAdminRiderTracker(riderName) {
+function openAdminRiderTracker(assignmentId) {
   const mapModal = document.getElementById('adminMapModal');
   if (mapModal) {
     mapModal.classList.remove('hidden');
@@ -1604,33 +1560,44 @@ function openAdminRiderTracker(riderName) {
     setTimeout(() => { adminMap.invalidateSize(); }, 200);
   }
 
-  db.collection("riders_location").doc(riderName).onSnapshot((doc) => {
-    if (doc.exists) {
-      const data = doc.data();
-      const lat = data.lat;
-      const lng = data.lng;
-
-      if (lat && lng) {
-        if (riderLiveMarker) {
-          riderLiveMarker.setLatLng([lat, lng]);
-        } else {
-          riderLiveMarker = L.marker([lat, lng], {
-            icon: L.divIcon({ 
-              className: 'custom-rider-icon', 
-              html: '<div style="font-size: 24px;">🛵</div>', 
-              iconSize: [30, 30] 
-            })
-          }).addTo(adminMap).bindPopup(`<b>${riderName}</b> (On the way)`).openPopup();
-        }
-        adminMap.setView([lat, lng], 16);
+  if (adminTrackingPollTimer) clearInterval(adminTrackingPollTimer);
+  if (riderLiveMarker) {
+    adminMap.removeLayer(riderLiveMarker);
+    riderLiveMarker = null;
+  }
+  const refresh = async () => {
+    try {
+      const result = await adminRiderApiRequest(`/api/admin/deliveries/assignments/${encodeURIComponent(assignmentId)}/tracking`);
+      const location = result?.data?.location;
+      if (!location) return;
+      const latitude = Number(location.latitude);
+      const longitude = Number(location.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+      if (riderLiveMarker) {
+        riderLiveMarker.setLatLng([latitude, longitude]);
+      } else {
+        riderLiveMarker = L.marker([latitude, longitude], {
+          icon: L.divIcon({
+            className: 'custom-rider-icon',
+            html: '<div style="font-size: 24px;">🛵</div>',
+            iconSize: [30, 30]
+          })
+        }).addTo(adminMap).bindPopup(`<b>${escapeAdminHtml(result.data.rider_name || 'Rider')}</b> (${escapeAdminHtml(result.data.assignment_status)})`).openPopup();
       }
+      adminMap.setView([latitude, longitude], 16);
+    } catch (error) {
+      console.error('Admin delivery tracking failed:', error);
     }
-  });
+  };
+  refresh();
+  adminTrackingPollTimer = setInterval(refresh, 4000);
 }
 
 function closeAdminRiderTracker() {
   const mapModal = document.getElementById('adminMapModal');
   if (mapModal) mapModal.classList.add('hidden');
+  if (adminTrackingPollTimer) clearInterval(adminTrackingPollTimer);
+  adminTrackingPollTimer = null;
 }
 
 window.openAdminRiderTracker = openAdminRiderTracker;

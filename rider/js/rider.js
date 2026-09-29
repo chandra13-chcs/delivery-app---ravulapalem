@@ -8,22 +8,11 @@ let currentTab = 'pending';
 let allRiderOrders = [];
 let currentVerifyingOrderId = null;
 let gpsWatchId = null;
+let activeGpsAssignmentId = null;
 let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
 let knownAssignedOrderIds = new Set();
 let riderOrdersInitialized = false;
-let riderNearbyOrderIds = new Set();
 let riderOrdersUnsubscribe = null;
-const RIDER_DISPATCH_RADIUS_KM = 3;
-const RIDER_DEFAULT_PICKUP = { lat: 16.8625, lng: 82.0570 };
-
-function calculateDistanceKm(lat1, lng1, lat2, lng2) {
-  const earthRadiusKm = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 let riderOtpSent = false;
 let pendingRiderRegistration = null;
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
@@ -64,6 +53,12 @@ async function riderApiRequest(path, options = {}) {
   return payload;
 }
 
+function escapeRiderHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[character]));
+}
+
 async function hydrateRiderSession() {
   const token = getRiderAccessToken();
   if (!token) return null;
@@ -89,6 +84,7 @@ async function hydrateRiderSession() {
 
     riderProfile = mergedProfile;
     currentActiveRider = mergedProfile.name;
+    riderIsAvailable = mergedProfile.is_available;
     localStorage.setItem('rider_profile', JSON.stringify(mergedProfile));
     localStorage.setItem('active_rider_name', mergedProfile.name);
     updateRiderIdentity();
@@ -287,52 +283,20 @@ async function submitRiderVerification() {
 }
 
 async function loginRider() {
-  const identity = document.getElementById('riderLoginIdentityInput')?.value.trim();
-  const password = document.getElementById('riderLoginPasswordInput')?.value || '';
   const errorElement = document.getElementById('riderLoginError');
-
-  if (getRiderAccessToken()) {
-    const backendProfile = await hydrateRiderSession();
-    if (backendProfile) {
-      closeRiderLoginModal();
-      return;
-    }
-  }
-
-  if (!identity || !password) {
+  if (!getRiderAccessToken()) {
     if (errorElement) {
-      errorElement.innerText = 'Enter your mobile/email and password.';
+      errorElement.innerText = 'Sign in to your MyShopzy account before opening the rider app.';
       errorElement.classList.remove('hidden');
     }
     return;
   }
-
   try {
-    const normalizedMobile = identity.replace(/\D/g, '');
-    let profileDoc = normalizedMobile.length === 10
-      ? await db.collection('rider_profiles').doc(normalizedMobile).get()
-      : null;
-    if (!profileDoc?.exists) {
-      const snapshot = await db.collection('rider_profiles').where('email', '==', identity.toLowerCase()).limit(1).get();
-      profileDoc = snapshot.docs[0] || null;
-    }
-    const profile = profileDoc?.exists ? profileDoc.data() : null;
-    const passwordHash = await hashRiderPassword(password);
-    if (!profile || profile.password_hash !== passwordHash) throw new Error('Invalid rider credentials.');
-    const verificationStatus = profile.verification_status || 'PENDING';
-    if (!['PENDING', 'SUBMITTED', 'APPROVED', 'REJECTED'].includes(verificationStatus)) throw new Error('Rider profile verification data is incomplete.');
-
-    riderProfile = profile;
-    currentActiveRider = profile.name;
-    localStorage.setItem('rider_profile', JSON.stringify(profile));
-    localStorage.setItem('active_rider_name', profile.name);
+    const profile = await hydrateRiderSession();
+    if (!profile) throw new Error('Authenticated rider profile not found.');
     closeRiderLoginModal();
     updateRiderIdentity();
     startRiderOrdersListener();
-    if (verificationStatus !== 'APPROVED') {
-      pendingRiderRegistration = profile;
-      openRiderVerificationModal();
-    }
     alert(`Welcome back, ${profile.name}.`);
   } catch (error) {
     console.error('Rider login failed:', error);
@@ -362,7 +326,7 @@ function updateRiderIdentity() {
   const welcomeScreen = document.getElementById('riderWelcomeScreen');
   const appShell = document.getElementById('riderAppShell');
   const bottomNav = document.getElementById('riderBottomNav');
-  const isAuthenticated = Boolean(riderProfile?.name && currentActiveRider);
+  const isAuthenticated = Boolean(getRiderAccessToken() && riderProfile?.id && riderProfile?.user_id && currentActiveRider);
   welcomeScreen?.classList.toggle('hidden', isAuthenticated);
   appShell?.classList.toggle('hidden', !isAuthenticated);
   bottomNav?.classList.toggle('hidden', !isAuthenticated);
@@ -371,20 +335,21 @@ function updateRiderIdentity() {
 }
 
 async function logoutRider() {
-  const riderName = currentActiveRider;
   stopRiderGpsBroadcast();
-  riderIsAvailable = false;
-  if (riderName) {
+  if (getRiderAccessToken()) {
     try {
-      await db.collection('riders_location').doc(riderName).set({
-        rider_name: riderName,
-        available: false,
-        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      await riderApiRequest('/api/rider/availability', { method: 'PUT', body: JSON.stringify({ is_available: false }) });
     } catch (error) {
-      console.warn('Rider offline status sync failed:', error);
+      alert(error.message);
+      return;
+    }
+    try {
+      await riderApiRequest('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.warn('Rider session revocation failed:', error.message);
     }
   }
+  riderIsAvailable = false;
   riderProfile = null;
   currentActiveRider = '';
   riderOrdersUnsubscribe?.();
@@ -392,6 +357,10 @@ async function logoutRider() {
   localStorage.removeItem('rider_profile');
   localStorage.removeItem('active_rider_name');
   localStorage.removeItem('rider_available');
+  for (const key of ['user_access_token', 'myshopzy_user_access_token']) {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+  }
   updateRiderIdentity();
   allRiderOrders = [];
   renderPickupQueue();
@@ -428,6 +397,11 @@ async function toggleRiderAvailability() {
     return;
   }
 
+  if (!getRiderAccessToken()) {
+    alert('Sign in with your authenticated rider account before changing availability.');
+    return;
+  }
+
   const token = getRiderAccessToken();
   if (token) {
     try {
@@ -439,6 +413,8 @@ async function toggleRiderAvailability() {
       riderIsAvailable = Boolean(result?.data?.is_available);
       localStorage.setItem('rider_available', String(riderIsAvailable));
       updateAvailabilityUi();
+      if (riderIsAvailable) startRiderOrdersListener();
+      else stopRiderGpsBroadcast();
       return;
     } catch (error) {
       alert(error.message);
@@ -446,34 +422,6 @@ async function toggleRiderAvailability() {
     }
   }
 
-  if (riderProfile.verification_status !== 'APPROVED') {
-    pendingRiderRegistration = riderProfile;
-    openRiderVerificationModal();
-    alert('Complete document verification and wait for Admin approval before going online.');
-    return;
-  }
-  if (!riderIsAvailable && !isWithinWorkingHours()) {
-    alert('Rider availability is open only from 7:00 AM to 10:00 PM.');
-    return;
-  }
-  riderIsAvailable = !riderIsAvailable;
-  localStorage.setItem('rider_available', String(riderIsAvailable));
-  if (riderIsAvailable) {
-    startRiderGpsBroadcast();
-    riderNearbyOrderIds = new Set();
-    startRiderOrdersListener();
-  } else stopRiderGpsBroadcast();
-  updateAvailabilityUi();
-  try {
-    await db.collection('riders_location').doc(currentActiveRider).set({
-      rider_name: currentActiveRider,
-      available: riderIsAvailable,
-      working_hours: '07:00-22:00',
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  } catch (error) {
-    console.error('Rider availability update failed:', error);
-  }
 }
 
 function toggleRiderTab(tab) {
@@ -493,48 +441,37 @@ function toggleRiderTab(tab) {
 
 function startRiderOrdersListener() {
   riderOrdersUnsubscribe?.();
-  if (!currentActiveRider) {
+  if (!getRiderAccessToken() || !riderProfile?.id) {
     allRiderOrders = [];
     renderPickupQueue();
     renderRiderOrders();
     return;
   }
-  riderOrdersUnsubscribe = db.collection("orders").orderBy("created_at", "desc").onSnapshot((snapshot) => {
-    let orders = [];
-    snapshot.forEach(doc => orders.push({ id: doc.id, ...doc.data() }));
-    const assignedNow = orders.filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED');
-    const nearbyNow = riderIsAvailable
-      ? orders.filter(order => isNearbyUnassignedOrder(order))
-      : [];
-    const newlyAssigned = assignedNow.filter(order => !knownAssignedOrderIds.has(order.id));
-    const newlyNearby = nearbyNow.filter(order => !riderNearbyOrderIds.has(`${order.id}:${String(order.status || "PLACED").toUpperCase()}`));
-    if (riderOrdersInitialized && newlyAssigned.length > 0) {
-      notifyNewAssignment(newlyAssigned[0]);
+  const refresh = async () => {
+    try {
+      const result = await riderApiRequest('/api/rider/deliveries?bucket=all');
+      const orders = Array.isArray(result?.data) ? result.data : [];
+      const activeOrders = orders.filter(order => ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(order.assignment_status));
+      const newlyAssigned = activeOrders.filter(order => order.assignment_status === 'OFFERED' && !knownAssignedOrderIds.has(order.assignment_id));
+      if (riderOrdersInitialized && newlyAssigned.length) notifyNewAssignment(newlyAssigned[0]);
+      knownAssignedOrderIds = new Set(activeOrders.map(order => order.assignment_id));
+      riderOrdersInitialized = true;
+      allRiderOrders = orders;
+      const inTransitOrder = activeOrders.find(order => order.assignment_status === 'OUT_FOR_DELIVERY');
+      if (inTransitOrder && activeGpsAssignmentId !== inTransitOrder.assignment_id) {
+        startRiderGpsBroadcast(inTransitOrder.assignment_id);
+      } else if (!inTransitOrder && gpsWatchId) {
+        stopRiderGpsBroadcast();
+      }
+      renderPickupQueue();
+      renderRiderOrders();
+    } catch (error) {
+      console.error('Rider delivery queue failed:', error);
     }
-    if (riderOrdersInitialized && newlyNearby.length > 0) notifyNewAssignment(newlyNearby[0], true);
-    knownAssignedOrderIds = new Set(assignedNow.map(order => order.id));
-    riderNearbyOrderIds = new Set(nearbyNow.map(order => `${order.id}:${String(order.status || "PLACED").toUpperCase()}`));
-    riderOrdersInitialized = true;
-    allRiderOrders = orders;
-    renderPickupQueue();
-    renderRiderOrders();
-  });
-}
-
-function getOrderPickupPoint(order) {
-  if (Number.isFinite(Number(order.pickup_latitude)) && Number.isFinite(Number(order.pickup_longitude))) {
-    return { lat: Number(order.pickup_latitude), lng: Number(order.pickup_longitude) };
-  }
-  return RIDER_DEFAULT_PICKUP;
-}
-
-function isNearbyUnassignedOrder(order) {
-  const status = String(order.status || "PLACED").toUpperCase();
-  if (!currentActiveRider || !riderIsAvailable || order.assigned_rider || !["PLACED", "REJECTED_BY_RIDER"].includes(status)) return false;
-  const riderLocation = window.currentRiderLocation;
-  if (!riderLocation) return false;
-  const pickup = getOrderPickupPoint(order);
-  return calculateDistanceKm(riderLocation.lat, riderLocation.lng, pickup.lat, pickup.lng) <= RIDER_DISPATCH_RADIUS_KM;
+  };
+  refresh();
+  const timer = setInterval(refresh, 5000);
+  riderOrdersUnsubscribe = () => clearInterval(timer);
 }
 
 function notifyNewAssignment(order, nearby = false) {
@@ -543,10 +480,10 @@ function notifyNewAssignment(order, nearby = false) {
   const banner = document.getElementById('riderAlertBanner');
   if (banner) {
     banner.innerHTML = `
-      <div>${nearby ? 'Nearby order available' : 'New delivery assigned'}: <strong>${order.id}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button></div>
+      <div>${nearby ? 'Nearby order available' : 'New delivery assigned'}: <strong>${escapeRiderHtml(order.id)}</strong>. <button type="button" onclick="openRiderOrderAlert()" class="underline font-black">Open orders</button></div>
       <div class="flex flex-wrap gap-2 mt-2">
-        <button type="button" onclick="acceptRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-black">Accept</button>
-        <button type="button" onclick="rejectRiderOrder('${order.id}')" class="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 font-black">Reject</button>
+        <button type="button" onclick="acceptRiderOrder('${escapeRiderHtml(order.id)}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-black">Accept</button>
+        <button type="button" onclick="rejectRiderOrder('${escapeRiderHtml(order.id)}')" class="px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 font-black">Reject</button>
         <button type="button" onclick="stopRiderOrderAlertSound()" class="px-3 py-1.5 rounded-lg bg-amber-200 text-amber-950">Stop sound</button>
       </div>`;
     banner.classList.remove('hidden');
@@ -568,67 +505,64 @@ function stopRiderOrderAlertSound() {
 }
 
 async function acceptRiderOrder(orderId) {
+  const order = allRiderOrders.find(item => item.id === orderId || item.assignment_id === orderId);
+  if (!order) return;
   try {
-    const orderRef = db.collection("orders").doc(orderId);
-    await db.runTransaction(async transaction => {
-      const orderSnapshot = await transaction.get(orderRef);
-      if (!orderSnapshot.exists) throw new Error("Order is no longer available.");
-      const order = orderSnapshot.data();
-      if (order.assigned_rider && order.assigned_rider !== currentActiveRider) throw new Error("Another rider already accepted this order.");
-      transaction.update(orderRef, {
-        assigned_rider: currentActiveRider,
-        rider_name: riderProfile?.name || currentActiveRider,
-        rider_phone: riderProfile?.mobile || "",
-        pickup_otp: order.pickup_otp || String(Math.floor(1000 + Math.random() * 9000)),
-        status: "ACCEPTED_BY_RIDER",
-        rider_accepted_at: firebase.firestore.FieldValue.serverTimestamp(),
-        updated_at: firebase.firestore.FieldValue.serverTimestamp()
-      });
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/accept`, {
+      method: 'POST', body: JSON.stringify({})
     });
     stopRiderOrderAlertSound();
     const banner = document.getElementById('riderAlertBanner');
     if (banner) banner.classList.add('hidden');
+    startRiderOrdersListener();
   } catch (error) {
     alert(`Unable to accept delivery: ${error.message}`);
   }
 }
 
 async function rejectRiderOrder(orderId) {
+  const order = allRiderOrders.find(item => item.id === orderId || item.assignment_id === orderId);
+  if (!order) return;
+  const reason = prompt('Why can you not accept this delivery?')?.trim();
+  if (!reason) return;
   try {
-    await db.collection("orders").doc(orderId).update({
-      status: "REJECTED_BY_RIDER",
-      assigned_rider: firebase.firestore.FieldValue.delete(),
-      rejected_by_rider: currentActiveRider,
-      rider_rejected_at: firebase.firestore.FieldValue.serverTimestamp(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/reject`, {
+      method: 'POST', body: JSON.stringify({ reason })
     });
-    riderNearbyOrderIds = new Set([...riderNearbyOrderIds].filter(key => !key.startsWith(`${orderId}:`)));
     stopRiderOrderAlertSound();
     const banner = document.getElementById('riderAlertBanner');
     if (banner) banner.classList.add('hidden');
+    startRiderOrdersListener();
   } catch (error) {
     alert(`Unable to reject delivery: ${error.message}`);
   }
 }
 
-// --- REAL-TIME GPS STREAMING TO FIRESTORE ---
-function startRiderGpsBroadcast() {
+function startRiderGpsBroadcast(assignmentId) {
   if (!navigator.geolocation) return;
+  if (!assignmentId) return;
+  if (gpsWatchId && activeGpsAssignmentId === assignmentId) return;
   if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+  activeGpsAssignmentId = assignmentId;
 
   gpsWatchId = navigator.geolocation.watchPosition(
     async (position) => {
       const { latitude, longitude } = position.coords;
       window.currentRiderLocation = { lat: latitude, lng: longitude };
       try {
-        await db.collection("riders_location").doc(currentActiveRider).set({
-          rider_name: currentActiveRider,
-          lat: latitude,
-          lng: longitude,
-          updated_at: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        await riderApiRequest('/api/rider/locations', {
+          method: 'POST',
+          body: JSON.stringify({
+            assignment_id: assignmentId,
+            latitude,
+            longitude,
+            accuracy_m: position.coords.accuracy,
+            heading_degrees: position.coords.heading,
+            speed_mps: position.coords.speed
+          })
+        });
       } catch (err) {
-        console.error("GPS Broadcast Error:", err);
+        if (!/too recently/i.test(err.message)) console.error("GPS update failed:", err.message);
       }
     },
     (err) => console.warn("GPS Warning:", err.message),
@@ -641,33 +575,26 @@ function stopRiderGpsBroadcast() {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
   }
+  activeGpsAssignmentId = null;
 }
 
 function getPickupGroups(order) {
-  const groups = {};
-  const items = Array.isArray(order.items) ? order.items : [];
-  items.forEach(item => {
-    const key = item.pickup_source || "store";
-    if (!groups[key]) {
-      groups[key] = {
-        key,
-        name: item.pickup_source_name || "MyShopzy Store",
-        address: item.pickup_source_address || "Mandapeta Dark Store",
-        items: []
-      };
-    }
-    groups[key].items.push(item);
-  });
-
-  if (!Object.keys(groups).length) {
-    groups.store = {
-      key: "store",
-      name: "MyShopzy Store",
-      address: "Mandapeta Dark Store",
-      items: []
-    };
+  if (order.order_type === 'PARCEL') {
+    return [{
+      key: 'parcel',
+      name: 'Parcel pickup',
+      address: order.parcel_pickup_address || 'Pickup address pending',
+      items: [],
+      isParcel: true
+    }];
   }
-  return Object.values(groups);
+  return (Array.isArray(order.fulfillments) ? order.fulfillments : []).map(fulfillment => ({
+    key: fulfillment.id,
+    name: fulfillment.shop_name || 'Pickup location',
+    address: fulfillment.pickup_address || 'Pickup address pending',
+    items: Array.isArray(fulfillment.items) ? fulfillment.items : [],
+    isParcel: false
+  }));
 }
 
 function renderPickupChecklist(order) {
@@ -676,7 +603,7 @@ function renderPickupChecklist(order) {
   const completed = order.pickup_progress || {};
   const allPicked = groups.every(group => completed[group.key]);
   const nextGroup = groups.find(group => !completed[group.key]);
-  const hasSourceMetadata = Array.isArray(order.items) && order.items.some(item => item.pickup_source);
+  const hasSourceMetadata = order.order_type === 'PARCEL' || groups.length > 0;
 
   return `
     <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
@@ -686,14 +613,13 @@ function renderPickupChecklist(order) {
       </div>
       ${!hasSourceMetadata ? '<p class="text-[10px] font-bold text-rose-700">Older order: source details were not saved. Recreate the order after assigning product pickup sources in Admin.</p>' : ''}
       ${groups.map(group => `
-        <button ${!completed[group.key] && nextGroup?.key !== group.key ? 'disabled' : ''} onclick="${completed[group.key] ? '' : order.pickup_reached?.[group.key] ? `markPickupComplete('${order.id}', '${group.key}')` : `markPickupReached('${order.id}', '${group.key}')`}" class="w-full text-left p-2 bg-white border ${completed[group.key] ? 'border-emerald-300' : 'border-amber-200'} rounded-lg flex items-center gap-2 ${!completed[group.key] && nextGroup?.key !== group.key ? 'opacity-50 cursor-not-allowed' : ''}">
+        <button ${!completed[group.key] && nextGroup?.key !== group.key ? 'disabled' : ''} onclick="${completed[group.key] ? '' : order.pickup_reached?.[group.key] ? `markPickupComplete('${escapeRiderHtml(order.id)}', '${escapeRiderHtml(group.key)}')` : `markPickupReached('${escapeRiderHtml(order.id)}', '${escapeRiderHtml(group.key)}')`}" class="w-full text-left p-2 bg-white border ${completed[group.key] ? 'border-emerald-300' : 'border-amber-200'} rounded-lg flex items-center gap-2 ${!completed[group.key] && nextGroup?.key !== group.key ? 'opacity-50 cursor-not-allowed' : ''}">
           <span class="w-5 h-5 rounded-full ${completed[group.key] ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'} flex items-center justify-center text-[10px] font-black">${completed[group.key] ? '✓' : '○'}</span>
-          <span class="min-w-0 flex-1"><strong class="block text-[11px] text-slate-900">${group.name}</strong><span class="block text-[10px] text-slate-500 truncate">${group.address}</span><span class="block text-[10px] text-slate-500">${group.items.map(item => `${item.quantity}x ${item.name}`).join(', ') || 'Legacy order items'}</span></span>
-          <span class="text-[10px] font-black ${completed[group.key] ? 'text-emerald-600' : 'text-amber-700'}">${completed[group.key] ? 'Picked' : nextGroup?.key !== group.key ? 'Next' : order.pickup_reached?.[group.key] ? 'Pickup OTP' : 'Reached'}</span>
+          <span class="min-w-0 flex-1"><strong class="block text-[11px] text-slate-900">${escapeRiderHtml(group.name)}</strong><span class="block text-[10px] text-slate-500 truncate">${escapeRiderHtml(group.address)}</span><span class="block text-[10px] text-slate-500">${group.items.map(item => `${escapeRiderHtml(item.quantity)}x ${escapeRiderHtml(item.name)}`).join(', ') || 'Legacy order items'}</span></span>
+          <span class="text-[10px] font-black ${completed[group.key] ? 'text-emerald-600' : 'text-amber-700'}">${completed[group.key] ? 'Picked' : nextGroup?.key !== group.key ? 'Next' : order.pickup_reached?.[group.key] ? (group.isParcel ? 'Pickup recorded' : 'Confirm pickup') : 'Arrive'}</span>
         </button>
         <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(group.address)}" target="_blank" class="block text-[10px] text-blue-600 font-bold text-right -mt-1">Open pickup location ↗</a>
       `).join('')}
-      ${order.pickup_otp && nextGroup ? `<p class="rounded-lg bg-slate-900 px-2 py-1.5 text-[10px] font-black text-amber-300">Pickup OTP: ${order.pickup_otp} · Tell the store after reaching</p>` : ''}
       ${!allPicked ? '<p class="text-[10px] font-bold text-amber-800">Complete every pickup before starting delivery.</p>' : ''}
     </div>
   `;
@@ -703,7 +629,7 @@ function renderPickupQueue() {
   const container = document.getElementById('pickupQueueContainer');
   if (!container) return;
   const activeOrders = allRiderOrders
-    .filter(order => order.assigned_rider === currentActiveRider && String(order.status || '').toUpperCase() !== 'DELIVERED')
+    .filter(order => ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(order.assignment_status))
     .sort((a, b) => (a.created_at_ms || 0) - (b.created_at_ms || 0));
 
   if (!activeOrders.length) {
@@ -717,7 +643,7 @@ function renderPickupQueue() {
     const next = groups.find(group => !completed[group.key]);
     return `<button onclick="showRiderSection('orders')" class="w-full text-left bg-white rounded-2xl p-3 border border-brand-border shadow-sm flex items-center gap-3">
       <span class="w-7 h-7 rounded-full bg-brand-navy text-white flex items-center justify-center text-xs font-black">${index + 1}</span>
-      <span class="min-w-0 flex-1"><strong class="block text-xs text-slate-900">${order.id}</strong><span class="block text-[10px] text-slate-500 truncate">Next: ${next ? next.name : 'Ready for delivery'}</span><span class="block text-[10px] text-slate-400">${groups.filter(group => completed[group.key]).length}/${groups.length} pickup points complete</span></span>
+      <span class="min-w-0 flex-1"><strong class="block text-xs text-slate-900">${escapeRiderHtml(order.id)}</strong><span class="block text-[10px] text-slate-500 truncate">Next: ${escapeRiderHtml(next ? next.name : 'Ready for delivery')}</span><span class="block text-[10px] text-slate-400">${groups.filter(group => completed[group.key]).length}/${groups.length} pickup points complete</span></span>
       <span class="text-[10px] font-black ${next ? 'text-amber-700' : 'text-emerald-600'}">${next ? 'Pickup' : 'Ready'}</span>
     </button>`;
   }).join('');
@@ -727,11 +653,11 @@ async function markPickupReached(orderId, sourceKey) {
   const order = allRiderOrders.find(item => item.id === orderId);
   if (!order) return;
   try {
-    await db.collection("orders").doc(orderId).update({
-      pickup_reached: { ...(order.pickup_reached || {}), [sourceKey]: true },
-      status: "PICKING_UP",
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const path = order.order_type === 'PARCEL'
+      ? `/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/parcel-pickup/arrive`
+      : `/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/pickups/${encodeURIComponent(sourceKey)}/arrive`;
+    await riderApiRequest(path, { method: 'POST', body: JSON.stringify({}) });
+    startRiderOrdersListener();
   } catch (error) {
     alert("Reached update failed: " + error.message);
   }
@@ -740,40 +666,36 @@ async function markPickupReached(orderId, sourceKey) {
 async function markPickupComplete(orderId, sourceKey) {
   const order = allRiderOrders.find(item => item.id === orderId);
   if (!order) return;
+  if (order.order_type === 'PARCEL') return;
   if (!order.pickup_reached?.[sourceKey]) {
     alert("Tap Reached after arriving at the pickup location first.");
     return;
   }
-  const pickupOtp = prompt("Enter the pickup OTP shown in the order card:");
-  if (pickupOtp !== order.pickup_otp) {
-    alert("Pickup OTP mismatch. Ask the store for the correct code.");
-    return;
-  }
-  const pickupProgress = { ...(order.pickup_progress || {}), [sourceKey]: true };
+  const pickupOtp = prompt("Enter the pickup code provided by the pickup location:")?.trim();
+  if (!pickupOtp) return;
   try {
-    await db.collection("orders").doc(orderId).update({
-      pickup_progress: pickupProgress,
-      status: "PICKING_UP",
-      rider_name: riderProfile?.name || currentActiveRider,
-      rider_phone: riderProfile?.mobile || "",
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/pickups/${encodeURIComponent(sourceKey)}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ otp: pickupOtp })
     });
+    startRiderOrdersListener();
   } catch (error) {
-    alert("Pickup update failed: " + error.message);
+    alert("Pickup confirmation failed: " + error.message);
   }
 }
 
 function canStartDelivery(order) {
-  return getPickupGroups(order).every(group => order.pickup_progress?.[group.key]);
+  if (order.order_type === 'PARCEL') return order.assignment_status === 'PICKING_UP';
+  return getPickupGroups(order).length > 0
+    && getPickupGroups(order).every(group => order.pickup_progress?.[group.key]);
 }
 
 function renderRiderOrders() {
   const container = document.getElementById('riderOrdersContainer');
   if (!container) return;
   
-  const riderOrders = allRiderOrders.filter(o => o.assigned_rider === currentActiveRider);
-  const pendingList = riderOrders.filter(o => String(o.status || "").toUpperCase() !== "DELIVERED");
-  const completedList = riderOrders.filter(o => String(o.status || "").toUpperCase() === "DELIVERED");
+  const pendingList = allRiderOrders.filter(order => ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(order.assignment_status));
+  const completedList = allRiderOrders.filter(order => ['REJECTED', 'COMPLETED', 'CANCELLED'].includes(order.assignment_status));
 
   const pendingBadge = document.getElementById('pendingCount');
   if (pendingBadge) pendingBadge.innerText = pendingList.length;
@@ -797,41 +719,42 @@ function renderRiderOrders() {
     card.className = "p-4 bg-white rounded-2xl border border-brand-border shadow-sm space-y-3";
 
     let itemsText = "";
-    if (Array.isArray(o.items)) itemsText = o.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+    if (Array.isArray(o.items)) itemsText = o.items.map(i => `${escapeRiderHtml(i.quantity)}x ${escapeRiderHtml(i.name)}`).join(", ");
 
     const encodedAddress = encodeURIComponent(o.delivery_address || 'Mandapeta');
     const normalizedStatus = String(o.status || '').toUpperCase();
-    const customerDetailsUnlocked = ['OUT FOR DELIVERY', 'DELIVERED'].includes(normalizedStatus);
+    const customerDetailsUnlocked = ['OUT_FOR_DELIVERY', 'DELIVERED'].includes(normalizedStatus);
+    const customerPhone = String(o.customer_phone || '').replace(/[^0-9+]/g, '');
     const customerMapUrl = Number.isFinite(Number(o.delivery_latitude)) && Number.isFinite(Number(o.delivery_longitude))
       ? `https://www.google.com/maps/search/?api=1&query=${o.delivery_latitude},${o.delivery_longitude}`
       : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
     card.innerHTML = `
       <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-        <div><span class="block text-xs font-black text-brand-navy">${o.id}</span><span class="block text-[10px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</span></div>
+        <div><span class="block text-xs font-black text-brand-navy">${escapeRiderHtml(o.id)}</span><span class="block text-[10px] text-slate-500 font-semibold">🕒 ${formatOrderDateTime(o)}</span></div>
           <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${String(o.status || '').toUpperCase() === 'DELIVERED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">
-          ${o.status}
+          ${escapeRiderHtml(o.status)}
         </span>
       </div>
 
       <div>
-        ${customerDetailsUnlocked ? `<p class="text-xs font-bold text-slate-900">${o.delivery_address}</p>` : '<p class="rounded-xl bg-amber-50 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-800">Customer delivery details unlock after pickup is complete.</p>'}
-        ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 mt-1 font-bold">📍 Pickup: ${o.parcel_pickup_address || 'Pickup address pending'} → Drop: ${o.parcel_drop_address || o.delivery_address}</p>` : ''}
+        ${customerDetailsUnlocked ? `<p class="text-xs font-bold text-slate-900">${escapeRiderHtml(o.delivery_address)}</p>` : '<p class="rounded-xl bg-amber-50 border border-amber-200 px-2 py-2 text-[11px] font-bold text-amber-800">Customer delivery details unlock after pickup is complete.</p>'}
+        ${o.order_type === 'PARCEL' ? `<p class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1 mt-1 font-bold">Pickup: ${escapeRiderHtml(o.parcel_pickup_address || 'Pickup address pending')} → Drop: ${escapeRiderHtml(o.parcel_drop_address || o.delivery_address || '')}</p>` : ''}
         ${itemsText ? `<p class="text-[11px] text-slate-500 mt-1">📦 ${itemsText}</p>` : ''}
-        ${String(o.status || '').toUpperCase() === 'ACCEPTED'
+        ${o.assignment_status === 'OFFERED'
           ? '<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] font-bold text-amber-800">Accept this delivery before starting pickup.</div>'
           : renderPickupChecklist(o)}
         <div class="flex items-center justify-between mt-2 text-xs">
-          <span class="font-extrabold text-slate-900">Total: ₹${o.total_amount || o.total}</span>
+          <span class="font-extrabold text-slate-900">Total: ₹${Number(o.total_amount || o.total || 0)}</span>
           <span class="text-[11px] font-bold ${o.payment_mode === 'COD' ? 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded'}">
             ${o.payment_mode === 'COD' ? 'Collect Cash at Door' : 'Paid Online'}
           </span>
         </div>
-        ${Number(o.rider_tip || 0) > 0 ? `<p class="text-[11px] font-black text-amber-700 mt-1">🎁 Rider tip: ₹${Number(o.rider_tip)}</p>` : ''}
+        ${Number(o.rider_tip || 0) > 0 ? `<p class="text-[11px] font-black text-amber-700 mt-1">Rider tip: ₹${Number(o.rider_tip)}</p>` : ''}
       </div>
 
       ${customerDetailsUnlocked ? `<div class="grid grid-cols-2 gap-2 pt-1">
-        <a href="tel:${o.customer_phone}" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+        <a href="tel:${escapeRiderHtml(customerPhone)}" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
           <i data-lucide="phone" class="w-3.5 h-3.5 text-brand-accent"></i> Call customer
         </a>
         <a href="${customerMapUrl}" target="_blank" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-brand-accent rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
@@ -839,26 +762,21 @@ function renderRiderOrders() {
         </a>
       </div>` : ''}
 
-      ${String(o.status || '').toUpperCase() !== 'DELIVERED' ? `
+      ${o.assignment_status !== 'COMPLETED' ? `
         <div class="pt-1 flex gap-2">
-          ${!['ACCEPTED_BY_RIDER', 'OUT FOR DELIVERY', 'DELIVERED'].includes(String(o.status || '').toUpperCase()) ? `
-            <button onclick="acceptRiderOrder('${o.id}')" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black transition">Accept delivery</button>
-          ` : String(o.status || '').toUpperCase() === 'ACCEPTED_BY_RIDER' && canStartDelivery(o) ? `
-            <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
+          ${o.assignment_status === 'OFFERED' ? `
+            <button onclick="acceptRiderOrder('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black transition">Accept delivery</button>
+            <button onclick="rejectRiderOrder('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-rose-100 text-rose-800 rounded-xl text-xs font-black transition">Reject</button>
+          ` : o.assignment_status !== 'OUT_FOR_DELIVERY' && canStartDelivery(o) ? `
+            <button onclick="setOutForDelivery('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
               <span>Start Delivery (Broadcast GPS)</span>
             </button>
-          ` : o.status !== 'Out for Delivery' && canStartDelivery(o) ? `
-            <button onclick="setOutForDelivery('${o.id}')" class="flex-1 py-2.5 bg-brand-navy hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
-              <span>Start Delivery (Broadcast GPS)</span>
-            </button>
-          ` : o.status === 'Out for Delivery' ? `
+          ` : o.assignment_status === 'OUT_FOR_DELIVERY' ? `
             <div class="flex-1 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live GPS Streaming
             </div>
           ` : `<div class="flex-1 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 text-center">Accept delivery first</div>`}
-          <button onclick="openOtpModal('${o.id}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">
-            Verify OTP
-          </button>
+          ${o.assignment_status === 'OUT_FOR_DELIVERY' ? `<button onclick="openOtpModal('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">Verify OTP</button>` : ''}
         </div>
       ` : ''}
     `;
@@ -874,14 +792,11 @@ async function setOutForDelivery(orderId) {
       alert("Complete every pickup before starting delivery.");
       return;
     }
-    startRiderGpsBroadcast();
-    await db.collection("orders").doc(orderId).update({ 
-      status: "Out for Delivery",
-      rider_name: riderProfile?.name || currentActiveRider,
-      rider_phone: riderProfile?.mobile || "",
-      customer_details_unlocked_at: firebase.firestore.FieldValue.serverTimestamp(),
-      dispatched_at: firebase.firestore.FieldValue.serverTimestamp()
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/out-for-delivery`, {
+      method: 'POST', body: JSON.stringify({})
     });
+    startRiderGpsBroadcast(order.assignment_id);
+    startRiderOrdersListener();
   } catch(e) {
     alert("Error: " + e.message);
   }
@@ -895,7 +810,7 @@ function openOtpModal(orderId) {
 
   const inputEl = document.getElementById('inputDeliveryOtp');
   inputEl.value = '';
-  inputEl.dataset.expectedOtp = foundOrder.delivery_otp;
+  delete inputEl.dataset.expectedOtp;
   
   document.getElementById('otpErrorMessage').classList.add('hidden');
   document.getElementById('otpModal').classList.remove('hidden');
@@ -910,49 +825,51 @@ function closeOtpModal() {
 async function confirmOtpAndDeliver() {
   const inputEl = document.getElementById('inputDeliveryOtp');
   const enteredOtp = inputEl.value.trim();
-  const expectedOtp = inputEl.dataset.expectedOtp;
 
   if (!currentVerifyingOrderId) {
     alert("Session expired. Please click 'Verify OTP' again.");
     return;
   }
 
-  if (enteredOtp === expectedOtp) {
-    try {
-      await db.collection("orders").doc(currentVerifyingOrderId).update({
-        status: "Delivered",
-        payment_status: "COMPLETED",
-        delivered_at: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      
-      const deliveredId = currentVerifyingOrderId;
-      closeOtpModal();
-      stopRiderGpsBroadcast();
-      alert(`Order ${deliveredId} verified & Delivered successfully!`);
-    } catch(e) {
-      alert("Update failed: " + e.message);
-    }
-  } else {
+  if (!/^\d{6}$/.test(enteredOtp)) {
     document.getElementById('otpErrorMessage').classList.remove('hidden');
+    return;
+  }
+  try {
+    const order = allRiderOrders.find(item => item.id === currentVerifyingOrderId);
+    if (!order) throw new Error('Delivery assignment is no longer available.');
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ otp: enteredOtp })
+    });
+    const deliveredId = currentVerifyingOrderId;
+    closeOtpModal();
+    stopRiderGpsBroadcast();
+    startRiderOrdersListener();
+    alert(`Order ${deliveredId} verified & delivered successfully!`);
+  } catch (error) {
+    document.getElementById('otpErrorMessage').classList.remove('hidden');
+    document.getElementById('otpErrorMessage').innerText = error.message;
   }
 }
 
 // --- BOOTSTRAP ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('click', event => {
     if (event.target.closest('button, [onclick]')) {
       RIDER_TAB_SOUND.currentTime = 0;
       RIDER_TAB_SOUND.play().catch(() => {});
     }
   });
-  if (!riderProfile?.name) currentActiveRider = '';
-  const titleEl = document.getElementById('currentRiderTitle');
-  if (titleEl) titleEl.innerText = currentActiveRider;
-
+  const backendProfile = await hydrateRiderSession();
+  if (!backendProfile) {
+    riderProfile = null;
+    currentActiveRider = '';
+    riderIsAvailable = false;
+  }
   updateRiderIdentity();
   updateAvailabilityUi();
   showRiderSection('home');
-  if (currentActiveRider) startRiderOrdersListener();
-  if (riderIsAvailable && isWithinWorkingHours()) startRiderGpsBroadcast();
+  if (backendProfile) startRiderOrdersListener();
   if (window.lucide) lucide.createIcons();
 });

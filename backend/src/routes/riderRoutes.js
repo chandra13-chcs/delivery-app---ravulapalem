@@ -10,6 +10,17 @@ const {
   setRiderAvailability,
   getRiderDashboard
 } = require("../controllers/riderController");
+const {
+  listRiderDeliveries,
+  acceptDelivery,
+  rejectDelivery,
+  arriveAtPickup,
+  arriveAtParcelPickup,
+  confirmPickup,
+  startOutForDelivery,
+  completeDelivery,
+  updateRiderLocation
+} = require("../controllers/deliveryController");
 
 const router = express.Router();
 
@@ -23,5 +34,14 @@ router.post("/documents", createRiderDocument);
 router.get("/availability", getRiderAvailability);
 router.put("/availability", setRiderAvailability);
 router.get("/dashboard", getRiderDashboard);
+router.get("/deliveries", listRiderDeliveries);
+router.post("/deliveries/:assignmentId/accept", acceptDelivery);
+router.post("/deliveries/:assignmentId/reject", rejectDelivery);
+router.post("/deliveries/:assignmentId/pickups/:fulfillmentId/arrive", arriveAtPickup);
+router.post("/deliveries/:assignmentId/parcel-pickup/arrive", arriveAtParcelPickup);
+router.post("/deliveries/:assignmentId/pickups/:fulfillmentId/confirm", confirmPickup);
+router.post("/deliveries/:assignmentId/out-for-delivery", startOutForDelivery);
+router.post("/deliveries/:assignmentId/complete", completeDelivery);
+router.post("/locations", updateRiderLocation);
 
 module.exports = router;
