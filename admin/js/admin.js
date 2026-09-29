@@ -2,9 +2,14 @@
 // 🛡️ ADMIN OPERATIONS HUB ENGINE (admin.js)
 // ==========================================
 
-const STORE_TERMINAL_PIN = "748801";
 let allFetchedOrders = [];
 let selectedFilterDate = ""; // Empty means today
+let selectedFilterToDate = "";
+let salesReportOrders = [];
+let salesShopPage = 0;
+let salesOrderPage = 0;
+let salesReportRequestId = 0;
+const SALES_REPORT_PAGE_SIZE = 25;
 let ADMIN_RIDER_PROFILES = [];
 let ADMIN_DELIVERY_RIDERS = [];
 let adminOrderIdsInitialized = false;
@@ -30,6 +35,14 @@ async function adminRiderApiRequest(path, options = {}) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401) {
+      ['admin_access_token', 'myshopzy_admin_access_token'].forEach(key => {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      });
+      sessionStorage.removeItem('hub_session_unlocked');
+      document.getElementById('adminAuthLock')?.classList.remove('hidden');
+    }
     const message = payload?.message || `Request failed with status ${response.status}`;
     throw new Error(message);
   }
@@ -109,6 +122,17 @@ function formatOrderDateTime(order) {
 
 function getAdminLocalDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getAdminReportDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function getAdminOrderDateKey(order) {
@@ -329,15 +353,40 @@ async function assignOrderToRider(orderId, riderId) {
   }
 }
 
-function verifyAdminAccess() {
-  const entered = document.getElementById('adminPinInput').value;
-  if (entered === STORE_TERMINAL_PIN) {
+async function verifyAdminAccess() {
+  const identifierInput = document.getElementById('adminLoginIdentifier');
+  const passwordInput = document.getElementById('adminLoginPassword');
+  const errorMessage = document.getElementById('adminLoginError');
+  const button = document.getElementById('adminLoginButton');
+  const identifier = identifierInput?.value.trim() || '';
+  const password = passwordInput?.value || '';
+  if (!identifier || !password || !errorMessage || !button) return;
+
+  errorMessage.classList.add('hidden');
+  button.disabled = true;
+  button.textContent = 'Signing In...';
+  try {
+    const response = await fetch(`${ADMIN_RIDER_API_BASE_URL}/api/admin/auth/login`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+      cache: 'no-store'
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || typeof payload?.access_token !== 'string') {
+      throw new Error(payload?.message || 'Unable to sign in.');
+    }
+    sessionStorage.setItem('admin_access_token', payload.access_token);
     sessionStorage.setItem('hub_session_unlocked', 'true');
-    const lock = document.getElementById('adminAuthLock');
-    if (lock) lock.classList.add('hidden');
+    passwordInput.value = '';
+    document.getElementById('adminAuthLock')?.classList.add('hidden');
     switchView('orders');
-  } else {
-    document.getElementById('pinErrorMsg').classList.remove('hidden');
+  } catch (error) {
+    errorMessage.textContent = error.message || 'Unable to sign in.';
+    errorMessage.classList.remove('hidden');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Sign In';
   }
 }
 
@@ -1834,103 +1883,244 @@ function startLiveOrderQueue() {
 
 // --- SALES & REPORTS ENGINE ---
 function initSalesDatePicker() {
-  const dateInput = document.getElementById('salesFilterDate');
-  if (dateInput && !dateInput.value) {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    dateInput.value = todayStr;
-    selectedFilterDate = todayStr;
+  const fromInput = document.getElementById('salesFilterFrom');
+  const toInput = document.getElementById('salesFilterTo');
+  if (!fromInput || !toInput) return;
+  const today = getAdminReportDateKey();
+  if (!fromInput.value) fromInput.value = today;
+  if (!toInput.value) toInput.value = today;
+  selectedFilterDate = fromInput.value;
+  selectedFilterToDate = toInput.value;
+  [fromInput, toInput].forEach(input => {
+    if (input.dataset.reportListenerAttached === 'true') return;
+    input.dataset.reportListenerAttached = 'true';
+    input.addEventListener('change', () => {
+      selectedFilterDate = fromInput.value;
+      selectedFilterToDate = toInput.value;
+      salesShopPage = 0;
+      salesOrderPage = 0;
+      calculateAndRenderAnalytics();
+    });
+  });
+}
+
+function setSalesReportFeedback(message, type = 'loading') {
+  const feedback = document.getElementById('salesReportFeedback');
+  if (!feedback) return;
+  feedback.textContent = message || '';
+  feedback.classList.toggle('hidden', !message);
+  feedback.className = `rounded-xl border px-4 py-3 text-sm font-bold ${message ? '' : 'hidden'} ${type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`;
+}
+
+function formatSalesCurrency(value) {
+  const amount = Number(value || 0);
+  return `₹${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(amount) ? amount : 0)}`;
+}
+
+function getSalesReportQuery(offset = 0) {
+  const params = new URLSearchParams({
+    from: selectedFilterDate,
+    to: selectedFilterToDate,
+    limit: String(SALES_REPORT_PAGE_SIZE),
+    offset: String(offset)
+  });
+  return params.toString();
+}
+
+function renderSalesReportSummary(report) {
+  const summary = report.summary || {};
+  const setText = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  };
+  setText('statTodayRevenue', formatSalesCurrency(summary.gross_order_value));
+  setText('statOnlinePaid', formatSalesCurrency(summary.successful_paid_amount));
+  setText('statCodPaid', formatSalesCurrency(summary.refunds_amount));
+  setText('statNetAmount', formatSalesCurrency(summary.net_amount));
+  setText('statCompletedOrders', String(summary.completed_orders || 0));
+  setText('statTotalOrders', `${summary.cancelled_orders || 0} / ${summary.total_orders || 0}`);
+
+  const breakdown = document.getElementById('salesStatusBreakdown');
+  if (!breakdown) return;
+  const statuses = Array.isArray(report.status_breakdown) ? report.status_breakdown : [];
+  if (!statuses.length) {
+    breakdown.innerHTML = '<p class="text-center text-slate-500">No orders found for this date range.</p>';
+    return;
+  }
+  breakdown.innerHTML = `<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">${statuses.map(item => `
+    <div class="flex items-center justify-between gap-2 border-b border-slate-100 py-2">
+      <span class="font-bold text-slate-700">${escapeAdminHtml(item.status)}</span>
+      <span class="font-black text-slate-900">${Number(item.order_count) || 0}</span>
+    </div>`).join('')}</div>`;
+}
+
+function renderSalesShopRows(result) {
+  const body = document.getElementById('salesShopTableBody');
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const pagination = result.pagination || { total: 0, limit: SALES_REPORT_PAGE_SIZE, offset: 0 };
+  if (!body) return;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No shop sales found for this date range.</td></tr>';
+  } else {
+    body.innerHTML = rows.map(row => `<tr class="border-b border-slate-50">
+      <td class="px-4 py-3 font-bold text-slate-900">${escapeAdminHtml(row.shop_name || 'Shop unavailable')}</td>
+      <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(row.partner_name || 'Unknown partner')}</td>
+      <td class="px-4 py-3">${Number(row.order_count) || 0}</td>
+      <td class="px-4 py-3">${Number(row.completed_count) || 0}</td>
+      <td class="px-4 py-3">${Number(row.cancelled_count) || 0}</td>
+      <td class="px-4 py-3 text-right font-black">${formatSalesCurrency(row.sales_amount)}</td>
+    </tr>`).join('');
+  }
+  updateSalesReportPager('shops', pagination);
+}
+
+function renderSalesOrderRows(result) {
+  const tbody = document.getElementById('settlementTableBody');
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const pagination = result.pagination || { total: 0, limit: SALES_REPORT_PAGE_SIZE, offset: 0 };
+  salesReportOrders = rows;
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-500">No orders found for this date range.</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(order => `<tr class="border-b border-slate-50">
+      <td class="px-4 py-3 font-bold text-slate-900">${escapeAdminHtml(order.order_number)}</td>
+      <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(new Date(order.placed_at).toLocaleString())}</td>
+      <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(order.shop_names || 'N/A')}</td>
+      <td class="px-4 py-3 font-bold">${escapeAdminHtml(order.status)}</td>
+      <td class="px-4 py-3 text-right">${formatSalesCurrency(order.gross_order_value)}</td>
+      <td class="px-4 py-3 text-right">${formatSalesCurrency(order.successful_paid_amount)}</td>
+      <td class="px-4 py-3 text-right">${formatSalesCurrency(order.refunds_amount)}</td>
+    </tr>`).join('');
+  }
+  updateSalesReportPager('orders', pagination);
+}
+
+function updateSalesReportPager(type, pagination) {
+  const isShop = type === 'shops';
+  const page = isShop ? salesShopPage : salesOrderPage;
+  const total = Number(pagination.total) || 0;
+  const start = total ? page * SALES_REPORT_PAGE_SIZE + 1 : 0;
+  const end = Math.min((page + 1) * SALES_REPORT_PAGE_SIZE, total);
+  const label = document.getElementById(isShop ? 'salesShopPageLabel' : 'salesOrderPageLabel');
+  const previous = document.getElementById(isShop ? 'salesShopPrevious' : 'salesOrderPrevious');
+  const next = document.getElementById(isShop ? 'salesShopNext' : 'salesOrderNext');
+  if (label) label.textContent = `Showing ${start}-${end} of ${total} ${isShop ? 'shops' : 'orders'}`;
+  if (previous) previous.disabled = page === 0;
+  if (next) next.disabled = (page + 1) * SALES_REPORT_PAGE_SIZE >= total;
+}
+
+async function fetchSalesReport(path) {
+  const payload = await adminRiderApiRequest(path, { cache: 'no-store' });
+  return payload;
+}
+
+async function loadSalesReports() {
+  const requestId = ++salesReportRequestId;
+  if (!selectedFilterDate || !selectedFilterToDate || selectedFilterDate > selectedFilterToDate) {
+    setSalesReportFeedback('Choose a valid date range. The start date must not be after the end date.', 'error');
+    return;
+  }
+  const summary = document.getElementById('salesStatusBreakdown');
+  const shopBody = document.getElementById('salesShopTableBody');
+  const orderBody = document.getElementById('settlementTableBody');
+  salesReportOrders = [];
+  ['statTodayRevenue', 'statOnlinePaid', 'statCodPaid', 'statNetAmount', 'statCompletedOrders', 'statTotalOrders']
+    .forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = '...';
+    });
+  setSalesReportFeedback('Loading report data...');
+  if (summary) summary.innerHTML = '<p class="text-center">Loading report...</p>';
+  if (shopBody) shopBody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">Loading report...</td></tr>';
+  if (orderBody) orderBody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-500">Loading report...</td></tr>';
+
+  const query = getSalesReportQuery();
+  try {
+    const [summaryResult, shopsResult, ordersResult] = await Promise.all([
+      fetchSalesReport(`/api/admin/reports/summary?${query}`),
+      fetchSalesReport(`/api/admin/reports/shops?${getSalesReportQuery(salesShopPage * SALES_REPORT_PAGE_SIZE)}`),
+      fetchSalesReport(`/api/admin/reports/orders?${getSalesReportQuery(salesOrderPage * SALES_REPORT_PAGE_SIZE)}`)
+    ]);
+    if (requestId !== salesReportRequestId) return;
+    renderSalesReportSummary(summaryResult?.data || {});
+    renderSalesShopRows(shopsResult || {});
+    renderSalesOrderRows(ordersResult || {});
+    const rangeLabel = selectedFilterDate === selectedFilterToDate
+      ? selectedFilterDate
+      : `${selectedFilterDate} to ${selectedFilterToDate}`;
+    const dateLabel = document.getElementById('activeDateLabel');
+    if (dateLabel) dateLabel.textContent = rangeLabel;
+    setSalesReportFeedback('');
+  } catch (error) {
+    if (requestId !== salesReportRequestId) return;
+    ['statTodayRevenue', 'statOnlinePaid', 'statCodPaid', 'statNetAmount', 'statCompletedOrders', 'statTotalOrders']
+      .forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = 'N/A';
+      });
+    setSalesReportFeedback(error.message || 'Unable to load report data.', 'error');
+    if (summary) summary.innerHTML = '<p class="text-center text-rose-600">Unable to load status breakdown.</p>';
+    if (shopBody) shopBody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-rose-600">Unable to load shop report.</td></tr>';
+    if (orderBody) orderBody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-rose-600">Unable to load order report.</td></tr>';
   }
 }
 
 function filterSalesByDate(val) {
   selectedFilterDate = val;
+  selectedFilterToDate = val;
   calculateAndRenderAnalytics();
 }
 
 function resetSalesToToday() {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const dateInput = document.getElementById('salesFilterDate');
-  if (dateInput) dateInput.value = todayStr;
-  selectedFilterDate = todayStr;
+  const today = getAdminReportDateKey();
+  const fromInput = document.getElementById('salesFilterFrom');
+  const toInput = document.getElementById('salesFilterTo');
+  if (fromInput) fromInput.value = today;
+  if (toInput) toInput.value = today;
+  selectedFilterDate = today;
+  selectedFilterToDate = today;
+  salesShopPage = 0;
+  salesOrderPage = 0;
   calculateAndRenderAnalytics();
 }
 
 function calculateAndRenderAnalytics() {
-  const dateLabel = document.getElementById('activeDateLabel');
-  if (dateLabel) dateLabel.innerText = selectedFilterDate || "All Time";
+  return loadSalesReports();
+}
 
-  let filtered = allFetchedOrders;
-
-  if (selectedFilterDate) {
-    filtered = allFetchedOrders.filter(o => {
-      if (o.created_at_ms) {
-        const orderDateStr = new Date(o.created_at_ms).toISOString().slice(0, 10);
-        return orderDateStr === selectedFilterDate;
-      }
-      return false;
-    });
-  }
-
-  let revenue = 0, online = 0, cod = 0;
-  const tbody = document.getElementById('settlementTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-
-  if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No orders found for the selected date (${selectedFilterDate}).</td></tr>`;
-  } else {
-    filtered.forEach(o => {
-      const amt = Number(o.total_amount || o.total || 0);
-      revenue += amt;
-      if (o.payment_mode === 'COD') cod += amt;
-      else online += amt;
-
-      const timeStr = o.created_at_ms ? new Date(o.created_at_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="py-2.5 px-3 font-bold text-slate-900">${escapeAdminHtml(o.id)}</td>
-        <td class="py-2.5 px-3 text-slate-500">${escapeAdminHtml(selectedFilterDate)} ${escapeAdminHtml(timeStr)}</td>
-        <td class="py-2.5 px-3">${escapeAdminHtml(o.customer_phone || 'N/A')}</td>
-        <td class="py-2.5 px-3 truncate max-w-[150px]">${escapeAdminHtml(o.delivery_address || 'Mandapeta')}</td>
-        <td class="py-2.5 px-3 font-black text-slate-900">₹${amt}</td>
-        <td class="py-2.5 px-3 font-bold ${o.payment_mode === 'COD' ? 'text-amber-600' : 'text-blue-600'}">${escapeAdminHtml(o.payment_mode || 'UPI')}</td>
-        <td class="py-2.5 px-3 font-bold text-emerald-600">${escapeAdminHtml(o.status || 'PLACED')}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  const sRev = document.getElementById('statTodayRevenue');
-  const sOn = document.getElementById('statOnlinePaid');
-  const sCod = document.getElementById('statCodPaid');
-  const sTot = document.getElementById('statTotalOrders');
-
-  if (sRev) sRev.innerText = `₹${revenue}`;
-  if (sOn) sOn.innerText = `₹${online}`;
-  if (sCod) sCod.innerText = `₹${cod}`;
-  if (sTot) sTot.innerText = filtered.length;
+function changeSalesReportPage(type, direction) {
+  if (type === 'shops') salesShopPage = Math.max(0, salesShopPage + direction);
+  else salesOrderPage = Math.max(0, salesOrderPage + direction);
+  loadSalesReports();
 }
 
 function exportDailyOrdersCSV() {
-  if (allFetchedOrders.length === 0) return alert("No orders to export!");
-  const headers = ["Order ID", "Date", "Phone", "Address", "Amount", "Payment Mode", "Status"];
-  const rows = allFetchedOrders.map(o => [
-    `"${o.id}"`,
-    `"${o.created_at_ms ? new Date(o.created_at_ms).toISOString().slice(0, 10) : ''}"`,
-    `"${o.customer_phone||''}"`,
-    `"${(o.delivery_address||'').replace(/"/g,'""')}"`,
-    `"${o.total_amount||o.total}"`,
-    `"${o.payment_mode||'UPI'}"`,
-    `"${o.status}"`
-  ]);
-  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+  if (salesReportOrders.length === 0) return alert("No orders on the current report page to export.");
+  const headers = ["Order Number", "Date", "Shops", "Status", "Gross Order Value", "Successful Payments", "Refunds"];
+  const escapeCsv = value => {
+    const text = String(value ?? '');
+    const safeText = /^[\t\r=+\-@]/.test(text) ? `'${text}` : text;
+    return `"${safeText.replace(/"/g, '""')}"`;
+  };
+  const rows = salesReportOrders.map(order => [
+    order.order_number,
+    new Date(order.placed_at).toISOString(),
+    order.shop_names || '',
+    order.status,
+    order.gross_order_value,
+    order.successful_paid_amount,
+    order.refunds_amount
+  ].map(escapeCsv));
+  const csvContent = [headers.map(escapeCsv).join(","), ...rows.map(row => row.join(","))].join("\n");
+  const csvUrl = URL.createObjectURL(new Blob([csvContent], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
-  link.setAttribute("href", encodeURI(csvContent));
-  link.setAttribute("download", `Mandapeta_Orders_${selectedFilterDate || 'All'}.csv`);
+  link.setAttribute("href", csvUrl);
+  link.setAttribute("download", `MyShopzy_Orders_${selectedFilterDate}_${selectedFilterToDate}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(csvUrl);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1941,10 +2131,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   adminCountdownTimer = setInterval(updateAdminCountdowns, 1000);
-  if (sessionStorage.getItem('hub_session_unlocked') === 'true') {
+  if (sessionStorage.getItem('hub_session_unlocked') === 'true' && getAdminAccessToken()) {
     const lock = document.getElementById('adminAuthLock');
     if (lock) lock.classList.add('hidden');
     switchView('orders');
+  } else {
+    sessionStorage.removeItem('hub_session_unlocked');
   }
   startLiveOrderQueue();
   startRegisteredRiderListener();
