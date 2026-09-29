@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { writeAuditLog } = require("../services/auditService");
 
 const CATEGORY_COLUMNS = `id, name, slug, description, parent_id, sort_order,
                          is_active, created_at, updated_at, deleted_at`;
@@ -92,17 +93,17 @@ function isDuplicateSlug(error) {
   return error.code === "23505" && (!error.constraint || error.constraint.includes("slug"));
 }
 
-async function parentExists(parentId) {
+async function parentExists(queryable, parentId) {
   if (parentId === null) return true;
-  const result = await db.query(
+  const result = await queryable.query(
     "SELECT EXISTS (SELECT 1 FROM categories WHERE id = $1 AND deleted_at IS NULL) AS category_exists",
     [parentId]
   );
   return result.rows[0]?.category_exists === true;
 }
 
-async function parentWouldCreateCycle(categoryId, parentId) {
-  const result = await db.query(
+async function parentWouldCreateCycle(queryable, categoryId, parentId) {
+  const result = await queryable.query(
     `WITH RECURSIVE descendants(id) AS (
        SELECT id FROM categories WHERE id = $1::uuid AND deleted_at IS NULL
        UNION
@@ -115,6 +116,18 @@ async function parentWouldCreateCycle(categoryId, parentId) {
     [categoryId, parentId]
   );
   return result.rows[0]?.would_create_cycle === true;
+}
+
+async function listAdminCategories(req, res) {
+  try {
+    const result = await db.query(
+      `SELECT ${CATEGORY_COLUMNS} FROM categories ORDER BY sort_order ASC, name ASC, id ASC`
+    );
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error("Admin category listing failed:", error.message);
+    return responseError(res, 500, "Unable to retrieve categories.");
+  }
 }
 
 async function listCategories(req, res) {
@@ -147,21 +160,32 @@ async function createCategory(req, res) {
   if (validation.error) return responseError(res, 400, validation.error);
 
   const category = validation.value;
+  let client;
   try {
-    if (!await parentExists(category.parent_id)) return responseError(res, 400, "Parent category does not exist.");
+    client = await db.connect();
+    await client.query("BEGIN");
+    if (!await parentExists(client, category.parent_id)) {
+      await client.query("ROLLBACK");
+      return responseError(res, 400, "Parent category does not exist.");
+    }
 
-    const result = await db.query(
+    const result = await client.query(
       `INSERT INTO categories (name, slug, description, parent_id, sort_order, is_active)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING ${CATEGORY_COLUMNS}`,
       [category.name, category.slug, category.description, category.parent_id, category.sort_order, category.is_active]
     );
+    await writeAuditLog(client, req, "category.created", "categories", result.rows[0].id, null, result.rows[0]);
+    await client.query("COMMIT");
     return res.status(201).json({ success: true, message: "Category created successfully.", data: result.rows[0] });
   } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
     if (isDuplicateSlug(error)) return responseError(res, 409, "Category slug already exists.");
     if (error.code === "23503") return responseError(res, 400, "Parent category does not exist.");
     console.error("Category creation failed:", error.message);
     return responseError(res, 500, "Unable to create category.");
+  } finally {
+    client?.release();
   }
 }
 
@@ -175,17 +199,25 @@ async function updateCategory(req, res) {
 
   const category = validation.value;
   const categoryId = req.params.id.toLowerCase();
+  let client;
   try {
-    const existingCategory = await db.query(
-      "SELECT 1 FROM categories WHERE id = $1::uuid AND deleted_at IS NULL",
+    client = await db.connect();
+    await client.query("BEGIN");
+    const existingCategory = await client.query(
+      "SELECT * FROM categories WHERE id = $1::uuid FOR UPDATE",
       [categoryId]
     );
-    if (!existingCategory.rows[0]) return responseError(res, 404, "Category not found.");
+    if (!existingCategory.rows[0]) {
+      await client.query("ROLLBACK");
+      return responseError(res, 404, "Category not found.");
+    }
 
-    if (Object.prototype.hasOwnProperty.call(category, "parent_id") && !await parentExists(category.parent_id)) {
+    if (Object.prototype.hasOwnProperty.call(category, "parent_id") && !await parentExists(client, category.parent_id)) {
+      await client.query("ROLLBACK");
       return responseError(res, 400, "Parent category does not exist.");
     }
-    if (category.parent_id && await parentWouldCreateCycle(categoryId, category.parent_id)) {
+    if (category.parent_id && await parentWouldCreateCycle(client, categoryId, category.parent_id)) {
+      await client.query("ROLLBACK");
       return responseError(res, 400, "A category cannot be its own parent or a descendant of itself.");
     }
 
@@ -197,22 +229,32 @@ async function updateCategory(req, res) {
         assignments.push(`${field} = $${values.length}`);
       }
     }
+    const isRestoring = existingCategory.rows[0].deleted_at && category.is_active === true;
+    if (isRestoring) assignments.push("deleted_at = NULL");
     assignments.push("updated_at = now()");
 
-    const result = await db.query(
+    const result = await client.query(
       `UPDATE categories
        SET ${assignments.join(", ")}
-       WHERE id = $1::uuid AND deleted_at IS NULL
+       WHERE id = $1::uuid
        RETURNING ${CATEGORY_COLUMNS}`,
       values
     );
-    if (!result.rows[0]) return responseError(res, 404, "Category not found.");
+    if (!result.rows[0]) {
+      await client.query("ROLLBACK");
+      return responseError(res, 404, "Category not found.");
+    }
+    await writeAuditLog(client, req, isRestoring ? "category.activated" : "category.updated", "categories", categoryId, existingCategory.rows[0], result.rows[0]);
+    await client.query("COMMIT");
     return res.json({ success: true, message: "Category updated successfully.", data: result.rows[0] });
   } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
     if (isDuplicateSlug(error)) return responseError(res, 409, "Category slug already exists.");
     if (error.code === "23503") return responseError(res, 400, "Parent category does not exist.");
     console.error("Category update failed:", error.message);
     return responseError(res, 500, "Unable to update category.");
+  } finally {
+    client?.release();
   }
 }
 
@@ -221,20 +263,39 @@ async function deactivateCategory(req, res) {
     return responseError(res, 400, "Category ID must be a valid UUID.");
   }
 
+  let client;
   try {
-    const result = await db.query(
+    client = await db.connect();
+    await client.query("BEGIN");
+    const before = await client.query(
+      "SELECT * FROM categories WHERE id = $1::uuid FOR UPDATE",
+      [req.params.id.toLowerCase()]
+    );
+    if (!before.rows[0]) {
+      await client.query("ROLLBACK");
+      return responseError(res, 404, "Category not found.");
+    }
+    const result = await client.query(
       `UPDATE categories
        SET is_active = false, deleted_at = now(), updated_at = now()
        WHERE id = $1::uuid AND deleted_at IS NULL
        RETURNING ${CATEGORY_COLUMNS}`,
       [req.params.id.toLowerCase()]
     );
-    if (!result.rows[0]) return responseError(res, 404, "Category not found.");
+    if (!result.rows[0]) {
+      await client.query("ROLLBACK");
+      return responseError(res, 404, "Category not found.");
+    }
+    await writeAuditLog(client, req, "category.deactivated", "categories", result.rows[0].id, before.rows[0], result.rows[0]);
+    await client.query("COMMIT");
     return res.json({ success: true, message: "Category deactivated successfully.", data: result.rows[0] });
   } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
     console.error("Category deactivation failed:", error.message);
     return responseError(res, 500, "Unable to deactivate category.");
+  } finally {
+    client?.release();
   }
 }
 
-module.exports = { listCategories, createCategory, updateCategory, deactivateCategory };
+module.exports = { listCategories, listAdminCategories, createCategory, updateCategory, deactivateCategory };

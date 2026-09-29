@@ -387,6 +387,7 @@ function switchView(tab) {
   } else if (selectedTab === 'inventory') {
     if (invSec) invSec.classList.remove('hidden');
     loadAdminInventory();
+    loadAdminPostgresCatalog();
   } else if (selectedTab === 'partners') {
     if (partnersSec) partnersSec.classList.remove('hidden');
   } else if (selectedTab === 'banners') {
@@ -441,10 +442,11 @@ function compressImageFile(file, maxWidth = 400, maxHeight = 400, quality = 0.85
 let selectedProductBase64 = "";
 let adminRestaurants = [];
 let adminPartnerAccounts = [];
+let adminPartnerRecords = [];
 let adminBackendCategories = [];
 
 function toggleRestaurantProductFields() {
-  const category = document.getElementById('pCategory')?.value;
+  const category = getSelectedProductCategorySlug();
   const source = document.getElementById('pPickupSource')?.value;
   const fields = document.getElementById('restaurantProductFields');
   const partnerFields = document.getElementById('partnerProductFields');
@@ -460,7 +462,7 @@ function refreshAdminPartnerProductOptions() {
   const select = document.getElementById('pPartner');
   if (!select) return;
   const source = document.getElementById('pPickupSource')?.value;
-  const category = document.getElementById('pCategory')?.value;
+  const category = getSelectedProductCategorySlug();
   const type = source === 'meat_partner' || (source === 'auto' && category === 'meat')
     ? 'meat' : source === 'restaurant_partner' ? 'restaurant' : 'store';
   const selectedId = select.value;
@@ -469,6 +471,11 @@ function refreshAdminPartnerProductOptions() {
     ? accounts.map(account => `<option value="${escapeAdminHtml(account.id)}">${escapeAdminHtml(account.name || 'Unnamed shop')}</option>`).join('')
     : '<option value="">Create an active partner shop first</option>';
   if (accounts.some(account => account.id === selectedId)) select.value = selectedId;
+}
+
+function getSelectedProductCategorySlug() {
+  const value = document.getElementById('pCategory')?.value || '';
+  return adminBackendCategories.find(category => category.id === value || category.slug === value)?.slug || value;
 }
 
 function loadAdminRestaurants() {
@@ -590,6 +597,7 @@ async function loadAdminPartnerAccounts() {
       adminPartnerApiRequest(`/${encodeURIComponent(partner.id)}`)
     ));
     const partnerDetails = details.sort((left, right) => String(left.display_name).localeCompare(String(right.display_name)));
+    adminPartnerRecords = partnerDetails;
     adminPartnerAccounts = partnerDetails.flatMap(partner => partner.shops.map(shop => ({
       id: shop.id,
       partner_id: partner.id,
@@ -598,9 +606,11 @@ async function loadAdminPartnerAccounts() {
       enabled: partner.status === 'ACTIVE' && shop.status !== 'CLOSED'
     })));
     refreshAdminPartnerProductOptions();
+    populateAdminCatalogFilters();
     container.innerHTML = partnerDetails.length
       ? partnerDetails.map(renderAdminPartnerCard).join('')
       : '<p class="text-xs text-slate-500">No partners configured yet.</p>';
+    if (!document.getElementById('inventoryViewSection')?.classList.contains('hidden')) loadAdminPostgresCatalog();
   } catch (error) {
     console.error('PostgreSQL partner list failed:', error);
     container.innerHTML = `<p class="text-xs font-bold text-rose-600">Unable to load partners: ${escapeAdminHtml(error.message)}</p>`;
@@ -686,6 +696,149 @@ async function loadAdminShopCatalog(partnerId, shopId) {
   } catch (error) { container.textContent = `Unable to load shop catalog: ${error.message}`; }
 }
 
+function populateAdminCatalogFilters() {
+  const partnerSelect = document.getElementById('adminPgPartnerFilter');
+  const shopSelect = document.getElementById('adminPgShopFilter');
+  const categorySelect = document.getElementById('adminPgCategoryFilter');
+  if (!partnerSelect || !shopSelect || !categorySelect) return;
+  const previousPartner = partnerSelect.value;
+  const previousCategory = categorySelect.value;
+  partnerSelect.innerHTML = '<option value="">All partners</option>' + adminPartnerRecords.map(partner =>
+    `<option value="${escapeAdminHtml(partner.id)}">${escapeAdminHtml(partner.display_name)}</option>`
+  ).join('');
+  if (adminPartnerRecords.some(partner => partner.id === previousPartner)) partnerSelect.value = previousPartner;
+  categorySelect.innerHTML = '<option value="">All categories</option>' + adminBackendCategories
+    .filter(category => category.is_active !== false)
+    .map(category => `<option value="${escapeAdminHtml(category.id)}">${escapeAdminHtml(category.name)}</option>`).join('');
+  if (adminBackendCategories.some(category => category.id === previousCategory && category.is_active !== false)) categorySelect.value = previousCategory;
+  populateAdminCatalogShopFilter();
+}
+
+function populateAdminCatalogShopFilter() {
+  const partnerId = document.getElementById('adminPgPartnerFilter')?.value || '';
+  const select = document.getElementById('adminPgShopFilter');
+  if (!select) return;
+  const current = select.value;
+  const shops = adminPartnerRecords
+    .filter(partner => !partnerId || partner.id === partnerId)
+    .flatMap(partner => (partner.shops || []).map(shop => ({ ...shop, partner_name: partner.display_name })))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+  select.innerHTML = '<option value="">All shops</option>' + shops.map(shop =>
+    `<option value="${escapeAdminHtml(shop.id)}">${escapeAdminHtml(shop.partner_name)} · ${escapeAdminHtml(shop.name)}</option>`
+  ).join('');
+  if (shops.some(shop => shop.id === current)) select.value = current;
+}
+
+async function loadAdminPostgresCatalog() {
+  const container = document.getElementById('adminPostgresCatalogList');
+  if (!container) return;
+  const query = new URLSearchParams();
+  const partnerId = document.getElementById('adminPgPartnerFilter')?.value;
+  const shopId = document.getElementById('adminPgShopFilter')?.value;
+  const categoryId = document.getElementById('adminPgCategoryFilter')?.value;
+  const status = document.getElementById('adminPgStatusFilter')?.value;
+  if (partnerId) query.set('partner_id', partnerId);
+  if (shopId) query.set('shop_id', shopId);
+  if (categoryId) query.set('category_id', categoryId);
+  if (status && status !== 'ALL') query.set('status', status);
+  container.textContent = 'Loading PostgreSQL partner catalog...';
+  try {
+    const products = await adminPartnerApiRequest(`/products${query.size ? `?${query.toString()}` : ''}`);
+    container.innerHTML = products.length
+      ? products.map(renderAdminPostgresProduct).join('')
+      : '<p class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">No PostgreSQL partner products match these filters.</p>';
+  } catch (error) {
+    container.textContent = `Unable to load PostgreSQL partner catalog: ${error.message}`;
+  }
+}
+
+function renderAdminPostgresProduct(product) {
+  const productId = escapeAdminHtml(product.id);
+  const categoryOptions = ['<option value="">No category</option>', ...adminBackendCategories
+    .filter(category => category.is_active !== false)
+    .map(category => `<option value="${escapeAdminHtml(category.id)}" ${category.id === product.category_id ? 'selected' : ''}>${escapeAdminHtml(category.name)}</option>`)].join('');
+  const statusOptions = ['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED'].map(status =>
+    `<option ${product.status === status ? 'selected' : ''}>${status}</option>`
+  ).join('');
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return `<article class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2"><div><h4 class="text-sm font-black text-slate-900">${escapeAdminHtml(product.name)}</h4><p class="text-[10px] text-slate-500">${escapeAdminHtml(product.partner_name)} · ${escapeAdminHtml(product.shop_name)} · ${escapeAdminHtml(product.status)}</p></div><span class="text-[10px] text-slate-500">${variants.length} variants</span></div>
+    <form onsubmit="saveAdminPostgresProduct(event,'${productId}')" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <input name="name" required maxlength="300" value="${escapeAdminHtml(product.name)}" aria-label="Product name" class="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px]"><input name="brand" maxlength="200" value="${escapeAdminHtml(product.brand || '')}" aria-label="Brand" placeholder="Brand" class="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px]"><select name="category_id" aria-label="Category" class="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-[10px]">${categoryOptions}</select><select name="status" aria-label="Product status" class="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-[10px]">${statusOptions}</select>
+      <textarea name="description" maxlength="5000" aria-label="Description" class="sm:col-span-2 lg:col-span-3 px-2 py-1.5 border border-slate-200 rounded-lg text-[10px]">${escapeAdminHtml(product.description || '')}</textarea><div class="flex gap-1"><input name="image_url" maxlength="80000" placeholder="Optional image URL" aria-label="New image URL" class="min-w-0 flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-[10px]"><button class="rounded-lg bg-slate-900 px-2 py-1.5 text-[10px] font-bold text-white">Save product</button></div>
+    </form>
+    <div class="space-y-2">${variants.map(variant => renderAdminPostgresVariant(variant)).join('')}</div>
+    <details class="rounded-xl border border-slate-200 bg-white p-3"><summary class="cursor-pointer text-[10px] font-black text-slate-700">Add variant</summary><form onsubmit="createAdminPostgresVariant(event,'${productId}')" class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2"><input name="name" required maxlength="200" placeholder="Variant name" class="px-2 py-1.5 border rounded text-[10px]"><input name="sku" maxlength="200" placeholder="SKU" class="px-2 py-1.5 border rounded text-[10px]"><input name="unit_label" required maxlength="100" placeholder="Unit" class="px-2 py-1.5 border rounded text-[10px]"><input name="unit_quantity" type="number" min="0.001" step="0.001" value="1" required placeholder="Unit quantity" class="px-2 py-1.5 border rounded text-[10px]"><input name="price" type="number" min="0" step="0.01" required placeholder="Price" class="px-2 py-1.5 border rounded text-[10px]"><input name="compare_at_price" type="number" min="0" step="0.01" placeholder="Compare price" class="px-2 py-1.5 border rounded text-[10px]"><label class="flex items-center gap-1 text-[10px]"><input name="is_active" type="checkbox" checked>Available</label><button class="rounded-lg bg-cyan-800 px-2 py-1 text-[10px] font-bold text-white">Create variant</button></form></details>
+  </article>`;
+}
+
+function renderAdminPostgresVariant(variant) {
+  const variantId = escapeAdminHtml(variant.id);
+  return `<div class="rounded-xl border border-slate-200 bg-white p-3 space-y-2"><form onsubmit="saveAdminPostgresVariant(event,'${variantId}')" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 items-center"><input name="name" required maxlength="200" value="${escapeAdminHtml(variant.name)}" aria-label="Variant name" class="px-2 py-1.5 border rounded text-[10px]"><input name="sku" maxlength="200" value="${escapeAdminHtml(variant.sku || '')}" aria-label="SKU" placeholder="SKU" class="px-2 py-1.5 border rounded text-[10px]"><input name="unit_label" required maxlength="100" value="${escapeAdminHtml(variant.unit_label)}" aria-label="Unit label" class="px-2 py-1.5 border rounded text-[10px]"><input name="unit_quantity" type="number" min="0.001" step="0.001" value="${Number(variant.unit_quantity)}" aria-label="Unit quantity" class="px-2 py-1.5 border rounded text-[10px]"><input name="price" type="number" min="0" step="0.01" value="${Number(variant.price)}" aria-label="Price" class="px-2 py-1.5 border rounded text-[10px]"><input name="compare_at_price" type="number" min="0" step="0.01" value="${variant.compare_at_price == null ? '' : Number(variant.compare_at_price)}" aria-label="Compare-at price" placeholder="Compare" class="px-2 py-1.5 border rounded text-[10px]"><label class="flex items-center gap-1 text-[10px]"><input name="is_active" type="checkbox" ${variant.is_active ? 'checked' : ''}>Active</label><button class="sm:col-span-4 lg:col-span-7 justify-self-end rounded-lg bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-white">Save variant</button></form><form onsubmit="saveAdminPostgresInventory(event,'${variantId}')" class="flex flex-wrap items-center gap-2 text-[10px]"><span class="text-slate-500">Reserved: ${Number(variant.quantity_reserved || 0)}</span><label>On hand <input name="quantity_on_hand" type="number" min="0" step="0.001" required value="${Number(variant.quantity_on_hand || 0)}" class="ml-1 w-24 px-2 py-1 border rounded"></label><label>Low stock <input name="low_stock_threshold" type="number" min="0" step="0.001" required value="${Number(variant.low_stock_threshold || 0)}" class="ml-1 w-24 px-2 py-1 border rounded"></label><button class="rounded-lg bg-emerald-700 px-3 py-1.5 font-bold text-white">Save stock</button></form></div>`;
+}
+
+async function saveAdminPostgresProduct(event, productId) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const body = {
+    name: form.get('name'), brand: form.get('brand') || null,
+    category_id: form.get('category_id') || null,
+    description: form.get('description') || null, status: form.get('status')
+  };
+  const imageUrl = String(form.get('image_url') || '').trim();
+  if (imageUrl) body.image_url = imageUrl;
+  try {
+    await adminPartnerApiRequest(`/products/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+    await loadAdminPostgresCatalog();
+  } catch (error) { alert(`Unable to save PostgreSQL product: ${error.message}`); }
+}
+
+async function saveAdminPostgresVariant(event, variantId) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    await adminPartnerApiRequest(`/variants/${encodeURIComponent(variantId)}`, {
+      method: 'PATCH', body: JSON.stringify({
+        name: form.get('name'), sku: form.get('sku') || null, unit_label: form.get('unit_label'),
+        unit_quantity: Number(form.get('unit_quantity')), price: Number(form.get('price')),
+        compare_at_price: form.get('compare_at_price') === '' ? null : Number(form.get('compare_at_price')),
+        is_active: form.get('is_active') === 'on'
+      })
+    });
+    await loadAdminPostgresCatalog();
+  } catch (error) { alert(`Unable to save variant: ${error.message}`); }
+}
+
+async function createAdminPostgresVariant(event, productId) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    await adminPartnerApiRequest(`/products/${encodeURIComponent(productId)}/variants`, {
+      method: 'POST', body: JSON.stringify({
+        name: form.get('name'), sku: form.get('sku') || null, unit_label: form.get('unit_label'),
+        unit_quantity: Number(form.get('unit_quantity')), price: Number(form.get('price')),
+        compare_at_price: form.get('compare_at_price') === '' ? null : Number(form.get('compare_at_price')),
+        is_active: form.get('is_active') === 'on'
+      })
+    });
+    await loadAdminPostgresCatalog();
+  } catch (error) { alert(`Unable to create variant: ${error.message}`); }
+}
+
+async function saveAdminPostgresInventory(event, variantId) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    await adminPartnerApiRequest(`/variants/${encodeURIComponent(variantId)}/inventory`, {
+      method: 'PATCH', body: JSON.stringify({
+        quantity_on_hand: Number(form.get('quantity_on_hand')),
+        low_stock_threshold: Number(form.get('low_stock_threshold'))
+      })
+    });
+    await loadAdminPostgresCatalog();
+  } catch (error) { alert(`Unable to update inventory: ${error.message}`); }
+}
+
 async function handleAddRestaurant(event) {
   event.preventDefault();
   const name = document.getElementById('restaurantName').value.trim();
@@ -734,13 +887,16 @@ async function handleDirectFileSelect(event) {
 async function handleAddNewProduct(e) {
   e.preventDefault();
 
-  if (!selectedProductBase64) {
-    alert("Please choose a product photo from your laptop folder or gallery!");
+  const hostedImageUrl = document.getElementById('pImageUrlInput')?.value.trim() || '';
+  if (!selectedProductBase64 && !hostedImageUrl) {
+    alert("Choose a product photo or enter a hosted image URL.");
     return;
   }
 
   const name = document.getElementById('pName').value.trim();
-  const category = document.getElementById('pCategory').value;
+  const categoryValue = document.getElementById('pCategory').value;
+  const categoryRecord = adminBackendCategories.find(item => item.id === categoryValue || item.slug === categoryValue);
+  const category = categoryRecord?.slug || categoryValue;
   const price = Number(document.getElementById('pPrice').value);
   const old_price = Number(document.getElementById('pOldPrice')?.value) || price;
   
@@ -785,7 +941,6 @@ async function handleAddNewProduct(e) {
 
   if (isPartnerProduct) {
     const shop = adminPartnerAccounts.find(account => account.id === partnerId && account.enabled);
-    const categoryRecord = adminBackendCategories.find(item => item.slug === category);
     if (!shop) {
       if (btn) btn.disabled = false;
       return alert('Select an active PostgreSQL partner shop first.');
@@ -794,6 +949,10 @@ async function handleAddNewProduct(e) {
       if (btn) btn.disabled = false;
       return alert('This category is not available in the PostgreSQL catalog.');
     }
+    if (selectedProductBase64 && !hostedImageUrl) {
+      if (btn) btn.disabled = false;
+      return alert('PostgreSQL partner products require a hosted image URL. Local image binaries are not stored in PostgreSQL.');
+    }
     try {
       await adminPartnerApiRequest(`/${encodeURIComponent(shop.partner_id)}/shops/${encodeURIComponent(shop.id)}/products`, {
         method: 'POST',
@@ -801,7 +960,7 @@ async function handleAddNewProduct(e) {
           name,
           description: document.getElementById('pDesc')?.value.trim() || null,
           category_id: categoryRecord?.id || null,
-          image_url: selectedProductBase64,
+          image_url: hostedImageUrl || null,
           variant: {
             name,
             price,
@@ -841,7 +1000,7 @@ async function handleAddNewProduct(e) {
     restaurant_address: restaurant?.address || null,
     price: price,
     old_price: old_price,
-    image_url: selectedProductBase64,
+    image_url: selectedProductBase64 || hostedImageUrl,
     desc: document.getElementById('pDesc')?.value.trim() || '100% Genuine product directly fulfilled from Mandapeta dark store.',
     created_at: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -1363,6 +1522,7 @@ function normalizeCategoryList(rows) {
       parent_id: category.parent_id || null,
       sort_order: Number.isFinite(Number(category.sort_order)) ? Number(category.sort_order) : 0,
       is_active: category.is_active !== false,
+      deleted_at: category.deleted_at || null,
       image_url: category.image_url || null
     }))
     .sort((left, right) => String(left.name).localeCompare(String(right.name)));
@@ -1375,7 +1535,7 @@ async function loadCategoryManager() {
     const imageSnapshot = await db.collection('settings').doc('category_images').get();
     adminCategoryImages = imageSnapshot.exists ? imageSnapshot.data() : {};
 
-    const apiResponse = await adminCategoryApiRequest('/api/categories');
+    const apiResponse = await adminCategoryApiRequest('/api/admin/categories');
     adminCategoryItems = normalizeCategoryList(apiResponse?.data || []);
 
     renderCategoryManager();
@@ -1411,10 +1571,10 @@ function renderCategoryManager() {
     const defaultCategory = adminCategoryDefaults.find(item => item.id === category.id);
     const imageUrl = adminCategoryImages[category.id] || category.image_url || defaultCategory?.img || '';
     const encodedId = encodeURIComponent(category.id);
-    return `<article class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+    return `<article class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
       <img id="cat_preview_${escapeAdminHtml(category.id)}" src="${escapeAdminHtml(imageUrl)}" alt="${escapeAdminHtml(category.name)}" class="h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1" onerror="this.classList.add('hidden')">
-      <div class="min-w-0 flex-1"><p class="truncate text-xs font-bold text-slate-800">${escapeAdminHtml(category.name)}</p><p class="mt-0.5 truncate text-[10px] text-slate-500">${escapeAdminHtml(category.id)}</p><input type="file" accept="image/*" aria-label="Change ${escapeAdminHtml(category.name)} photo" onchange="handleCategoryDirectFile(event, '${encodedId}')" class="mt-1 w-full cursor-pointer rounded border border-slate-200 bg-white p-0.5 text-[9px] file:mr-1 file:rounded file:border-0 file:bg-[#1C2541] file:px-2 file:py-1 file:text-[9px] file:text-white"></div>
-      <button type="button" onclick="deleteAdminCategory('${encodedId}')" aria-label="Delete ${escapeAdminHtml(category.name)} category" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-black text-rose-700">Delete</button>
+      <div class="min-w-0 flex-1"><form onsubmit="handleUpdateAdminCategory(event, '${encodedId}')" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><input name="name" required maxlength="60" value="${escapeAdminHtml(category.name)}" aria-label="Category name" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold"><input name="slug" required maxlength="120" value="${escapeAdminHtml(category.slug)}" aria-label="Category slug" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><input name="description" maxlength="2000" value="${escapeAdminHtml(category.description || '')}" aria-label="Category description" placeholder="Description" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><input name="sort_order" type="number" step="1" value="${category.sort_order}" aria-label="Category display order" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><button class="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-bold text-white">Save category</button><span class="text-[10px] ${category.is_active && !category.deleted_at ? 'text-emerald-700' : 'text-slate-500'}">${category.deleted_at ? 'Deactivated' : category.is_active ? 'Active' : 'Inactive'}</span></form><p class="mt-1 truncate text-[9px] text-slate-400">${escapeAdminHtml(category.id)}</p><input type="file" accept="image/*" aria-label="Change ${escapeAdminHtml(category.name)} photo" onchange="handleCategoryDirectFile(event, '${encodedId}')" class="mt-1 w-full cursor-pointer rounded border border-slate-200 bg-white p-0.5 text-[9px] file:mr-1 file:rounded file:border-0 file:bg-[#1C2541] file:px-2 file:py-1 file:text-[9px] file:text-white"></div>
+      <button type="button" onclick="deleteAdminCategory('${encodedId}')" aria-label="${category.is_active && !category.deleted_at ? 'Deactivate' : 'Activate'} ${escapeAdminHtml(category.name)} category" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-black text-rose-700">${category.is_active && !category.deleted_at ? 'Deactivate' : 'Activate'}</button>
     </article>`;
   }).join('') : '<p class="text-xs text-slate-500">No storefront categories configured.</p>';
 }
@@ -1423,9 +1583,32 @@ function renderAdminProductCategoryOptions() {
   const select = document.getElementById('pCategory');
   if (!select || !adminCategoryItems.length) return;
   const selectedId = select.value;
-  select.innerHTML = adminCategoryItems.map(category => `<option value="${escapeAdminHtml(category.id)}">${escapeAdminHtml(category.name)}</option>`).join('');
-  if (adminCategoryItems.some(category => category.id === selectedId)) select.value = selectedId;
+  const activeCategories = adminCategoryItems.filter(category => category.is_active && !category.deleted_at);
+  select.innerHTML = activeCategories.map(category => `<option value="${escapeAdminHtml(category.id)}">${escapeAdminHtml(category.name)}</option>`).join('');
+  if (activeCategories.some(category => category.id === selectedId)) select.value = selectedId;
   toggleRestaurantProductFields();
+}
+
+async function handleUpdateAdminCategory(event, encodedId) {
+  event.preventDefault();
+  const categoryId = decodeURIComponent(encodedId);
+  const form = new FormData(event.currentTarget);
+  const sortOrder = Number(form.get('sort_order'));
+  if (!Number.isInteger(sortOrder)) return alert('Display order must be a whole number.');
+  try {
+    await adminCategoryApiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: String(form.get('name') || '').trim(),
+        slug: String(form.get('slug') || '').trim(),
+        description: String(form.get('description') || '').trim() || null,
+        sort_order: sortOrder
+      })
+    });
+    await loadCategoryManager();
+  } catch (error) {
+    alert(`Unable to update category: ${error.message}`);
+  }
 }
 
 async function persistAdminCategoryState() {
@@ -1490,20 +1673,17 @@ async function handleAddCategory(event) {
 async function deleteAdminCategory(encodedId) {
   const categoryId = decodeURIComponent(encodedId);
   const category = adminCategoryItems.find(item => item.id === categoryId);
-  if (!category || !confirm(`Remove ${category.name} from the storefront? Its products will remain in inventory.`)) return;
+  if (!category) return;
+  const isActive = category.is_active && !category.deleted_at;
+  const nextAction = isActive ? 'deactivate' : 'activate';
+  if (!confirm(`${isActive ? 'Deactivate' : 'Reactivate'} ${category.name}? Product and order history will remain unchanged.`)) return;
 
   try {
-    await adminCategoryApiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, {
-      method: 'DELETE'
-    });
-
-    adminCategoryItems = adminCategoryItems.filter(item => item.id !== categoryId);
-    if (Object.prototype.hasOwnProperty.call(adminCategoryImages, categoryId)) {
-      delete adminCategoryImages[categoryId];
-    }
-    renderCategoryManager();
-    renderAdminProductCategoryOptions();
-    alert('Category removed from the storefront.');
+    await adminCategoryApiRequest(`/api/categories/${encodeURIComponent(categoryId)}`, isActive
+      ? { method: 'DELETE' }
+      : { method: 'PATCH', body: JSON.stringify({ is_active: true }) });
+    await loadCategoryManager();
+    alert(`Category ${nextAction}d.`);
   } catch (error) {
     alert(`Unable to delete category: ${error.message}`);
   }

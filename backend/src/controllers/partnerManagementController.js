@@ -43,7 +43,6 @@ function normalizeVariant(input) {
 function normalizeImageUrl(value) {
   if (value == null || value === "") return null;
   if (typeof value !== "string" || value.length > 80000) return undefined;
-  if (/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) return value;
 
   try {
     const url = new URL(value);

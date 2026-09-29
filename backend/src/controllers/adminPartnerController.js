@@ -9,6 +9,7 @@ const PARTNER_STATUSES = new Set(["PENDING", "ACTIVE", "SUSPENDED", "CLOSED"]);
 const SHOP_STATUSES = new Set(["PENDING", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"]);
 const MEMBER_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
 const MEMBER_STATUSES = new Set(["ACTIVE", "SUSPENDED", "REMOVED"]);
+const PRODUCT_STATUSES = new Set(["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"]);
 const SHOP_FIELDS = new Set([
   "name", "description", "cuisine", "phone_e164", "email", "address_line1", "address_line2",
   "locality", "city", "state", "postal_code", "country_code", "latitude", "longitude"
@@ -28,6 +29,16 @@ function isUuid(value) {
 
 function isObject(value) {
   return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isValidImageReference(value) {
+  if (typeof value !== "string" || value.length > 80000) return false;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 function validatePartner(body, creating) {
@@ -492,6 +503,338 @@ async function getAdminShopInventory(req, res) {
   }
 }
 
+async function queryAdminCatalogProducts(filters, productId = null) {
+  const values = [];
+  const clauses = ["p.deleted_at IS NULL", "s.deleted_at IS NULL", "partner.deleted_at IS NULL"];
+  const addFilter = (column, value, cast = "") => {
+    if (!value) return;
+    values.push(value);
+    clauses.push(`${column} = $${values.length}${cast}`);
+  };
+  addFilter("s.partner_id", filters.partner_id, "::uuid");
+  addFilter("p.shop_id", filters.shop_id, "::uuid");
+  addFilter("p.category_id", filters.category_id, "::uuid");
+  if (filters.status && filters.status !== "ALL") addFilter("p.status", filters.status);
+  if (productId) addFilter("p.id", productId, "::uuid");
+  values.push(200);
+  return db.query(
+    `SELECT p.id, p.shop_id, s.partner_id, p.category_id, p.name, p.description, p.brand, p.status,
+            p.created_at, p.updated_at, s.name AS shop_name, partner.display_name AS partner_name,
+            COALESCE(variants.items, '[]'::jsonb) AS variants,
+            COALESCE(images.items, '[]'::jsonb) AS images
+     FROM products p
+     JOIN shops s ON s.id = p.shop_id
+     JOIN partners partner ON partner.id = s.partner_id
+     LEFT JOIN LATERAL (
+       SELECT jsonb_agg(jsonb_build_object(
+         'id', pv.id, 'sku', pv.sku, 'name', pv.name, 'unit_label', pv.unit_label,
+         'unit_quantity', pv.unit_quantity, 'price', pv.price, 'compare_at_price', pv.compare_at_price,
+         'is_default', pv.is_default, 'is_active', pv.is_active,
+         'quantity_on_hand', COALESCE(i.quantity_on_hand, 0),
+         'quantity_reserved', COALESCE(i.quantity_reserved, 0),
+         'low_stock_threshold', COALESCE(i.low_stock_threshold, 0)
+       ) ORDER BY pv.is_default DESC, pv.name) AS items
+       FROM product_variants pv LEFT JOIN inventory i ON i.variant_id = pv.id
+       WHERE pv.product_id = p.id AND pv.deleted_at IS NULL
+     ) variants ON true
+     LEFT JOIN LATERAL (
+       SELECT jsonb_agg(jsonb_build_object('id', pi.id, 'public_url', pi.public_url, 'alt_text', pi.alt_text, 'sort_order', pi.sort_order)
+         ORDER BY pi.sort_order, pi.id) AS items
+       FROM product_images pi WHERE pi.product_id = p.id
+     ) images ON true
+     WHERE ${clauses.join(" AND ")}
+     ORDER BY p.updated_at DESC, p.id
+     LIMIT $${values.length}`,
+    values
+  );
+}
+
+async function listAdminCatalogProducts(req, res) {
+  const filters = req.query || {};
+  const allowed = new Set(["partner_id", "shop_id", "category_id", "status"]);
+  if (Object.keys(filters).some(key => !allowed.has(key))) return respondError(res, 400, "Unsupported catalog filter.");
+  for (const field of ["partner_id", "shop_id", "category_id"]) {
+    if (filters[field] != null && !isUuid(filters[field])) return respondError(res, 400, `Invalid ${field}.`);
+  }
+  if (filters.status && filters.status !== "ALL" && !PRODUCT_STATUSES.has(filters.status)) return respondError(res, 400, "Unsupported product status filter.");
+  try {
+    const result = await queryAdminCatalogProducts(filters);
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error("Admin catalog listing failed:", error.message);
+    return respondError(res, 500, "Unable to retrieve catalog products.");
+  }
+}
+
+async function getAdminCatalogProduct(req, res) {
+  const { productId } = req.params;
+  if (!isUuid(productId)) return respondError(res, 400, "Invalid product id.");
+  try {
+    const result = await queryAdminCatalogProducts({}, productId);
+    if (!result.rows[0]) return respondError(res, 404, "Product not found.");
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Admin catalog product lookup failed:", error.message);
+    return respondError(res, 500, "Unable to retrieve product.");
+  }
+}
+
+async function updateAdminCatalogProduct(req, res) {
+  const { productId } = req.params;
+  const body = req.body;
+  const allowed = new Set(["name", "description", "brand", "category_id", "status", "image_url"]);
+  if (!isUuid(productId)) return respondError(res, 400, "Invalid product id.");
+  if (!isObject(body) || !Object.keys(body).length || Object.keys(body).some(key => !allowed.has(key))) {
+    return respondError(res, 400, "Unsupported product field.");
+  }
+  const value = {};
+  if (body.name !== undefined) {
+    if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 300) return respondError(res, 400, "Product name is invalid.");
+    value.name = body.name.trim();
+  }
+  if (body.description !== undefined) {
+    if (body.description !== null && (typeof body.description !== "string" || body.description.length > 5000)) return respondError(res, 400, "Product description is invalid.");
+    value.description = body.description;
+  }
+  if (body.brand !== undefined) {
+    if (body.brand !== null && (typeof body.brand !== "string" || body.brand.length > 200)) return respondError(res, 400, "Product brand is invalid.");
+    value.brand = body.brand;
+  }
+  if (body.category_id !== undefined) {
+    if (body.category_id !== null && !isUuid(body.category_id)) return respondError(res, 400, "Invalid category id.");
+    value.category_id = body.category_id;
+  }
+  if (body.status !== undefined) {
+    if (!PRODUCT_STATUSES.has(body.status)) return respondError(res, 400, "Unsupported product status.");
+    value.status = body.status;
+  }
+  if (body.image_url !== undefined) {
+    if (!isValidImageReference(body.image_url)) return respondError(res, 400, "Product image URL is invalid.");
+    value.image_url = body.image_url;
+  }
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const before = await client.query("SELECT * FROM products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [productId]);
+    if (!before.rows[0]) {
+      await client.query("ROLLBACK");
+      return respondError(res, 404, "Product not found.");
+    }
+    if (value.category_id) {
+      const category = await client.query("SELECT id FROM categories WHERE id = $1 AND is_active = true AND deleted_at IS NULL", [value.category_id]);
+      if (!category.rows[0]) {
+        await client.query("ROLLBACK");
+        return respondError(res, 400, "Category is not active.");
+      }
+    }
+    if (value.status === "ACTIVE") {
+      const activeVariant = await client.query("SELECT id FROM product_variants WHERE product_id = $1 AND is_active = true AND deleted_at IS NULL LIMIT 1", [productId]);
+      if (!activeVariant.rows[0]) {
+        await client.query("ROLLBACK");
+        return respondError(res, 409, "Activate a variant before activating the product.");
+      }
+    }
+    const imageUrl = value.image_url;
+    delete value.image_url;
+    const values = [productId];
+    const assignments = [];
+    for (const [field, fieldValue] of Object.entries(value)) {
+      values.push(fieldValue);
+      assignments.push(`${field} = $${values.length}`);
+    }
+    assignments.push("updated_at = now()");
+    const updated = await client.query(`UPDATE products SET ${assignments.join(", ")} WHERE id = $1 RETURNING *`, values);
+    if (imageUrl !== undefined) {
+      await client.query(
+        `INSERT INTO product_images (product_id, object_key, public_url, alt_text, sort_order)
+         VALUES ($1, $2, $3, $4, 0)
+         ON CONFLICT (product_id, object_key) DO UPDATE
+         SET public_url = EXCLUDED.public_url, alt_text = EXCLUDED.alt_text`,
+        [productId, `admin-console:${productId}`, imageUrl, updated.rows[0].name]
+      );
+    }
+    await writeAuditLog(client, req, "admin.product.updated", "products", productId, before.rows[0], { ...updated.rows[0], ...(imageUrl !== undefined ? { image_url: imageUrl } : {}) });
+    await client.query("COMMIT");
+    return res.json({ success: true, data: updated.rows[0] });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "23514" || error.code === "22P02") return respondError(res, 400, "Product values are invalid.");
+    console.error("Admin product update failed:", error.message);
+    return respondError(res, 500, "Unable to update product.");
+  } finally {
+    client?.release();
+  }
+}
+
+async function createAdminCatalogVariant(req, res) {
+  const { productId } = req.params;
+  const body = req.body;
+  const allowed = new Set(["name", "sku", "unit_label", "unit_quantity", "price", "compare_at_price", "is_active"]);
+  if (!isUuid(productId)) return respondError(res, 400, "Invalid product id.");
+  if (!isObject(body) || Object.keys(body).some(key => !allowed.has(key))) return respondError(res, 400, "Unsupported variant field.");
+  const name = typeof body.name === "string" ? body.name.trim() : "Default";
+  const sku = typeof body.sku === "string" ? body.sku.trim() || null : null;
+  const unitLabel = typeof body.unit_label === "string" ? body.unit_label.trim() : "1 pc";
+  const unitQuantity = Number(body.unit_quantity ?? 1);
+  const price = Number(body.price);
+  const compareAtPrice = body.compare_at_price == null || body.compare_at_price === "" ? null : Number(body.compare_at_price);
+  const isActive = body.is_active == null ? true : body.is_active;
+  if (!name || name.length > 200 || (sku != null && sku.length > 200) || !unitLabel || unitLabel.length > 100
+      || !Number.isFinite(unitQuantity) || unitQuantity <= 0 || unitQuantity > 999999999.999
+      || !Number.isFinite(price) || price < 0 || price > 9999999999.99
+      || (compareAtPrice != null && (!Number.isFinite(compareAtPrice) || compareAtPrice < price || compareAtPrice > 9999999999.99))
+      || typeof isActive !== "boolean") return respondError(res, 400, "Variant values are invalid.");
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const product = await client.query("SELECT id FROM products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [productId]);
+    if (!product.rows[0]) {
+      await client.query("ROLLBACK");
+      return respondError(res, 404, "Product not found.");
+    }
+    const result = await client.query(
+      `INSERT INTO product_variants
+         (product_id, sku, name, unit_label, unit_quantity, price, compare_at_price, is_default, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8)
+       RETURNING id, product_id, sku, name, unit_label, unit_quantity, price, compare_at_price, is_default, is_active`,
+      [productId, sku, name, unitLabel, unitQuantity, price, compareAtPrice, isActive]
+    );
+    await client.query("INSERT INTO inventory (variant_id, quantity_on_hand) VALUES ($1, 0)", [result.rows[0].id]);
+    await writeAuditLog(client, req, "admin.variant.created", "product_variants", result.rows[0].id, null, result.rows[0]);
+    await client.query("COMMIT");
+    return res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "23505") return respondError(res, 409, "SKU already exists.");
+    if (["23514", "22P02", "22003"].includes(error.code)) return respondError(res, 400, "Variant values are invalid.");
+    console.error("Admin variant creation failed:", error.message);
+    return respondError(res, 500, "Unable to create variant.");
+  } finally {
+    client?.release();
+  }
+}
+
+async function rollbackBadRequest(client, res, message) {
+  await client.query("ROLLBACK");
+  return respondError(res, 400, message);
+}
+
+async function updateAdminCatalogVariant(req, res) {
+  const { variantId } = req.params;
+  const body = req.body;
+  const allowed = new Set(["name", "sku", "unit_label", "unit_quantity", "price", "compare_at_price", "is_active"]);
+  if (!isUuid(variantId)) return respondError(res, 400, "Invalid variant id.");
+  if (!isObject(body) || !Object.keys(body).length || Object.keys(body).some(key => !allowed.has(key))) return respondError(res, 400, "Unsupported variant field.");
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const before = await client.query("SELECT * FROM product_variants WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [variantId]);
+    if (!before.rows[0]) {
+      await client.query("ROLLBACK");
+      return respondError(res, 404, "Variant not found.");
+    }
+    const next = { ...before.rows[0] };
+    for (const [field, value] of Object.entries(body)) {
+      if (["name", "unit_label"].includes(field)) {
+        const limit = field === "name" ? 200 : 100;
+        if (typeof value !== "string" || !value.trim() || value.trim().length > limit) return await rollbackBadRequest(client, res, `${field} is invalid.`);
+        next[field] = value.trim();
+      } else if (field === "sku") {
+        if (value !== null && (typeof value !== "string" || value.trim().length > 200)) return await rollbackBadRequest(client, res, "SKU is invalid.");
+        next.sku = value == null || !value.trim() ? null : value.trim();
+      } else if (field === "is_active") {
+        if (typeof value !== "boolean") return await rollbackBadRequest(client, res, "is_active must be boolean.");
+        next.is_active = value;
+      } else if (field === "compare_at_price" && value === null) {
+        next.compare_at_price = null;
+      } else {
+        const number = Number(value);
+        const min = field === "unit_quantity" ? 0.001 : 0;
+        const max = field === "unit_quantity" ? 999999999.999 : 9999999999.99;
+        if (!Number.isFinite(number) || number < min || number > max) return await rollbackBadRequest(client, res, `${field} is invalid.`);
+        next[field] = number;
+      }
+    }
+    if (next.compare_at_price != null && Number(next.compare_at_price) < Number(next.price)) return await rollbackBadRequest(client, res, "compare_at_price cannot be below price.");
+    const values = [variantId];
+    const assignments = Object.keys(body).map(field => {
+      values.push(next[field]);
+      return `${field} = $${values.length}`;
+    });
+    assignments.push("updated_at = now()");
+    const updated = await client.query(`UPDATE product_variants SET ${assignments.join(", ")} WHERE id = $1 RETURNING *`, values);
+    await writeAuditLog(client, req, "admin.variant.updated", "product_variants", variantId, before.rows[0], updated.rows[0]);
+    await client.query("COMMIT");
+    return res.json({ success: true, data: updated.rows[0] });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "23505") return respondError(res, 409, "SKU already exists.");
+    if (["23514", "22P02", "22003"].includes(error.code)) return respondError(res, 400, "Variant values are invalid.");
+    console.error("Admin variant update failed:", error.message);
+    return respondError(res, 500, "Unable to update variant.");
+  } finally {
+    client?.release();
+  }
+}
+
+async function updateAdminCatalogInventory(req, res) {
+  const { variantId } = req.params;
+  const body = req.body;
+  const allowed = new Set(["quantity_on_hand", "low_stock_threshold"]);
+  if (!isUuid(variantId)) return respondError(res, 400, "Invalid variant id.");
+  if (!isObject(body) || !Object.keys(body).length || Object.keys(body).some(key => !allowed.has(key))) return respondError(res, 400, "Unsupported inventory field.");
+  for (const [field, value] of Object.entries(body)) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0 || number > 999999999.999) return respondError(res, 400, `${field} is invalid.`);
+  }
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const variant = await client.query(
+      `SELECT pv.id, pv.product_id, COALESCE(i.quantity_on_hand, 0) AS quantity_on_hand,
+              COALESCE(i.quantity_reserved, 0) AS quantity_reserved,
+              COALESCE(i.low_stock_threshold, 0) AS low_stock_threshold
+       FROM product_variants pv LEFT JOIN inventory i ON i.variant_id = pv.id
+       WHERE pv.id = $1 AND pv.deleted_at IS NULL FOR UPDATE OF pv`,
+      [variantId]
+    );
+    if (!variant.rows[0]) {
+      await client.query("ROLLBACK");
+      return respondError(res, 404, "Variant not found.");
+    }
+    const row = variant.rows[0];
+    const quantity = body.quantity_on_hand === undefined ? Number(row.quantity_on_hand) : Number(body.quantity_on_hand);
+    const threshold = body.low_stock_threshold === undefined ? Number(row.low_stock_threshold) : Number(body.low_stock_threshold);
+    if (quantity < Number(row.quantity_reserved)) {
+      await client.query("ROLLBACK");
+      return respondError(res, 409, "Quantity cannot be lower than reserved stock.");
+    }
+    const updated = await client.query(
+      `INSERT INTO inventory (variant_id, quantity_on_hand, low_stock_threshold)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (variant_id) DO UPDATE
+       SET quantity_on_hand = EXCLUDED.quantity_on_hand,
+           low_stock_threshold = EXCLUDED.low_stock_threshold, updated_at = now()
+       RETURNING variant_id, quantity_on_hand, quantity_reserved, low_stock_threshold, updated_at`,
+      [variantId, quantity, threshold]
+    );
+    await writeAuditLog(client, req, "admin.inventory.adjusted", "inventory", variantId, row, updated.rows[0]);
+    await client.query("COMMIT");
+    return res.json({ success: true, data: updated.rows[0] });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (["23514", "22P02", "22003"].includes(error.code)) return respondError(res, 400, "Inventory values are invalid.");
+    console.error("Admin inventory update failed:", error.message);
+    return respondError(res, 500, "Unable to update inventory.");
+  } finally {
+    client?.release();
+  }
+}
+
 async function createAdminPartnerProduct(req, res) {
   const { partnerId, shopId } = req.params;
   if (!isUuid(partnerId) || !isUuid(shopId)) return respondError(res, 400, "Invalid partner or shop id.");
@@ -515,10 +858,8 @@ async function createAdminPartnerProduct(req, res) {
   const unitLabel = typeof body.variant.unit_label === "string" ? body.variant.unit_label.trim() : "1 pc";
   const unitQuantity = Number(body.variant.unit_quantity ?? 1);
   const isActive = body.variant.is_active == null ? true : body.variant.is_active;
-  const validImage = imageUrl == null || (typeof imageUrl === "string" && imageUrl.length <= 80000
-    && (/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageUrl)
-      || (() => { try { const url = new URL(imageUrl); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password; } catch { return false; } })()));
-    if (!name || name.length > 300 || (description != null && (typeof description !== "string" || description.length > 5000))
+  const validImage = imageUrl == null || isValidImageReference(imageUrl);
+  if (!name || name.length > 300 || (description != null && (typeof description !== "string" || description.length > 5000))
       || (brand != null && (typeof brand !== "string" || brand.length > 200)) || (categoryId != null && !isUuid(categoryId))
       || !validImage || !variantName || variantName.length > 200 || (sku != null && sku.length > 200)
       || !unitLabel || unitLabel.length > 100 || !Number.isFinite(price) || price < 0 || price > 9999999999.99
@@ -598,5 +939,11 @@ module.exports = {
   updateAdminShop,
   getAdminShopProducts,
   getAdminShopInventory,
-  createAdminPartnerProduct
+  createAdminPartnerProduct,
+  listAdminCatalogProducts,
+  getAdminCatalogProduct,
+  updateAdminCatalogProduct,
+  createAdminCatalogVariant,
+  updateAdminCatalogVariant,
+  updateAdminCatalogInventory
 };

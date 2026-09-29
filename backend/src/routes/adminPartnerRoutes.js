@@ -15,13 +15,25 @@ const {
   updateAdminShop,
   getAdminShopProducts,
   getAdminShopInventory,
-  createAdminPartnerProduct
+  createAdminPartnerProduct,
+  listAdminCatalogProducts,
+  getAdminCatalogProduct,
+  updateAdminCatalogProduct,
+  createAdminCatalogVariant,
+  updateAdminCatalogVariant,
+  updateAdminCatalogInventory
 } = require("../controllers/adminPartnerController");
 
 const router = express.Router();
 router.use(requireAdmin, requirePermission("partners:manage"));
 router.get("/", listAdminPartners);
 router.post("/", createAdminPartner);
+router.get("/products", listAdminCatalogProducts);
+router.get("/products/:productId", getAdminCatalogProduct);
+router.patch("/products/:productId", updateAdminCatalogProduct);
+router.post("/products/:productId/variants", createAdminCatalogVariant);
+router.patch("/variants/:variantId", updateAdminCatalogVariant);
+router.patch("/variants/:variantId/inventory", updateAdminCatalogInventory);
 router.get("/:partnerId", getAdminPartner);
 router.patch("/:partnerId", updateAdminPartner);
 router.patch("/:partnerId/status", updateAdminPartnerStatus);

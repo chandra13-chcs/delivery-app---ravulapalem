@@ -293,11 +293,15 @@ async function savePartnerProduct(event) {
     unit_quantity: Number(document.getElementById("partnerProductUnitQuantity").value),
     is_active: document.getElementById("partnerProductVariantActive").checked
   };
+  const imageUrl = document.getElementById("partnerProductImage").value.trim();
+  if (imageUrl.startsWith("data:image/")) {
+    return alert("PostgreSQL partner catalog images must use a hosted HTTPS URL. Image files are not stored in PostgreSQL.");
+  }
   const product = {
     name,
     description: document.getElementById("partnerProductDescription").value.trim() || null,
     category_id: document.getElementById("partnerProductCategory").value || null,
-    image_url: document.getElementById("partnerProductImage").value.trim() || null,
+    image_url: imageUrl || null,
     variant
   };
   try {
@@ -333,7 +337,8 @@ async function editPartnerProduct(productId) {
   document.getElementById("partnerProductUnit").value = variant.unit_label || "";
   document.getElementById("partnerProductUnitQuantity").value = variant.unit_quantity ?? 1;
   document.getElementById("partnerProductVariantActive").checked = variant.is_active !== false;
-  document.getElementById("partnerProductImage").value = product.images?.[0]?.public_url || "";
+  const imageUrl = product.images?.[0]?.public_url || "";
+  document.getElementById("partnerProductImage").value = imageUrl.startsWith("data:image/") ? "" : imageUrl;
   switchPartnerView("products");
   document.getElementById("partnerProductName").focus();
 }

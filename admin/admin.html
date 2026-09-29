@@ -1121,6 +1121,11 @@
         </div>
 
         <div>
+          <label for="pImageUrlInput" class="text-[11px] font-bold text-slate-500 uppercase">Hosted image URL for PostgreSQL partner products</label>
+          <input id="pImageUrlInput" type="url" placeholder="https://..." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none">
+        </div>
+
+        <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Product Description</label>
           <input id="pDesc" type="text" placeholder="e.g. Pure pasteurised milk delivered fresh in 25 minutes." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none">
         </div>
@@ -1147,7 +1152,21 @@
       <div id="adminRestaurantsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-4"></div>
     </div>
 
-    <!-- Inventory Table -->
+    <section id="postgresPartnerCatalogSection" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><h3 class="text-sm font-extrabold text-slate-900">PostgreSQL Partner Catalog</h3><p class="text-[11px] text-slate-500">Partner-owned products, variants, prices, and stock.</p></div>
+        <button type="button" onclick="loadAdminPostgresCatalog()" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Refresh</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <select id="adminPgPartnerFilter" onchange="populateAdminCatalogShopFilter(); loadAdminPostgresCatalog()" class="px-2.5 py-2 border border-slate-200 rounded-lg bg-white text-xs"><option value="">All partners</option></select>
+        <select id="adminPgShopFilter" onchange="loadAdminPostgresCatalog()" class="px-2.5 py-2 border border-slate-200 rounded-lg bg-white text-xs"><option value="">All shops</option></select>
+        <select id="adminPgCategoryFilter" onchange="loadAdminPostgresCatalog()" class="px-2.5 py-2 border border-slate-200 rounded-lg bg-white text-xs"><option value="">All categories</option></select>
+        <select id="adminPgStatusFilter" onchange="loadAdminPostgresCatalog()" class="px-2.5 py-2 border border-slate-200 rounded-lg bg-white text-xs"><option value="ALL">All statuses</option><option>DRAFT</option><option>ACTIVE</option><option>PAUSED</option><option>ARCHIVED</option></select>
+      </div>
+      <div id="adminPostgresCatalogList" class="space-y-3"><p class="text-xs text-slate-500">Open Inventory to load PostgreSQL partner catalog.</p></div>
+    </section>
+
+    <!-- Legacy non-partner Inventory Table -->
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 overflow-x-auto">
       <h3 class="text-sm font-extrabold text-slate-900 mb-3">Current Products in Database</h3>
       <table class="w-full text-left text-xs min-w-[500px]">
