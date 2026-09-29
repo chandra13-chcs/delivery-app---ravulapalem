@@ -2313,6 +2313,13 @@ const customerApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (
 );
 let customerDatabaseCategories = null;
 
+async function fetchCustomerContent(path) {
+  const response = await fetch(`${customerApiBaseUrl}${path}`, { cache: 'no-store' });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.success) throw new Error(payload?.message || `Content request failed (${response.status}).`);
+  return payload;
+}
+
 const categoryDefaultImages = {
   paan: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150",
   dairy: "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150",
@@ -2471,11 +2478,15 @@ function renderCustomerCategoryTiles() {
 
 async function loadCustomerCategorySettings() {
   try {
-    const response = await fetch(`${customerApiBaseUrl}/categories`);
-    const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.success || !Array.isArray(result.data)) {
-      throw new Error(result?.message || 'Unable to retrieve categories.');
-    }
+    const imagePayload = await fetchCustomerContent('/category-images');
+    customerCategoryImages = imagePayload?.data || {};
+  } catch (error) {
+    console.warn('PostgreSQL category images are unavailable:', error.message);
+    customerCategoryImages = {};
+  }
+  try {
+    const result = await fetchCustomerContent('/categories');
+    if (!Array.isArray(result.data)) throw new Error('Unable to retrieve categories.');
     customerDatabaseCategories = result.data;
   } catch (error) {
     console.error('PostgreSQL category catalog request failed:', error);
@@ -2583,8 +2594,7 @@ function renderHomepageBannerIndicators() {
   `).join('') : '';
 }
 
-function loadCustomerHomepageBanners() {
-  startHeroFeatureCarousel();
+function loadLegacyCustomerHomepageBanners() {
   db.collection('settings').doc('hero_banner').onSnapshot(snapshot => {
     customerLegacyHomepageBanner = snapshot.exists ? snapshot.data() : null;
     if (!customerHomepageBanners.length && customerLegacyHomepageBanner) renderHomepageBanner(customerLegacyHomepageBanner);
@@ -2610,6 +2620,31 @@ function loadCustomerHomepageBanners() {
       if (customerHomepageBanners.length > 1) selectHomepageBanner(customerHomepageBannerIndex + 1);
     }, 6000);
   }
+}
+
+async function loadCustomerHomepageBanners() {
+  startHeroFeatureCarousel();
+  try {
+    const result = await fetchCustomerContent('/banners');
+    if (result.configured) {
+      customerHomepageBanners = Array.isArray(result.data) ? result.data : [];
+      customerLegacyHomepageBanner = null;
+      customerHomepageBanners.sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0));
+      customerHomepageBannerIndex = Math.min(customerHomepageBannerIndex, Math.max(0, customerHomepageBanners.length - 1));
+      renderHomepageBannerIndicators();
+      renderHeroFeatureCarousel();
+      if (customerHomepageBanners.length) selectHomepageBanner(customerHomepageBannerIndex);
+      if (!customerHomepageBannerTimer) {
+        customerHomepageBannerTimer = setInterval(() => {
+          if (customerHomepageBanners.length > 1) selectHomepageBanner(customerHomepageBannerIndex + 1);
+        }, 6000);
+      }
+      return;
+    }
+  } catch (error) {
+    console.warn('PostgreSQL homepage banners are unavailable; using legacy banners:', error.message);
+  }
+  loadLegacyCustomerHomepageBanners();
 }
 
 function renderCustomerDailyOffer(offer) {
@@ -2638,29 +2673,34 @@ function renderCustomerDailyOffer(offer) {
   if (modal) showDailyOfferOnce();
 }
 
-const defaultCustomerDailyOffer = {
-  is_active: true,
-  eyebrow: "Today's Mandapeta Offer",
-  title: '₹50 OFF',
-  description: 'on orders above ₹499',
-  code: 'MANDAPETA50',
-  body: 'Fresh groceries, meat, bakery and daily essentials delivered fast.'
-};
-
-function loadCustomerDailyOffer() {
+function loadLegacyCustomerDailyOffer() {
   const offerRef = db.collection('settings').doc('daily_offer');
   offerRef.get().then(snapshot => {
-    customerDailyOffer = snapshot.exists ? snapshot.data() : defaultCustomerDailyOffer;
+    customerDailyOffer = snapshot.exists ? snapshot.data() : null;
     renderCustomerDailyOffer(customerDailyOffer);
   }).catch(error => {
-    console.warn('Daily offer load failed; showing the default offer:', error);
-    customerDailyOffer = defaultCustomerDailyOffer;
+    console.warn('Legacy daily offer load failed:', error);
+    customerDailyOffer = null;
     renderCustomerDailyOffer(customerDailyOffer);
   });
   offerRef.onSnapshot(snapshot => {
-    customerDailyOffer = snapshot.exists ? snapshot.data() : defaultCustomerDailyOffer;
+    customerDailyOffer = snapshot.exists ? snapshot.data() : null;
     renderCustomerDailyOffer(customerDailyOffer);
   }, error => console.error('Daily offer listener error:', error));
+}
+
+async function loadCustomerDailyOffer() {
+  try {
+    const result = await fetchCustomerContent('/daily-offer');
+    if (result.configured) {
+      customerDailyOffer = result.data;
+      renderCustomerDailyOffer(customerDailyOffer);
+      return;
+    }
+  } catch (error) {
+    console.warn('PostgreSQL daily offer is unavailable; checking legacy offer:', error.message);
+  }
+  loadLegacyCustomerDailyOffer();
 }
 
 

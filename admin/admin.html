@@ -1084,6 +1084,12 @@
           <div>
             <label class="text-[11px] font-bold text-slate-500 uppercase">Product Name *</label>
             <input id="pName" type="text" required placeholder="e.g. Tomato or Milk" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl outline-none font-bold">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div><label for="bannerStatusInput" class="text-[11px] font-bold text-slate-500 uppercase">Status</label><select id="bannerStatusInput" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"><option value="ACTIVE">Active</option><option value="SCHEDULED">Scheduled</option><option value="DRAFT">Draft</option><option value="PAUSED">Inactive</option></select></div>
+          <div><label for="bannerOrderInput" class="text-[11px] font-bold text-slate-500 uppercase">Display order</label><input id="bannerOrderInput" type="number" step="1" value="0" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+          <div><label for="bannerStartsAtInput" class="text-[11px] font-bold text-slate-500 uppercase">Starts at</label><input id="bannerStartsAtInput" type="datetime-local" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+          <div><label for="bannerEndsAtInput" class="text-[11px] font-bold text-slate-500 uppercase">Ends at</label><input id="bannerEndsAtInput" type="datetime-local" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        </div>
           </div>
           <div>
             <label class="text-[11px] font-bold text-slate-500 uppercase">Category *</label>
@@ -1278,8 +1284,9 @@
         </div>
         <div><label for="dailyOfferDescriptionInput" class="text-[11px] font-bold text-slate-500 uppercase">Offer details *</label><input id="dailyOfferDescriptionInput" required maxlength="180" placeholder="on orders above ₹499" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
         <div><label for="dailyOfferBodyInput" class="text-[11px] font-bold text-slate-500 uppercase">Supporting text</label><input id="dailyOfferBodyInput" maxlength="180" placeholder="Fresh essentials delivered to your door." class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label for="dailyOfferStartsAtInput" class="text-[11px] font-bold text-slate-500 uppercase">Starts at</label><input id="dailyOfferStartsAtInput" type="datetime-local" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div><div><label for="dailyOfferEndsAtInput" class="text-[11px] font-bold text-slate-500 uppercase">Ends at</label><input id="dailyOfferEndsAtInput" type="datetime-local" class="w-full mt-1 px-3 py-2 text-xs border rounded-xl font-bold"></div></div>
         <div><label for="dailyOfferImageInput" class="text-[11px] font-bold text-slate-500 uppercase">Popup image (optional)</label><div class="flex flex-col sm:flex-row gap-2 mt-1"><input type="file" accept="image/*" onchange="handleDailyOfferDirectFile(event)" class="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1C2541] file:text-white border border-slate-200 rounded-xl p-1 bg-white cursor-pointer"><input id="dailyOfferImageInput" type="url" placeholder="Choose an image or paste an https:// URL" class="flex-1 min-w-0 px-3 py-2 text-xs border rounded-xl font-bold"></div></div>
-        <div class="flex flex-wrap gap-2"><button type="submit" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Save popup</button><button type="button" onclick="handleDeleteDailyOffer()" class="py-2.5 px-4 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl">Delete popup</button></div>
+        <div class="flex flex-wrap gap-2"><button type="submit" class="py-2.5 px-5 bg-[#0B132B] text-white font-bold text-xs rounded-xl">Save popup</button><button type="button" onclick="handleDeleteDailyOffer()" class="py-2.5 px-4 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl">Disable popup</button></div>
       </form>
     </section>
 

@@ -22,6 +22,9 @@ const adminNotificationRoutes = require("./routes/adminNotificationRoutes");
 const adminPartnerRoutes = require("./routes/adminPartnerRoutes");
 const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
 const adminReportRoutes = require("./routes/adminReportRoutes");
+const adminBannerRoutes = require("./routes/adminBannerRoutes");
+const adminSettingsRoutes = require("./routes/adminSettingsRoutes");
+const publicContentRoutes = require("./routes/publicContentRoutes");
 
 const app = express();
 
@@ -37,6 +40,9 @@ app.use("/api/admin/notifications", adminNotificationRoutes);
 app.use("/api/admin/partners", adminPartnerRoutes);
 app.use("/api/admin/categories", adminCategoryRoutes);
 app.use("/api/admin/reports", adminReportRoutes);
+app.use("/api/admin/banners", adminBannerRoutes);
+app.use("/api/admin/settings", adminSettingsRoutes);
+app.use("/api", publicContentRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);

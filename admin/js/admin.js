@@ -1182,7 +1182,6 @@ async function submitProductImageUpdate() {
 }
 
 let adminHomepageBanners = [];
-let adminHomepageBannersUnsubscribe = null;
 
 // HERO BANNER MANAGER
 async function handleBannerDirectFile(event) {
@@ -1207,23 +1206,20 @@ async function handleSaveHeroBanner(e) {
     title: document.getElementById('bannerTitleInput').value.trim(),
     subtitle: document.getElementById('bannerSubInput').value.trim(),
     image_url: document.getElementById('bannerImgInput').value.trim(),
-    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-    is_active: true
+    status: document.getElementById('bannerStatusInput').value,
+    sort_order: Number(document.getElementById('bannerOrderInput').value),
+    starts_at: adminDateTimeValue('bannerStartsAtInput'),
+    ends_at: adminDateTimeValue('bannerEndsAtInput')
   };
 
   try {
     const bannerId = document.getElementById('bannerDocumentId').value;
-    if (bannerId === 'legacy') {
-      await db.collection('settings').doc('hero_banner').set(bannerData, { merge: true });
-    } else if (bannerId) {
-      bannerData.created_at_ms = adminHomepageBanners.find(item => item.id === bannerId)?.created_at_ms || Date.now();
-      await db.collection('homepage_banners').doc(bannerId).set(bannerData, { merge: true });
-    } else {
-      bannerData.created_at_ms = Date.now();
-      await db.collection('homepage_banners').add(bannerData);
-      await db.collection('settings').doc('hero_banner').delete();
-    }
+    await adminContentApiRequest(bannerId ? `/api/admin/banners/${encodeURIComponent(bannerId)}` : '/api/admin/banners', {
+      method: bannerId ? 'PATCH' : 'POST',
+      body: JSON.stringify(bannerData)
+    });
     resetHomepageBannerForm();
+    await loadAdminBanners();
     alert('Homepage banner saved.');
   } catch (error) {
     alert(`Unable to save banner: ${error.message}`);
@@ -1234,29 +1230,11 @@ async function handleSaveHeroBanner(e) {
 }
 
 async function loadActiveHeroBanner() {
-  try {
-    const doc = await db.collection("settings").doc("hero_banner").get();
-    if (doc.exists) {
-      const d = doc.data();
-      const tIn = document.getElementById('bannerTitleInput');
-      const sIn = document.getElementById('bannerSubInput');
-      const iIn = document.getElementById('bannerImgInput');
-      if (tIn) tIn.value = d.title || '';
-      if (sIn) sIn.value = d.subtitle || '';
-      if (iIn) iIn.value = d.image_url || '';
-    }
-  } catch(e) {}
+  return loadAdminBanners();
 }
 
 async function handleResetDefaultBanner() {
-  if (!confirm("Reset banner back to default?")) return;
-  try {
-    await db.collection("settings").doc("hero_banner").delete();
-    loadActiveHeroBanner();
-    alert("Banner reset to default!");
-  } catch(e) {
-    alert(e.message);
-  }
+  alert("The default storefront hero is separate from managed PostgreSQL banners.");
 }
 
 function updateHomepageBannerSubmitLabel() {
@@ -1270,35 +1248,16 @@ function resetHomepageBannerForm() {
   updateHomepageBannerSubmitLabel();
 }
 
-function loadAdminBanners() {
-  if (adminHomepageBannersUnsubscribe) return;
-  renderAdminBanners();
-  db.collection('homepage_banners').get().then(applyAdminBannerSnapshot).catch(error => {
+async function loadAdminBanners() {
+  const container = document.getElementById('homepageBannersList');
+  try {
+    const payload = await adminContentApiRequest('/api/admin/banners');
+    adminHomepageBanners = Array.isArray(payload?.data) ? payload.data : [];
+    renderAdminBanners();
+  } catch (error) {
     console.error('Homepage banner load failed:', error);
-  });
-  adminHomepageBannersUnsubscribe = db.collection('homepage_banners').onSnapshot(snapshot => {
-    applyAdminBannerSnapshot(snapshot);
-  }, error => {
-    console.error('Homepage banner listener error:', error);
-  });
-}
-
-function applyAdminBannerSnapshot(snapshot) {
-  adminHomepageBanners = [];
-  snapshot.forEach(doc => adminHomepageBanners.push({ id: doc.id, ...doc.data() }));
-  adminHomepageBanners.sort((left, right) => Number(right.created_at_ms || 0) - Number(left.created_at_ms || 0));
-  if (adminHomepageBanners.length) {
-    renderAdminBanners();
-    return;
+    if (container) container.innerHTML = `<p class="text-xs font-bold text-rose-600">Unable to load banners: ${escapeAdminHtml(error.message)}</p>`;
   }
-  db.collection('settings').doc('hero_banner').get().then(legacySnapshot => {
-    if (!legacySnapshot.exists || adminHomepageBanners.length) return renderAdminBanners();
-    adminHomepageBanners = [{ id: 'legacy', ...legacySnapshot.data() }];
-    renderAdminBanners();
-  }).catch(error => {
-    console.error('Legacy homepage banner load failed:', error);
-    renderAdminBanners();
-  });
 }
 
 function renderAdminBanners() {
@@ -1308,7 +1267,8 @@ function renderAdminBanners() {
     <article class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
       <img src="${escapeAdminHtml(banner.image_url || '')}" alt="${escapeAdminHtml(banner.title || 'Homepage banner')}" class="h-32 w-full bg-slate-100 object-cover" onerror="this.classList.add('hidden')">
       <div class="p-3"><h3 class="text-sm font-black text-slate-900">${escapeAdminHtml(banner.title || 'Untitled banner')}</h3><p class="mt-1 text-[11px] text-slate-500">${escapeAdminHtml(banner.subtitle || '')}</p>
-        <div class="mt-3 flex gap-2"><button type="button" onclick="editHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Edit</button><button type="button" onclick="deleteHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-black text-rose-700">Delete</button></div>
+        <p class="mt-1 text-[10px] font-bold text-slate-500">${escapeAdminHtml(banner.status)} · Order ${Number(banner.sort_order) || 0}${banner.starts_at ? ` · Starts ${escapeAdminHtml(new Date(banner.starts_at).toLocaleString())}` : ''}${banner.ends_at ? ` · Ends ${escapeAdminHtml(new Date(banner.ends_at).toLocaleString())}` : ''}</p>
+        <div class="mt-3 flex gap-2"><button type="button" onclick="editHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[10px] font-black text-slate-700">Edit</button><button type="button" onclick="toggleHomepageBanner('${encodeURIComponent(banner.id)}')" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] font-black text-rose-700">${banner.status === 'PAUSED' ? 'Activate' : 'Deactivate'}</button></div>
       </div>
     </article>
   `).join('') : '<p class="text-xs text-slate-500">No homepage banners yet.</p>';
@@ -1321,24 +1281,37 @@ function editHomepageBanner(encodedId) {
   document.getElementById('bannerTitleInput').value = banner.title || '';
   document.getElementById('bannerSubInput').value = banner.subtitle || '';
   document.getElementById('bannerImgInput').value = banner.image_url || '';
+  document.getElementById('bannerStatusInput').value = banner.status || 'DRAFT';
+  document.getElementById('bannerOrderInput').value = Number(banner.sort_order) || 0;
+  document.getElementById('bannerStartsAtInput').value = adminDateTimeInput(banner.starts_at);
+  document.getElementById('bannerEndsAtInput').value = adminDateTimeInput(banner.ends_at);
   updateHomepageBannerSubmitLabel();
   document.getElementById('homepageBannerForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function deleteHomepageBanner(encodedId) {
   const bannerId = decodeURIComponent(encodedId);
-  if (!confirm('Delete this homepage banner?')) return;
+  if (!confirm('Deactivate this homepage banner? The record will be retained.')) return;
   try {
-    if (bannerId === 'legacy') {
-      await db.collection('settings').doc('hero_banner').delete();
-      adminHomepageBanners = adminHomepageBanners.filter(banner => banner.id !== 'legacy');
-      renderAdminBanners();
-    } else {
-      await db.collection('homepage_banners').doc(bannerId).delete();
-    }
+    await adminContentApiRequest(`/api/admin/banners/${encodeURIComponent(bannerId)}`, { method: 'DELETE' });
+    await loadAdminBanners();
     if (document.getElementById('bannerDocumentId').value === bannerId) resetHomepageBannerForm();
   } catch (error) {
     alert(`Unable to delete banner: ${error.message}`);
+  }
+}
+
+async function toggleHomepageBanner(encodedId) {
+  const banner = adminHomepageBanners.find(item => item.id === decodeURIComponent(encodedId));
+  if (!banner) return;
+  const status = banner.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED';
+  try {
+    await adminContentApiRequest(`/api/admin/banners/${encodeURIComponent(banner.id)}`, {
+      method: 'PATCH', body: JSON.stringify({ status })
+    });
+    await loadAdminBanners();
+  } catch (error) {
+    alert(`Unable to update banner status: ${error.message}`);
   }
 }
 
@@ -1355,14 +1328,16 @@ async function handleDailyOfferDirectFile(event) {
 
 async function loadAdminDailyOffer() {
   try {
-    const snapshot = await db.collection('settings').doc('daily_offer').get();
-    const offer = snapshot.exists ? snapshot.data() : {};
+    const payload = await adminContentApiRequest('/api/admin/settings/daily-offer');
+    const offer = payload?.data || {};
     document.getElementById('dailyOfferEnabledInput').checked = offer.is_active === true;
     document.getElementById('dailyOfferTitleInput').value = offer.title || '';
     document.getElementById('dailyOfferCodeInput').value = offer.code || '';
     document.getElementById('dailyOfferDescriptionInput').value = offer.description || '';
     document.getElementById('dailyOfferBodyInput').value = offer.body || '';
     document.getElementById('dailyOfferImageInput').value = offer.image_url || '';
+    document.getElementById('dailyOfferStartsAtInput').value = adminDateTimeInput(offer.starts_at);
+    document.getElementById('dailyOfferEndsAtInput').value = adminDateTimeInput(offer.ends_at);
   } catch (error) {
     console.error('Offer popup load failed:', error);
   }
@@ -1377,30 +1352,21 @@ async function handleSaveDailyOffer(event) {
     description: document.getElementById('dailyOfferDescriptionInput').value.trim(),
     body: document.getElementById('dailyOfferBodyInput').value.trim(),
     image_url: document.getElementById('dailyOfferImageInput').value.trim(),
-    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    starts_at: adminDateTimeValue('dailyOfferStartsAtInput'),
+    ends_at: adminDateTimeValue('dailyOfferEndsAtInput')
   };
   try {
-    await db.collection('settings').doc('daily_offer').set(offer);
-    alert('Offer popup saved.');
+    await adminContentApiRequest('/api/admin/settings/daily-offer', { method: 'PUT', body: JSON.stringify(offer) });
+    alert(offer.is_active ? 'Offer popup saved.' : 'Offer popup disabled.');
   } catch (error) {
     alert(`Unable to save popup: ${error.message}`);
   }
 }
 
 async function handleDeleteDailyOffer() {
-  if (!confirm('Delete the offer popup from the storefront?')) return;
-  try {
-    await db.collection('settings').doc('daily_offer').delete();
-    document.getElementById('dailyOfferEnabledInput').checked = false;
-    document.getElementById('dailyOfferTitleInput').value = '';
-    document.getElementById('dailyOfferCodeInput').value = '';
-    document.getElementById('dailyOfferDescriptionInput').value = '';
-    document.getElementById('dailyOfferBodyInput').value = '';
-    document.getElementById('dailyOfferImageInput').value = '';
-    alert('Offer popup deleted.');
-  } catch (error) {
-    alert(`Unable to delete popup: ${error.message}`);
-  }
+  if (!confirm('Disable the daily offer popup? Its configuration will be retained.')) return;
+  document.getElementById('dailyOfferEnabledInput').checked = false;
+  await handleSaveDailyOffer({ preventDefault() {} });
 }
 
 // --- ALL 20 BLINKIT CATEGORIES RESTORED ---
@@ -1464,6 +1430,34 @@ async function adminCategoryApiRequest(path, options = {}) {
   }
 
   return payload;
+}
+
+async function adminContentApiRequest(path, options = {}) {
+  const response = await fetch(`${ADMIN_CATEGORY_API_BASE_URL}${path}`, {
+    ...options,
+    cache: 'no-store',
+    headers: buildAdminApiHeaders({
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {})
+    })
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Content request failed (${response.status}).`);
+  return payload;
+}
+
+function adminDateTimeValue(inputId) {
+  const value = document.getElementById(inputId)?.value || '';
+  return value ? new Date(value).toISOString() : null;
+}
+
+function adminDateTimeInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 async function adminNotificationsApiRequest(path, options = {}) {
@@ -1574,15 +1568,30 @@ function normalizeCategoryList(rows) {
       deleted_at: category.deleted_at || null,
       image_url: category.image_url || null
     }))
-    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+    .sort((left, right) => left.sort_order - right.sort_order || String(left.name).localeCompare(String(right.name)));
 }
 
 async function loadCategoryManager() {
   const container = document.getElementById('categoryManagerGrid');
   if (!container) return;
   try {
-    const imageSnapshot = await db.collection('settings').doc('category_images').get();
-    adminCategoryImages = imageSnapshot.exists ? imageSnapshot.data() : {};
+    let imageConfigured = false;
+    try {
+      const imagePayload = await adminContentApiRequest('/api/category-images');
+      adminCategoryImages = imagePayload?.data || {};
+      imageConfigured = imagePayload?.configured === true;
+    } catch (error) {
+      console.warn('PostgreSQL category images are unavailable:', error.message);
+      adminCategoryImages = {};
+    }
+    if (!imageConfigured && typeof db !== 'undefined') {
+      try {
+        const legacySnapshot = await db.collection('settings').doc('category_images').get();
+        if (legacySnapshot.exists) adminCategoryImages = legacySnapshot.data();
+      } catch (error) {
+        console.warn('Legacy category images unavailable:', error.message);
+      }
+    }
 
     const apiResponse = await adminCategoryApiRequest('/api/admin/categories');
     adminCategoryItems = normalizeCategoryList(apiResponse?.data || []);
@@ -1602,9 +1611,9 @@ async function handleCategoryDirectFile(event, catId) {
   try {
     catId = decodeURIComponent(catId);
     const compressedCatBase64 = await compressImageFile(file, 200, 200, 0.85);
-    await db.collection("settings").doc("category_images").set({
-      [catId]: compressedCatBase64
-    }, { merge: true });
+    await adminContentApiRequest(`/api/admin/settings/category-images/${encodeURIComponent(catId)}`, {
+      method: 'PUT', body: JSON.stringify({ image_url: compressedCatBase64 })
+    });
     adminCategoryImages[catId] = compressedCatBase64;
     renderCategoryManager();
     alert('Category photo updated.');
@@ -1708,7 +1717,12 @@ async function handleAddCategory(event) {
 
     const createdCategory = response?.data || { id: '', name, slug: payload.slug };
     adminCategoryItems = normalizeCategoryList([...adminCategoryItems, createdCategory]);
-    if (createdCategory.id) adminCategoryImages[createdCategory.id] = imageUrl;
+    if (createdCategory.id) {
+      await adminContentApiRequest(`/api/admin/settings/category-images/${encodeURIComponent(createdCategory.id)}`, {
+        method: 'PUT', body: JSON.stringify({ image_url: imageUrl })
+      });
+      adminCategoryImages[createdCategory.id] = imageUrl;
+    }
 
     event.target.reset();
     renderCategoryManager();
