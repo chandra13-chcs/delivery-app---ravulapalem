@@ -1113,6 +1113,85 @@ async function adminCategoryApiRequest(path, options = {}) {
   return payload;
 }
 
+async function adminNotificationsApiRequest(path, options = {}) {
+  const response = await fetch(`${ADMIN_CATEGORY_API_BASE_URL}/api/admin/notifications${path}`, {
+    ...options,
+    cache: 'no-store',
+    headers: buildAdminApiHeaders({ Accept: 'application/json', ...(options.headers || {}) })
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Notification request failed (${response.status}).`);
+  return payload?.data;
+}
+
+function renderAdminNotifications(panel, notifications) {
+  panel.replaceChildren();
+  const heading = document.createElement('strong');
+  heading.className = 'block border-b border-slate-200 px-3 py-2 text-xs text-slate-800';
+  heading.textContent = 'Notifications';
+  panel.appendChild(heading);
+  if (!notifications.length) {
+    const empty = document.createElement('p');
+    empty.className = 'px-3 py-4 text-center text-xs text-slate-500';
+    empty.textContent = 'No notifications yet.';
+    panel.appendChild(empty);
+    return;
+  }
+  notifications.forEach(notification => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'block w-full border-b border-slate-100 px-3 py-2 text-left last:border-0 hover:bg-slate-50';
+    if (!notification.read_at) item.classList.add('bg-blue-50');
+    const title = document.createElement('strong');
+    title.className = 'block text-xs text-slate-800';
+    title.textContent = notification.title || 'Notification';
+    const body = document.createElement('span');
+    body.className = 'mt-1 block text-[11px] text-slate-600';
+    body.textContent = notification.body || '';
+    item.append(title, body);
+    item.addEventListener('click', async () => {
+      if (notification.read_at) return;
+      try {
+        await adminNotificationsApiRequest(`/${encodeURIComponent(notification.id)}/read`, { method: 'PATCH' });
+        notification.read_at = new Date().toISOString();
+        renderAdminNotifications(panel, notifications);
+      } catch (error) {
+        console.error('Unable to mark admin notification as read:', error.message);
+      }
+    });
+    panel.appendChild(item);
+  });
+}
+
+function initializeAdminNotifications() {
+  const button = document.getElementById('adminNotificationButton');
+  if (!button) return;
+  const panel = document.createElement('div');
+  panel.className = 'hidden absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-24px)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl';
+  panel.style.maxHeight = '20rem';
+  button.parentElement.classList.add('relative');
+  button.parentElement.appendChild(panel);
+  button.addEventListener('click', async () => {
+    const opening = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !opening);
+    button.setAttribute('aria-expanded', String(opening));
+    if (!opening) return;
+    panel.textContent = 'Loading notifications...';
+    try {
+      const notifications = await adminNotificationsApiRequest('');
+      renderAdminNotifications(panel, Array.isArray(notifications) ? notifications : []);
+    } catch (error) {
+      panel.textContent = error.message;
+    }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeAdminNotifications, { once: true });
+} else {
+  initializeAdminNotifications();
+}
+
 function normalizeCategoryList(rows) {
   return rows
     .filter(category => category && category.id && category.name)

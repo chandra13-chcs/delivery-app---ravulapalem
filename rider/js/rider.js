@@ -746,8 +746,8 @@ function renderRiderOrders() {
           : renderPickupChecklist(o)}
         <div class="flex items-center justify-between mt-2 text-xs">
           <span class="font-extrabold text-slate-900">Total: ₹${Number(o.total_amount || o.total || 0)}</span>
-          <span class="text-[11px] font-bold ${o.payment_mode === 'COD' ? 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded'}">
-            ${o.payment_mode === 'COD' ? 'Collect Cash at Door' : 'Paid Online'}
+          <span class="text-[11px] font-bold ${o.payment_mode === 'COD' ? 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded' : o.payment_status === 'SUCCESSFUL' ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded' : 'text-amber-700 bg-amber-50 px-2 py-0.5 rounded'}">
+            ${o.payment_mode === 'COD' ? 'Collect Cash at Door' : o.payment_status === 'SUCCESSFUL' ? 'Paid Online' : 'Online payment pending'}
           </span>
         </div>
         ${Number(o.rider_tip || 0) > 0 ? `<p class="text-[11px] font-black text-amber-700 mt-1">Rider tip: ₹${Number(o.rider_tip)}</p>` : ''}

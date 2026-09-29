@@ -2,6 +2,7 @@
 
 const db = require("../config/db");
 const { ACTIVE_STATUSES, PAST_STATUSES } = require("./orderController");
+const { createUserNotification } = require("../services/notificationService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -166,8 +167,8 @@ async function updatePartnerOrderStatus(req, res) {
     client = await db.connect();
     await client.query("BEGIN");
     const fulfillmentResult = await client.query(
-      `SELECT f.id, f.status AS fulfillment_status, f.order_id,
-              o.status AS order_status
+            `SELECT f.id, f.status AS fulfillment_status, f.order_id,
+              o.status AS order_status, o.customer_user_id, o.order_number
        FROM order_fulfillments f
        JOIN orders o ON o.id = f.order_id
        JOIN shops s ON s.id = f.shop_id
@@ -222,6 +223,13 @@ async function updatePartnerOrderStatus(req, res) {
              updated_at = now()
          WHERE id = $1`,
         [orderId, orderStatus]
+      );
+      await createUserNotification(
+        client,
+        fulfillment.customer_user_id,
+        `Order ${orderStatus.toLowerCase().replaceAll("_", " ")}`,
+        `Order ${fulfillment.order_number} is now ${orderStatus.toLowerCase().replaceAll("_", " ")}.`,
+        { event: `order.${orderStatus.toLowerCase()}`, order_id: orderId, recipient_type: "CUSTOMER" }
       );
     }
 

@@ -46,6 +46,7 @@ const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const CUSTOMER_ORDER_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/orders`;
 const CUSTOMER_AUTH_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/auth`;
+const CUSTOMER_NOTIFICATIONS_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/notifications`;
 
 function getCustomerAccessToken() {
   return sessionStorage.getItem("user_access_token")
@@ -90,6 +91,91 @@ async function customerAuthApiRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.message || `Authentication request failed (${response.status}).`);
   return payload;
+}
+
+async function customerNotificationsApiRequest(path, options = {}) {
+  const token = getCustomerAccessToken();
+  if (!token) throw new Error("A secure customer session is required for notifications.");
+  const response = await fetch(`${CUSTOMER_NOTIFICATIONS_API_BASE_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {})
+    }
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Notification request failed (${response.status}).`);
+  return payload?.data;
+}
+
+function renderCustomerNotifications(notifications) {
+  const list = document.getElementById("customerNotificationsList");
+  if (!list) return;
+  list.replaceChildren();
+  if (!notifications.length) {
+    const empty = document.createElement("p");
+    empty.className = "px-2 py-4 text-center text-xs text-slate-500";
+    empty.textContent = "No notifications yet.";
+    list.appendChild(empty);
+    return;
+  }
+  notifications.forEach(notification => {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "block w-full border-b border-slate-100 px-2 py-2 text-left last:border-0 hover:bg-slate-50";
+    const title = document.createElement("strong");
+    title.className = "block text-xs text-slate-800";
+    title.textContent = notification.title || "Notification";
+    const body = document.createElement("span");
+    body.className = "mt-1 block text-[11px] text-slate-600";
+    body.textContent = notification.body || "";
+    row.append(title, body);
+    if (!notification.read_at) row.classList.add("bg-emerald-50/50");
+    row.addEventListener("click", async () => {
+      if (notification.read_at) return;
+      try {
+        await customerNotificationsApiRequest(`/${encodeURIComponent(notification.id)}/read`, { method: "PATCH" });
+        notification.read_at = new Date().toISOString();
+        renderCustomerNotifications(notifications);
+      } catch (error) {
+        console.error("Unable to mark notification as read:", error.message);
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+async function loadCustomerNotifications() {
+  const list = document.getElementById("customerNotificationsList");
+  if (!list) return;
+  try {
+    const notifications = await customerNotificationsApiRequest("");
+    renderCustomerNotifications(Array.isArray(notifications) ? notifications : []);
+  } catch (error) {
+    list.textContent = error.message;
+  }
+}
+
+function toggleCustomerNotifications() {
+  const panel = document.getElementById("customerNotificationsPanel");
+  const button = document.getElementById("customerNotificationButton");
+  if (!panel) return;
+  const opening = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !opening);
+  button?.setAttribute("aria-expanded", String(opening));
+  if (opening) loadCustomerNotifications();
+}
+
+async function markAllCustomerNotificationsRead() {
+  try {
+    await customerNotificationsApiRequest("/read-all", { method: "PATCH" });
+    await loadCustomerNotifications();
+  } catch (error) {
+    const list = document.getElementById("customerNotificationsList");
+    if (list) list.textContent = error.message;
+  }
 }
 
 function buildCustomerOrderAddress(address) {
@@ -3996,13 +4082,6 @@ function setPaymentMethod(
 // ==========================================
 
 function renderPaymentQR() {
-
-  const {
-    grandTotal
-  } =
-    calculateCartTotals();
-
-
   const canvas =
     document.getElementById(
       "qrcodeCanvas"
@@ -4014,35 +4093,10 @@ function renderPaymentQR() {
 
   canvas.innerHTML =
     "";
-
-
-  try {
-
-    new QRCode(
-      canvas,
-      {
-        text:
-          `upi://pay?pa=ravulapalemhub@okaxis&pn=MyShopzy&am=${grandTotal}&cu=INR`,
-
-        width: 110,
-
-        height: 110
-      }
-    );
-
-  } catch (error) {
-
-    console.error(
-      "QR generation error:",
-      error
-    );
-
-    canvas.innerHTML = `
-      <p class="text-[10px] text-rose-500 font-bold">
-        QR unavailable
-      </p>
-    `;
-  }
+  const message = document.createElement("p");
+  message.className = "max-w-40 py-5 text-center text-[10px] font-bold text-slate-500";
+  message.textContent = "Online QR payment is not available until gateway setup.";
+  canvas.appendChild(message);
 }
 
 
@@ -4053,35 +4107,9 @@ function renderPaymentQR() {
 function triggerDirectUpiPay(
   appName
 ) {
-
-  const {
-    grandTotal
-  } =
-    calculateCartTotals();
-
-
-  if (
-    grandTotal <= 0
-  ) {
-
-    alert(
-      "Cart is empty."
-    );
-
-    return;
-  }
-
-
-  const upiUrl =
-    `upi://pay?pa=ravulapalemhub@okaxis&pn=MyShopzy&am=${grandTotal}&cu=INR`;
-
-
   alert(
-    `Opening ${appName}...\n\nIf the app does not open, use the Scan QR option.`
+    `Online payments are not available yet. ${appName} payments will remain pending until gateway confirmation.`
   );
-
-
-  window.open(upiUrl, "_blank", "noopener");
 }
 
 
@@ -4262,7 +4290,9 @@ async function finalizeOrderAndLaunch(
   }
 
 
+  const submittedPaymentMethod = selectedPaymentMode;
   let orderId;
+  let paymentStatus = "PENDING";
   try {
     const result = await customerOrderApiRequest("", {
       method: "POST",
@@ -4277,11 +4307,19 @@ async function finalizeOrderAndLaunch(
           };
         }),
         address: buildCustomerOrderAddress(chosenAddr),
-        payment_method: selectedPaymentMode,
+        payment_method: submittedPaymentMethod,
         rider_tip: riderTip
       })
     });
     orderId = result.id || result.order_number;
+    if (submittedPaymentMethod !== "COD" && result.id) {
+      try {
+        const payment = await customerOrderApiRequest(`/${encodeURIComponent(result.id)}/payment/initialize`, { method: "POST" });
+        paymentStatus = payment.status || "PENDING";
+      } catch (error) {
+        console.error("Backend payment initialization is unavailable:", error.message);
+      }
+    }
   } catch (error) {
     console.error("PostgreSQL order creation failed:", error);
     alert(`Order was not placed: ${error.message}`);
@@ -4342,9 +4380,12 @@ async function finalizeOrderAndLaunch(
   }
 
 
-  alert(
-    `🎉 Order Placed Successfully (${orderId})!`
-  );
+  const paymentMessage = submittedPaymentMethod === "COD"
+    ? "Pay on delivery."
+    : ["SUCCESS", "SUCCESSFUL"].includes(paymentStatus)
+      ? "Payment confirmed by the backend."
+      : "Online payment is pending gateway confirmation; no payment is confirmed.";
+  alert(`Order placed (${orderId}). ${paymentMessage}`);
 
   try {
     CUSTOMER_ORDER_PLACED_SOUND.currentTime = 0;
@@ -5049,10 +5090,20 @@ function renderReceipt(
 
 
   if (receiptPayment) {
-
-    receiptPayment.innerText =
-      targetOrder.payment_mode ||
-      "COD";
+    const method = targetOrder.payment_mode || "COD";
+    const status = String(targetOrder.payment_status || "").toUpperCase();
+    const statusLabel = {
+      SUCCESSFUL: "Confirmed",
+      SUCCESS: "Confirmed",
+      PENDING: "Payment pending",
+      INITIATED: "Pending gateway confirmation",
+      FAILED: "Failed",
+      CANCELLED: "Cancelled",
+      REFUNDED: "Refunded"
+    }[status];
+    receiptPayment.innerText = method === "COD"
+      ? "COD (Pay on delivery)"
+      : `${method}${statusLabel ? ` (${statusLabel})` : " (Payment status unavailable)"}`;
   }
 
 

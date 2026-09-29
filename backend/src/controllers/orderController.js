@@ -2,6 +2,11 @@
 
 const crypto = require("crypto");
 const db = require("../config/db");
+const {
+  createUserNotification,
+  createPartnerNotifications,
+  createAdminNotifications
+} = require("../services/notificationService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_STATUSES = ["DRAFT", "PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"];
@@ -17,6 +22,7 @@ const ORDER_PROJECTION = `
          oa.landmark, oa.locality, oa.city, oa.state, oa.postal_code, oa.country_code,
          oa.latitude AS delivery_latitude, oa.longitude AS delivery_longitude,
          COALESCE(payment.method, 'COD') AS payment_method,
+         payment.status AS payment_status,
          parcel.parcel_pickup_address, parcel.parcel_drop_address, parcel.parcel_description,
          COALESCE(item_data.items, '[]'::jsonb) AS items,
          COALESCE(fulfillment_data.items, '[]'::jsonb) AS fulfillments,
@@ -26,7 +32,7 @@ const ORDER_PROJECTION = `
   JOIN users u ON u.id = o.customer_user_id
   LEFT JOIN order_addresses oa ON oa.order_id = o.id
   LEFT JOIN LATERAL (
-    SELECT p.method
+    SELECT p.method, p.status
     FROM payments p
     WHERE p.order_id = o.id
     ORDER BY p.created_at DESC
@@ -220,6 +226,7 @@ function presentOrder(row) {
     customer_note: row.customer_note,
     cancellation_reason: row.cancellation_reason,
     payment_mode: row.payment_method,
+    payment_status: row.payment_status,
     delivery_address: addressParts.join(", "),
     delivery_latitude: row.delivery_latitude == null ? null : Number(row.delivery_latitude),
     delivery_longitude: row.delivery_longitude == null ? null : Number(row.delivery_longitude),
@@ -470,6 +477,15 @@ async function createCustomerOrder(req, res) {
             line.variant_name, line.sku, line.unit_label, line.quantity, line.price, lineTotal]
         );
       }
+      for (const shopId of fulfillmentIds.keys()) {
+        await createPartnerNotifications(
+          client,
+          shopId,
+          "New order received",
+          `Order ${order.order_number} is waiting for your review.`,
+          { event: "partner.order.received", order_id: order.id, order_number: order.order_number }
+        );
+      }
       if (cartId) {
         await client.query("UPDATE carts SET status = 'CONVERTED', updated_at = now() WHERE id = $1 AND user_id = $2 AND status = 'ACTIVE'", [cartId, req.user.id]);
       }
@@ -480,6 +496,12 @@ async function createCustomerOrder(req, res) {
        VALUES ($1, $2, 'MANUAL', 'PENDING', $3, 'INR')`,
       [order.id, paymentMethod, totalAmount]
     );
+    await createUserNotification(client, req.user.id, "Order placed", `Order ${order.order_number} was placed successfully.`, {
+      event: "order.placed", order_id: order.id, order_number: order.order_number, recipient_type: "CUSTOMER"
+    });
+    await createAdminNotifications(client, "New order placed", `Order ${order.order_number} was placed.`, {
+      event: "order.placed", order_id: order.id, order_number: order.order_number
+    });
     await client.query("COMMIT");
     return res.status(201).json({
       success: true,
@@ -539,6 +561,14 @@ async function cancelCustomerOrder(req, res) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Order not found.", data: null });
     }
+    const successfulPayment = await client.query(
+      "SELECT id FROM payments WHERE order_id = $1 AND status = 'SUCCESSFUL' LIMIT 1 FOR UPDATE",
+      [orderId]
+    );
+    if (successfulPayment.rows[0]) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "This order cannot be cancelled before its successful payment is refunded.", data: null });
+    }
     if (!["PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "DELIVERY_FAILED"].includes(order.status)) {
       await client.query("ROLLBACK");
       return res.status(409).json({ success: false, message: "This order can no longer be cancelled.", data: null });
@@ -552,7 +582,7 @@ async function cancelCustomerOrder(req, res) {
       [orderId, req.user.id, reason]
     );
     const fulfillments = await client.query(
-      `SELECT id, status FROM order_fulfillments
+      `SELECT id, shop_id, status FROM order_fulfillments
        WHERE order_id = $1 AND status NOT IN ('CANCELLED', 'REJECTED')
        FOR UPDATE`,
       [orderId]
@@ -564,6 +594,15 @@ async function cancelCustomerOrder(req, res) {
          VALUES ($1, $2, 'CANCELLED', $3, $4)`,
         [fulfillment.id, fulfillment.status, req.user.id, reason]
       );
+      if (fulfillment.shop_id) {
+        await createPartnerNotifications(
+          client,
+          fulfillment.shop_id,
+          "Order cancelled",
+          `Order ${orderId} was cancelled by the customer.`,
+          { event: "partner.order.cancelled", order_id: orderId }
+        );
+      }
     }
     const assignments = await client.query(
       `SELECT da.id, da.status, r.user_id
@@ -589,9 +628,12 @@ async function cancelCustomerOrder(req, res) {
       await client.query(
         `INSERT INTO notifications (user_id, channel, status, title, body, payload)
          VALUES ($1, 'IN_APP', 'PENDING', 'Delivery cancelled', $2, $3::jsonb)`,
-        [assignment.user_id, `Order ${orderId} was cancelled by the customer.`, JSON.stringify({ event: "delivery.assignment.cancelled", order_id: orderId, assignment_id: assignment.id })]
+        [assignment.user_id, `Order ${orderId} was cancelled by the customer.`, JSON.stringify({ event: "delivery.assignment.cancelled", order_id: orderId, assignment_id: assignment.id, recipient_type: "RIDER" })]
       );
     }
+    await createUserNotification(client, req.user.id, "Order cancelled", `Order ${orderId} was cancelled.`, {
+      event: "order.cancelled", order_id: orderId, recipient_type: "CUSTOMER"
+    });
     await client.query(
       `WITH item_reservations AS (
          SELECT variant_id, sum(quantity) AS quantity

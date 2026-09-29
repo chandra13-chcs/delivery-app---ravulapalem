@@ -20,6 +20,7 @@ const RIDER_ORDER_PROJECTION = `
          da.accepted_at, da.rejection_reason, o.id, o.order_number, o.status,
          o.order_type, o.total_amount, o.delivery_fee, o.rider_tip, o.currency,
          COALESCE(payment.method, 'COD') AS payment_mode,
+         payment.status AS payment_status,
          parcel.parcel_pickup_address,
          parcel.parcel_drop_address, parcel.parcel_description,
          CASE WHEN o.status = 'OUT_FOR_DELIVERY' THEN oa.recipient_name END AS recipient_name,
@@ -33,7 +34,7 @@ const RIDER_ORDER_PROJECTION = `
   JOIN orders o ON o.id = da.order_id
   LEFT JOIN order_addresses oa ON oa.order_id = o.id
   LEFT JOIN LATERAL (
-    SELECT p.method FROM payments p WHERE p.order_id = o.id
+    SELECT p.method, p.status FROM payments p WHERE p.order_id = o.id
     ORDER BY p.created_at DESC LIMIT 1
   ) payment ON true
   LEFT JOIN parcel_details parcel ON parcel.order_id = o.id
@@ -329,10 +330,10 @@ async function createDeliveryAssignment(req, res) {
       [assignment.id, req.admin.id, JSON.stringify({ order_number: order.order_number })]
     );
     await insertNotification(client, rider.user_id, "Delivery assigned", `Order ${order.order_number} is available for acceptance.`, {
-      event: "delivery.assignment.offered", order_id: order.id, assignment_id: assignment.id
+      event: "delivery.assignment.offered", order_id: order.id, assignment_id: assignment.id, recipient_type: "RIDER"
     });
     await insertNotification(client, order.customer_user_id, "Rider assigned", `A rider has been assigned to order ${order.order_number}.`, {
-      event: "delivery.assignment.offered", order_id: order.id, assignment_id: assignment.id
+      event: "delivery.assignment.offered", order_id: order.id, assignment_id: assignment.id, recipient_type: "CUSTOMER"
     });
     await client.query("COMMIT");
     return res.status(201).json({ success: true, data: assignment });
@@ -477,12 +478,14 @@ async function riderDecision(req, res, decision) {
     await insertNotification(client, assignment.customer_user_id, title, message, {
       event: `delivery.assignment.${decision.toLowerCase()}`,
       order_id: assignment.order_id,
-      assignment_id: assignment.id
+      assignment_id: assignment.id,
+      recipient_type: "CUSTOMER"
     });
     await insertNotification(client, req.user.id, title, message, {
       event: `delivery.assignment.${decision.toLowerCase()}`,
       order_id: assignment.order_id,
-      assignment_id: assignment.id
+      assignment_id: assignment.id,
+      recipient_type: "RIDER"
     });
     if (assignment.order_type === "PARCEL" && decision === "ACCEPTED" && assignment.order_status === "PLACED") {
       await writeOrderStatus(client, req, assignment.order_id, "ACCEPTED", "Rider accepted parcel delivery");
@@ -597,7 +600,7 @@ async function arriveAtParcelPickup(req, res) {
     await writeOrderStatus(client, req, assignment.order_id, "READY_FOR_PICKUP", "Parcel pickup confirmed by rider arrival");
     await writeOrderStatus(client, req, assignment.order_id, "PICKING_UP", "Parcel pickup in progress");
     await insertNotification(client, assignment.customer_user_id, "Parcel pickup started", `The rider has arrived for parcel ${assignment.order_number}.`, {
-      event: "delivery.pickup.arrived", order_id: assignment.order_id, assignment_id: assignment.id, source: "PARCEL_PICKUP"
+      event: "delivery.pickup.arrived", order_id: assignment.order_id, assignment_id: assignment.id, source: "PARCEL_PICKUP", recipient_type: "CUSTOMER"
     });
     await client.query("COMMIT");
     return res.json({ success: true, data: { assignment_id: assignment.id, status: "PICKING_UP", event: "ARRIVED_AT_PICKUP" } });
@@ -694,7 +697,7 @@ async function confirmPickup(req, res) {
     );
     await recordDeliveryEvent(client, assignment, req, "PICKUP_CONFIRMED", { fulfillment_id: fulfillment.id });
     await insertNotification(client, assignment.customer_user_id, "Pickup confirmed", `A pickup has been confirmed for order ${assignment.order_number}.`, {
-      event: "delivery.pickup.confirmed", order_id: assignment.order_id, assignment_id: assignment.id, fulfillment_id: fulfillment.id
+      event: "delivery.pickup.confirmed", order_id: assignment.order_id, assignment_id: assignment.id, fulfillment_id: fulfillment.id, recipient_type: "CUSTOMER"
     });
     await client.query("COMMIT");
     return res.json({ success: true, data: { fulfillment_id: fulfillment.id, status: "PICKING_UP" } });
@@ -746,7 +749,7 @@ async function startOutForDelivery(req, res) {
     await client.query("UPDATE orders SET dispatched_at = COALESCE(dispatched_at, now()) WHERE id = $1", [assignment.order_id]);
     await recordDeliveryEvent(client, assignment, req, "OUT_FOR_DELIVERY");
     await insertNotification(client, assignment.customer_user_id, "Order is out for delivery", `Order ${assignment.order_number} is on its way.`, {
-      event: "delivery.out_for_delivery", order_id: assignment.order_id, assignment_id: assignment.id
+      event: "delivery.out_for_delivery", order_id: assignment.order_id, assignment_id: assignment.id, recipient_type: "CUSTOMER"
     });
     await client.query("COMMIT");
     return res.json({ success: true, data: { assignment_id: assignment.id, status: "OUT_FOR_DELIVERY" } });
@@ -946,10 +949,10 @@ async function completeDelivery(req, res) {
     );
     await recordDeliveryEvent(client, assignment, req, "DELIVERED");
     await insertNotification(client, assignment.customer_user_id, "Order delivered", `Order ${assignment.order_number} was delivered.`, {
-      event: "delivery.delivered", order_id: assignment.order_id, assignment_id: assignment.id
+      event: "delivery.delivered", order_id: assignment.order_id, assignment_id: assignment.id, recipient_type: "CUSTOMER"
     });
-    await insertNotification(client, rider.id ? req.user.id : req.user.id, "Delivery completed", `Delivery ${assignment.order_number} was completed.`, {
-      event: "delivery.completed", order_id: assignment.order_id, assignment_id: assignment.id
+    await insertNotification(client, req.user.id, "Delivery completed", `Delivery ${assignment.order_number} was completed.`, {
+      event: "delivery.completed", order_id: assignment.order_id, assignment_id: assignment.id, recipient_type: "RIDER"
     });
     await client.query("COMMIT");
     return res.json({ success: true, data: { assignment_id: assignment.id, status: "COMPLETED", order_status: "DELIVERED" } });
@@ -1130,6 +1133,7 @@ async function getAdminAssignmentTracking(req, res) {
 }
 
 module.exports = {
+  resolveApprovedRider,
   listAdminDeliveryOrders,
   listAdminDeliveryOrders,
   listEligibleRiders,

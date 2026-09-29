@@ -1,6 +1,11 @@
 const express = require("express");
 const { requireUserAuth } = require("../middleware/requireAuth");
 const {
+  listRiderNotifications,
+  markRiderNotificationRead,
+  markAllRiderNotificationsRead
+} = require("../controllers/notificationController");
+const {
   createRiderApplication,
   getRiderProfile,
   updateRiderProfile,
@@ -26,6 +31,9 @@ const router = express.Router();
 
 router.use(requireUserAuth);
 
+router.get("/notifications", listRiderNotifications);
+router.patch("/notifications/read-all", markAllRiderNotificationsRead);
+router.patch("/notifications/:notificationId/read", markRiderNotificationRead);
 router.post("/applications", createRiderApplication);
 router.get("/me", getRiderProfile);
 router.patch("/me", updateRiderProfile);
