@@ -28,7 +28,76 @@ let riderOtpSent = false;
 let pendingRiderRegistration = null;
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
+const RIDER_API_BASE_URL = 'http://localhost:5000';
 RIDER_ORDER_SOUND.loop = true;
+
+function getRiderAccessToken() {
+  return sessionStorage.getItem('user_access_token')
+    || localStorage.getItem('user_access_token')
+    || sessionStorage.getItem('myshopzy_user_access_token')
+    || localStorage.getItem('myshopzy_user_access_token')
+    || '';
+}
+
+function buildRiderApiHeaders(additionalHeaders = {}) {
+  const headers = { ...additionalHeaders };
+  const token = getRiderAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+async function riderApiRequest(path, options = {}) {
+  const response = await fetch(`${RIDER_API_BASE_URL}${path}`, {
+    headers: buildRiderApiHeaders({
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {})
+    }),
+    ...options
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.message || `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+async function hydrateRiderSession() {
+  const token = getRiderAccessToken();
+  if (!token) return null;
+  try {
+    const authUser = await riderApiRequest('/api/auth/me');
+    const riderProfileResult = await riderApiRequest('/api/rider/me');
+    const rider = riderProfileResult?.data?.rider || null;
+    const user = authUser?.user || riderProfileResult?.data?.user || null;
+    if (!rider || !user) return null;
+
+    const mergedProfile = {
+      id: rider.id,
+      user_id: user.id,
+      name: user.display_name || user.name || 'Rider',
+      mobile: user.phone_e164 || '',
+      email: user.email || '',
+      verification_status: rider.verification_status || 'PENDING',
+      is_available: Boolean(rider.is_available),
+      vehicle_type: rider.vehicle_type || '',
+      vehicle_registration: rider.vehicle_registration || '',
+      license_number_last4: rider.license_number_last4 || ''
+    };
+
+    riderProfile = mergedProfile;
+    currentActiveRider = mergedProfile.name;
+    localStorage.setItem('rider_profile', JSON.stringify(mergedProfile));
+    localStorage.setItem('active_rider_name', mergedProfile.name);
+    updateRiderIdentity();
+    return mergedProfile;
+  } catch (error) {
+    console.warn('Unable to hydrate rider session from backend:', error.message);
+    return null;
+  }
+}
 
 function formatOrderDateTime(order) {
   let date = null;
@@ -121,14 +190,30 @@ async function completeRiderRegistration() {
     return;
   }
 
-  const passwordHash = await hashRiderPassword(password);
-  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: passwordHash, verification_status: 'PENDING', registered_at_ms: Date.now() };
+  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: await hashRiderPassword(password), verification_status: 'PENDING', registered_at_ms: Date.now() };
   pendingRiderRegistration = profile;
   try {
-    await db.collection('rider_profiles').doc(mobile).set(profile, { merge: true });
+    const token = getRiderAccessToken();
+    if (token) {
+      const payload = {
+        vehicle_type: 'BIKE',
+        vehicle_registration: mobile,
+        license_last4: aadhaar.slice(-4)
+      };
+      const result = await riderApiRequest('/api/rider/applications', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      riderProfile = { ...profile, ...result.data, id: result.data?.id || profile.id };
+      currentActiveRider = profile.name;
+      localStorage.setItem('rider_profile', JSON.stringify(riderProfile));
+      localStorage.setItem('active_rider_name', profile.name);
+    } else {
+      await db.collection('rider_profiles').doc(mobile).set(profile, { merge: true });
+    }
   } catch (error) {
     console.error('Rider profile save failed:', error);
-    alert('Profile saved on this device. Firebase profile sync failed.');
+    alert('Profile saved on this device. Backend rider registration failed.');
   }
   closeRiderRegistrationModal();
   document.getElementById('riderPanInput').value = '';
@@ -166,6 +251,16 @@ async function submitRiderVerification() {
       uploadRiderVerificationFile(aadhaarPhoto, mobile, 'aadhaar'),
       uploadRiderVerificationFile(panPhoto, mobile, 'pan')
     ]);
+
+    const token = getRiderAccessToken();
+    if (token) {
+      await Promise.all([
+        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'SELFIE', object_key: selfiePath, original_filename: selfie.name, content_type: selfie.type || 'image/jpeg' }) }),
+        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'AADHAAR', object_key: aadhaarPath, original_filename: aadhaarPhoto.name, content_type: aadhaarPhoto.type || 'image/jpeg' }) }),
+        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'PAN', object_key: panPath, original_filename: panPhoto.name, content_type: panPhoto.type || 'image/jpeg' }) })
+      ]);
+    }
+
     const verification = {
       pan_last4: panNumber.slice(-4),
       selfie_file: selfie.name,
@@ -177,7 +272,9 @@ async function submitRiderVerification() {
       verification_status: 'SUBMITTED',
       verification_submitted_at_ms: Date.now()
     };
-    await db.collection('rider_profiles').doc(mobile).set(verification, { merge: true });
+    if (!token) {
+      await db.collection('rider_profiles').doc(mobile).set(verification, { merge: true });
+    }
     closeRiderVerificationModal();
     document.getElementById('riderLoginIdentityInput').value = mobile;
     openRiderLoginModal();
@@ -193,6 +290,15 @@ async function loginRider() {
   const identity = document.getElementById('riderLoginIdentityInput')?.value.trim();
   const password = document.getElementById('riderLoginPasswordInput')?.value || '';
   const errorElement = document.getElementById('riderLoginError');
+
+  if (getRiderAccessToken()) {
+    const backendProfile = await hydrateRiderSession();
+    if (backendProfile) {
+      closeRiderLoginModal();
+      return;
+    }
+  }
+
   if (!identity || !password) {
     if (errorElement) {
       errorElement.innerText = 'Enter your mobile/email and password.';
@@ -321,6 +427,25 @@ async function toggleRiderAvailability() {
     alert('Register your rider profile before going online.');
     return;
   }
+
+  const token = getRiderAccessToken();
+  if (token) {
+    try {
+      const nextState = !riderIsAvailable;
+      const result = await riderApiRequest('/api/rider/availability', {
+        method: 'PUT',
+        body: JSON.stringify({ is_available: nextState })
+      });
+      riderIsAvailable = Boolean(result?.data?.is_available);
+      localStorage.setItem('rider_available', String(riderIsAvailable));
+      updateAvailabilityUi();
+      return;
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+  }
+
   if (riderProfile.verification_status !== 'APPROVED') {
     pendingRiderRegistration = riderProfile;
     openRiderVerificationModal();

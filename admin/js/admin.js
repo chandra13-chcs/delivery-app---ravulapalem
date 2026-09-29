@@ -15,7 +15,26 @@ let pendingAdminOrderAlerts = [];
 let adminAlertSoundStopped = false;
 const ADMIN_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const ADMIN_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
+const ADMIN_RIDER_API_BASE_URL = 'http://localhost:5000';
 ADMIN_ORDER_SOUND.loop = true;
+
+async function adminRiderApiRequest(path, options = {}) {
+  const response = await fetch(`${ADMIN_RIDER_API_BASE_URL}${path}`, {
+    headers: buildAdminApiHeaders({
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {})
+    }),
+    ...options
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload?.message || `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
 
 function stopAdminOrderSound() {
   ADMIN_ORDER_SOUND.pause();
@@ -141,22 +160,25 @@ function subscribeToAdminRiderLocation(riderName) {
   adminRiderLocationUnsubscribers.push(unsubscribe);
 }
 
-function startRegisteredRiderListener() {
-  db.collection("rider_profiles").onSnapshot(snapshot => {
-    const registeredNames = [];
-    ADMIN_RIDER_PROFILES = [];
-    snapshot.forEach(doc => {
-      const profile = { id: doc.id, ...doc.data() };
-      ADMIN_RIDER_PROFILES.push(profile);
-      const name = profile.name;
-      if (name) registeredNames.push(name);
-    });
-    ADMIN_RIDER_NAMES = [...new Set(registeredNames)];
+async function startRegisteredRiderListener() {
+  try {
+    const result = await adminRiderApiRequest('/api/admin/riders');
+    const profiles = Array.isArray(result?.data) ? result.data : [];
+    ADMIN_RIDER_PROFILES = profiles.map(profile => ({
+      ...profile,
+      name: profile.name || profile.display_name || 'Unnamed rider',
+      mobile: profile.mobile || profile.phone_e164 || '-',
+      email: profile.email || '-',
+      verification_status: profile.verification_status || 'PENDING'
+    }));
+    ADMIN_RIDER_NAMES = [...new Set(ADMIN_RIDER_PROFILES.map(profile => profile.name).filter(Boolean))];
     ADMIN_RIDER_NAMES.forEach(subscribeToAdminRiderLocation);
     renderAdminRiderStatus();
     renderRiderVerificationQueue();
     refreshAdminRiderAssignmentFields();
-  }, error => console.error("Registered rider listener error:", error));
+  } catch (error) {
+    console.error("Registered rider listener error:", error);
+  }
 }
 
 function renderRiderVerificationQueue() {
@@ -254,11 +276,11 @@ async function reviewRiderVerification(encodedId, status) {
   const reason = status === "REJECTED" ? prompt("Reason for rejecting this rider:") : "";
   if (status === "REJECTED" && !reason) return;
   try {
-    await db.collection("rider_profiles").doc(riderId).set({
-      verification_status: status,
-      verification_review_reason: reason,
-      reviewed_at_ms: Date.now()
-    }, { merge: true });
+    await adminRiderApiRequest(`/api/admin/riders/${riderId}/verification`, {
+      method: 'PATCH',
+      body: JSON.stringify({ verification_status: status, ...(reason ? { review_reason: reason } : {}) })
+    });
+    await startRegisteredRiderListener();
   } catch (error) {
     alert(`Rider review failed: ${error.message}`);
   }
