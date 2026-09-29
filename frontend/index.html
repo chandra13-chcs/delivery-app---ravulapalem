@@ -993,9 +993,9 @@
       <div id="loginStepOtp" class="hidden space-y-3 text-center">
         <div>
           <h4 class="text-sm font-extrabold text-slate-900">Verify Mobile Number</h4>
-          <p class="text-xs text-slate-400 mt-0.5">Enter the 4-digit OTP sent to your phone</p>
+          <p class="text-xs text-slate-400 mt-0.5">Enter the 6-digit OTP sent to your phone</p>
         </div>
-        <input id="loginOtpInput" type="tel" maxlength="4" placeholder="••••" class="w-full text-center tracking-[1em] text-2xl font-black py-2.5 border-2 border-slate-200 rounded-2xl focus:border-brand-navy outline-none bg-slate-50">
+        <input id="loginOtpInput" type="tel" maxlength="6" inputmode="numeric" placeholder="••••••" class="w-full text-center tracking-[1em] text-2xl font-black py-2.5 border-2 border-slate-200 rounded-2xl focus:border-brand-navy outline-none bg-slate-50">
         <button onclick="verifyCustomerLoginOtp()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-md">Verify & Access Store</button>
       </div>
     </div>

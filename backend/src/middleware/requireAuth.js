@@ -5,6 +5,7 @@ const JWT_ISSUER = "myshopzy-api";
 const JWT_AUDIENCE = "myshopzy-admin";
 const ACCESS_TOKEN_USES = new Set(["admin_access", "user_access"]);
 const USER_ACCESS_ONLY = new Set(["user_access"]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function verifyAccessToken(req, allowedTokenUses = ACCESS_TOKEN_USES) {
   const secret = process.env.ADMIN_JWT_SECRET;
@@ -57,7 +58,29 @@ async function requireAuth(req, res, next, allowedTokenUses = ACCESS_TOKEN_USES)
       return res.status(401).json({ success: false, message: "Invalid or expired access token." });
     }
 
-    req.user = { id: user.id, display_name: user.display_name };
+    if (verification.claims.token_use === "user_access") {
+      if (typeof verification.claims.sid !== "string" || !UUID_PATTERN.test(verification.claims.sid)) {
+        return res.status(401).json({ success: false, message: "Invalid or expired access token." });
+      }
+      const sessionResult = await db.query(
+        `SELECT id
+         FROM user_sessions
+         WHERE id = $1
+           AND user_id = $2
+           AND revoked_at IS NULL
+           AND expires_at > now()`,
+        [verification.claims.sid, user.id]
+      );
+      if (!sessionResult.rows[0]) {
+        return res.status(401).json({ success: false, message: "Invalid or expired access token." });
+      }
+    }
+
+    req.user = {
+      id: user.id,
+      display_name: user.display_name,
+      ...(verification.claims.token_use === "user_access" ? { session_id: verification.claims.sid } : {})
+    };
     return next();
   } catch (error) {
     console.error("Authentication failed:", error.message);

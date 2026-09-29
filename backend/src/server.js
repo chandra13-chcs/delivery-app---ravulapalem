@@ -12,12 +12,16 @@ const adminAuthRoutes = require("./routes/adminAuthRoutes");
 const partnerRoutes = require("./routes/partnerRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const adminOrderRoutes = require("./routes/adminOrderRoutes");
+const authRoutes = require("./routes/authRoutes");
+const riderAuthRoutes = require("./routes/riderAuthRoutes");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use("/api/users", userRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/rider/auth", riderAuthRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);

@@ -45,6 +45,7 @@ const delaySupportShownFor = new Set();
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const CUSTOMER_ORDER_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/orders`;
+const CUSTOMER_AUTH_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/auth`;
 
 function getCustomerAccessToken() {
   return sessionStorage.getItem("user_access_token")
@@ -71,6 +72,24 @@ async function customerOrderApiRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.message || `Order request failed (${response.status}).`);
   return payload?.data;
+}
+
+async function customerAuthApiRequest(path, options = {}) {
+  const token = getCustomerAccessToken();
+  const headers = {
+    Accept: "application/json",
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+  const response = await fetch(`${CUSTOMER_AUTH_API_BASE_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Authentication request failed (${response.status}).`);
+  return payload;
 }
 
 function buildCustomerOrderAddress(address) {
@@ -229,6 +248,8 @@ function closeCustomerRiderTracker() {
 let activeCustomerSession = JSON.parse(
   localStorage.getItem("quickdash_customer") || "null"
 );
+let customerAuthPurpose = "LOGIN";
+let pendingCustomerProfile = null;
 
 
 // ==========================================
@@ -4561,48 +4582,56 @@ function closeLoginModal() {
 // 41. SEND OTP
 // ==========================================
 
-function sendCustomerLoginOtp() {
-
+async function sendCustomerLoginOtp() {
   const input = document.getElementById("loginMobileInput");
   const phone = normalizePhone(input ? input.value : "");
-
   if (phone.length !== 10) {
     alert("Please enter a valid 10-digit mobile number.");
     return;
   }
 
-  const signupMode = document.getElementById("signupExtraFields") && !document.getElementById("signupExtraFields").classList.contains("hidden");
+  const signupMode = document.getElementById("signupExtraFields")
+    && !document.getElementById("signupExtraFields").classList.contains("hidden");
+  let requestPath = "/otp/request";
+  let requestBody = { phone_e164: `+91${phone}` };
   if (signupMode) {
     const name = document.getElementById("signupNameInput")?.value.trim();
     const email = document.getElementById("signupEmailInput")?.value.trim();
     const location = document.getElementById("signupLocationInput")?.value.trim();
     const password = document.getElementById("signupPasswordInput")?.value;
     const confirm = document.getElementById("signupConfirmPasswordInput")?.value;
-
     if (!name || !email || !location || !password || !confirm) {
       alert("Please complete all sign-up fields before continuing.");
       return;
     }
-
     if (password.length < 6 || password !== confirm) {
       alert("Password must be at least 6 characters and match the confirmation field.");
       return;
     }
-
-    const userData = { name, email, location, password };
-    localStorage.setItem(`myshopzy_signup_${phone}`, JSON.stringify(userData));
+    customerAuthPurpose = "REGISTER";
+    pendingCustomerProfile = { name, email, location };
+    requestPath = "/register";
+    requestBody = { phone_e164: `+91${phone}`, display_name: name, email, password };
+  } else {
+    customerAuthPurpose = "LOGIN";
+    pendingCustomerProfile = null;
   }
 
-  const phoneStep = document.getElementById("loginStepPhone");
-  const otpStep = document.getElementById("loginStepOtp");
-
-  if (phoneStep) phoneStep.classList.add("hidden");
-  if (otpStep) otpStep.classList.remove("hidden");
-
-  const otpInput = document.getElementById("loginOtpInput");
-  if (otpInput) otpInput.value = "4821";
-
-  console.log("Demo OTP: 4821");
+  try {
+    const result = await customerAuthApiRequest(requestPath, {
+      method: "POST",
+      body: JSON.stringify(requestBody)
+    });
+    const phoneStep = document.getElementById("loginStepPhone");
+    const otpStep = document.getElementById("loginStepOtp");
+    if (phoneStep) phoneStep.classList.add("hidden");
+    if (otpStep) otpStep.classList.remove("hidden");
+    const otpInput = document.getElementById("loginOtpInput");
+    if (otpInput) otpInput.value = result.development_otp || "";
+  } catch (error) {
+    console.error("Customer verification request failed:", error);
+    alert(error.message);
+  }
 }
 
 
@@ -4610,50 +4639,53 @@ function sendCustomerLoginOtp() {
 // 42. VERIFY OTP
 // ==========================================
 
-function verifyCustomerLoginOtp() {
-
+async function verifyCustomerLoginOtp() {
   const phoneInput = document.getElementById("loginMobileInput");
   const otpInput = document.getElementById("loginOtpInput");
   const phone = normalizePhone(phoneInput ? phoneInput.value : "");
   const otp = otpInput ? otpInput.value.trim() : "";
-
   if (phone.length !== 10) {
     alert("Please enter a valid 10-digit mobile number.");
     return;
   }
-
-  if (otp !== "4821") {
-    alert("Invalid OTP.\n\nFor this demo use: 4821");
+  if (!/^\d{6}$/.test(otp)) {
+    alert("Enter the 6-digit verification code.");
     return;
   }
 
-  const signupMode = document.getElementById("signupExtraFields") && !document.getElementById("signupExtraFields").classList.contains("hidden");
-  const signupDetails = JSON.parse(localStorage.getItem(`myshopzy_signup_${phone}`) || "null");
+  try {
+    const result = await customerAuthApiRequest("/otp/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: `+91${phone}`, purpose: customerAuthPurpose, otp })
+    });
+    if (typeof result.access_token !== "string" || !result.access_token) {
+      throw new Error("The authentication service did not return a customer session.");
+    }
 
-  if (signupMode && signupDetails) {
+    localStorage.setItem("myshopzy_user_access_token", result.access_token);
+    activeCustomerSession = { phone, userId: result.user.id };
+    localStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
+    const profile = pendingCustomerProfile || {};
     localStorage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
-      name: signupDetails.name,
-      email: signupDetails.email,
-      defaultLocation: signupDetails.location,
-      password: signupDetails.password
+      name: result.user.display_name || profile.name || "MyShopzy Customer",
+      email: result.user.email || profile.email || "",
+      defaultLocation: profile.location || ""
     }));
+    pendingCustomerProfile = null;
+
+    savedAddresses = loadCustomerAddresses();
+    syncCustomerAddressesFromCloud();
+    closeLoginModal();
+    syncCustomerAuthUI();
+    syncCustomerGreetingUI();
+    syncAccountDashboard();
+    populateCheckoutAddressDropdown();
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    alert(`Logged in successfully as ${phone}!`);
+  } catch (error) {
+    console.error("Customer verification failed:", error);
+    alert(error.message);
   }
-
-  activeCustomerSession = { phone };
-  localStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
-
-  savedAddresses = loadCustomerAddresses();
-  syncCustomerAddressesFromCloud();
-
-  closeLoginModal();
-  syncCustomerAuthUI();
-  syncCustomerGreetingUI();
-  syncAccountDashboard();
-  populateCheckoutAddressDropdown();
-
-  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-
-  alert(`✅ Logged in successfully as ${phone}!`);
 }
 
 
@@ -4661,7 +4693,17 @@ function verifyCustomerLoginOtp() {
 // 43. LOGOUT
 // ==========================================
 
-function logoutCustomer() {
+async function logoutCustomer() {
+
+  try {
+    if (getCustomerAccessToken()) await customerAuthApiRequest("/logout", { method: "POST" });
+  } catch (error) {
+    console.warn("Customer logout request failed:", error.message);
+  }
+
+  localStorage.removeItem("myshopzy_user_access_token");
+  sessionStorage.removeItem("user_access_token");
+  localStorage.removeItem("user_access_token");
 
   localStorage.removeItem(
     "quickdash_customer"
