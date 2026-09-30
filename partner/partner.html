@@ -162,9 +162,15 @@
 
         <section id="partnerOrdersView" class="partner-page" hidden>
           <div class="partner-page-heading"><div><span class="eyebrow">FULFILLMENT</span><h2 id="partnerDeskTitle">Orders</h2><p class="partner-muted">Accept, prepare, and hand off orders to the rider.</p></div>
-            <label class="partner-select-label">Show <select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)"><option value="active">Active orders</option><option value="past">Past orders</option><option value="all">All orders</option></select></label>
+            <div class="partner-order-filters"><label class="partner-select-label">Status <select id="partnerOrderStatusFilter" onchange="setPartnerOrderStatusFilter(this.value)"><option value="ALL">All statuses</option><option value="NEW">New / pending</option><option value="PREPARING">Preparing</option><option value="READY_FOR_PICKUP">Ready for pickup</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></label><label class="partner-select-label">Show <select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)"><option value="active">Active orders</option><option value="past">Past orders</option><option value="all">All orders</option></select></label><button type="button" id="partnerOrderCsvButton" class="partner-button partner-button-outline" onclick="downloadPartnerOrdersCsv()">Download CSV</button><span id="partnerOrderCsvStatus" class="partner-order-export-status" role="status" aria-live="polite"></span></div>
           </div>
           <section class="partner-panel"><div id="partnerOrdersContainer" class="partner-order-list"><p class="partner-empty">Loading orders...</p></div></section>
+          <dialog id="partnerOrderDetailDialog" class="partner-modal partner-order-detail-dialog" aria-labelledby="partnerOrderDetailTitle">
+            <div class="partner-modal-panel partner-order-detail-panel">
+              <div class="partner-modal-heading"><div><span class="eyebrow">ORDER DETAILS</span><h2 id="partnerOrderDetailTitle">Order details</h2></div><button type="button" class="partner-modal-close" onclick="closePartnerOrderDetail()" aria-label="Close order details">×</button></div>
+              <div id="partnerOrderDetailContent" class="partner-order-detail-content"><p class="partner-order-detail-empty">Select an order to view details.</p></div>
+            </div>
+          </dialog>
         </section>
 
         <section id="partnerProductsView" class="partner-page" hidden>
@@ -216,7 +222,7 @@
         </section>
 
         <section id="partnerReportsView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">BUSINESS INSIGHTS</span><h2>Sales &amp; Reports</h2><p class="partner-muted">Sales totals come from delivered orders for this restaurant.</p></div></div>
+          <div class="partner-page-heading"><div><span class="eyebrow">BUSINESS INSIGHTS</span><h2>Sales &amp; Reports</h2><p class="partner-muted">Sales totals come from delivered orders for this restaurant.</p></div><div class="partner-report-actions"><p id="partnerReportUpdatedAt" class="partner-muted" role="status" aria-live="polite">Report time unavailable</p><button type="button" id="partnerReportCsvButton" class="partner-button partner-button-outline" onclick="downloadPartnerSalesReportCsv()">Download report CSV</button><span id="partnerReportCsvStatus" class="partner-order-export-status" role="status" aria-live="polite"></span></div></div>
           <div class="partner-dashboard-grid">
             <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Delivered Sales</h3><p>Delivered item value</p></div></div><strong id="partnerReportSales" class="partner-report-total">-</strong><p id="partnerReportSalesNote" class="partner-muted"></p></section>
             <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Order Summary</h3><p>Counts from the partner dashboard API</p></div></div><div id="partnerReportCounts" class="partner-report-counts"></div></section>

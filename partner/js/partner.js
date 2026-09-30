@@ -9,15 +9,23 @@ const partnerState = {
   shops: [],
   categories: [],
   dashboard: null,
+  reportDataUpdatedAt: null,
   inventory: [],
   orders: [],
   allOrders: [],
   products: [],
   orderBucket: "active",
+  orderStatusFilter: "ALL",
   selectedOrderId: "",
   orderRefreshTimer: null,
   orderRefreshInFlight: false,
-  notificationRefreshTimer: null,
+  orderStatusUpdating: new Set(),
+  orderStatusErrors: new Map(),
+  orderDetailRequestId: 0,
+  orderListRequestId: 0,
+  orderCsvDownloading: false,
+  reportCsvDownloading: false,
+  notificationRefreshInFlight: false,
   notifications: [],
   notificationsInitialized: false,
   seenNotificationIds: new Set(),
@@ -135,7 +143,7 @@ function isPartnerNotificationUnread(notification) {
 function formatPartnerNotificationTime(value) {
   const date = new Date(value);
   return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date)
+    ? `${new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(date)} IST`
     : "";
 }
 
@@ -164,7 +172,9 @@ function renderPartnerNotifications() {
 }
 
 async function refreshPartnerNotifications(announceNew = false) {
-  if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
+  if (!getPartnerAccessToken() || !partnerState.shopId || partnerState.notificationRefreshInFlight
+      || document.visibilityState === "hidden") return;
+  partnerState.notificationRefreshInFlight = true;
   const token = getPartnerAccessToken();
   const shopId = partnerState.shopId;
   try {
@@ -175,6 +185,9 @@ async function refreshPartnerNotifications(announceNew = false) {
       && !partnerState.seenNotificationIds.has(notification.id));
     if (announceNew && partnerState.notificationsInitialized) {
       newlyUnread.slice(0, 1).forEach(showPartnerNotificationToast);
+      if (newlyUnread.some(notification => ["partner.order.received", "partner.order.cancelled"].includes(notification.payload?.event))) {
+        refreshPartnerOrders();
+      }
     }
     notifications.forEach(notification => partnerState.seenNotificationIds.add(notification.id));
     partnerState.notifications = notifications;
@@ -182,18 +195,9 @@ async function refreshPartnerNotifications(announceNew = false) {
     renderPartnerNotifications();
   } catch (error) {
     console.warn("Partner notifications could not be loaded:", error.message);
+  } finally {
+    partnerState.notificationRefreshInFlight = false;
   }
-}
-
-function startPartnerNotificationRefresh() {
-  stopPartnerNotificationRefresh();
-  if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
-  partnerState.notificationRefreshTimer = window.setInterval(() => refreshPartnerNotifications(true), 15000);
-}
-
-function stopPartnerNotificationRefresh() {
-  if (partnerState.notificationRefreshTimer) window.clearInterval(partnerState.notificationRefreshTimer);
-  partnerState.notificationRefreshTimer = null;
 }
 
 function showPartnerNotificationToast(notification) {
@@ -250,7 +254,10 @@ async function openPartnerNotification(notificationId) {
   if (partnerState.shopId !== shop.id) await openPartnerDesk(shop.id);
   partnerState.selectedOrderId = orderId;
   document.getElementById("partnerOrderBucket").value = "all";
+  document.getElementById("partnerOrderStatusFilter").value = "ALL";
+  partnerState.orderStatusFilter = "ALL";
   navigatePartnerSection(null, "orders");
+  await openPartnerOrderDetail(orderId);
 }
 
 async function markAllPartnerNotificationsRead() {
@@ -346,6 +353,19 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
   const shop = partnerState.shops.find(item => item.id === shopId);
   if (!shop) return;
 
+  if (partnerState.shopId !== shop.id) {
+    partnerState.orderListRequestId += 1;
+    partnerState.orders = [];
+    partnerState.allOrders = [];
+    partnerState.orderBucket = "active";
+    partnerState.selectedOrderId = "";
+    partnerState.orderStatusFilter = "ALL";
+    partnerState.orderStatusErrors.clear();
+    document.getElementById("partnerOrderBucket").value = "active";
+    document.getElementById("partnerOrderStatusFilter").value = "ALL";
+    closePartnerOrderDetail();
+    renderPartnerOrders();
+  }
   partnerState.shopId = shop.id;
   partnerState.name = shop.partner_name || "Partner";
   partnerState.label = shop.name || "Partner shop";
@@ -359,13 +379,14 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
   document.getElementById("partnerSidebarScrim").hidden = true;
   renderPartnerShopStatus();
   await loadPartnerProfile();
+  navigatePartnerSection(null, "dashboard");
   startPartnerOrderRefresh();
-  startPartnerNotificationRefresh();
 }
 
 function closePartnerDesk() {
   stopPartnerOrderRefresh();
-  stopPartnerNotificationRefresh();
+  closePartnerOrderDetail();
+  partnerState.orderListRequestId += 1;
   partnerState.orderRefreshInFlight = false;
   partnerState.notifications = [];
   partnerState.notificationsInitialized = false;
@@ -479,7 +500,7 @@ function renderPartnerProducts(products) {
       <img src="${escapePartnerHtml(imageUrl)}" class="w-16 h-16 rounded-xl object-contain bg-slate-50" onerror="this.style.display='none'" alt="">
       <div class="flex-1 min-w-0"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[10px] text-slate-500 mt-1">${escapePartnerHtml(product.status)}</p></div><button type="button" onclick="togglePartnerProductStatus('${escapePartnerHtml(product.id)}','${product.status === "ACTIVE" ? "PAUSED" : "ACTIVE"}')" class="shrink-0 px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">${product.status === "ACTIVE" ? "Deactivate" : "Activate"}</button></div><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(product.description || "")}</p><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit product</button><button type="button" onclick="addPartnerVariant('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-cyan-50 text-cyan-900 text-[10px] font-black">Add variant</button></div><div class="mt-2 space-y-2">${variants.map(variant => `<div class="rounded-lg border border-slate-100 p-2"><div class="flex items-center justify-between gap-2"><div><strong class="text-[11px] text-slate-800">${escapePartnerHtml(variant.name || "Variant")}</strong><span class="ml-1 text-[10px] text-slate-500">${escapePartnerHtml(variant.unit_label || "Unit")}</span><p class="text-[11px] text-emerald-700">₹${Number(variant.price || 0).toFixed(2)} · Stock ${Number(variant.quantity_on_hand || 0)}</p></div><div class="flex gap-1"><button type="button" onclick="editPartnerVariant('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold">Edit</button><button type="button" onclick="savePartnerVariantAvailability('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}',${variant.is_active === false})" class="px-2 py-1 rounded bg-amber-50 text-amber-800 text-[10px] font-bold">${variant.is_active === false ? "Enable" : "Pause"}</button></div></div><div class="flex items-center gap-2 mt-2"><label class="text-[10px] text-slate-500">Stock <input id="partnerStock_${escapePartnerHtml(variant.id)}" type="number" min="0" step="0.001" value="${Number(variant.quantity_on_hand || 0)}" class="w-20 ml-1 px-2 py-1 border border-slate-200 rounded-lg"></label><button type="button" onclick="savePartnerInventory('${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black">Update stock</button></div></div>`).join("")}</div></div>
     </article>
-  `; }).join("") : '<div class="partner-products-empty"><p>No products added yet</p><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add Product</button></div>';
+  `; }).join("") : '<div class="partner-products-empty"><p>No products yet</p><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add Product</button></div>';
 
   if (!products.length) return;
   const cards = container.querySelectorAll("article");
@@ -701,14 +722,16 @@ async function deletePartnerProduct(productId) {
 }
 
 async function loadPartnerProfile() {
+  const shopId = partnerState.shopId;
   try {
     const [shop, dashboard, products, inventory, orders] = await Promise.all([
-      partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`),
-      partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/dashboard`),
-      partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products`),
-      partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/inventory`),
-      partnerApiRequest(`/orders?bucket=all&shop_id=${encodeURIComponent(partnerState.shopId)}`)
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}`),
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}/dashboard`),
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}/products`),
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}/inventory`),
+      partnerApiRequest(`/orders?bucket=all&shop_id=${encodeURIComponent(shopId)}`)
     ]);
+    if (shopId !== partnerState.shopId) return;
     const safeProducts = Array.isArray(products) ? products : [];
     const safeInventory = Array.isArray(inventory) ? inventory : [];
     const safeOrders = Array.isArray(orders) ? orders : [];
@@ -716,6 +739,7 @@ async function loadPartnerProfile() {
     partnerState.memberRole = partnerState.memberships.find(item => item.partner_id === shop.partner_id)?.member_role || "";
     partnerState.profileAddress = shop.address_line1 || "";
     partnerState.dashboard = dashboard;
+    partnerState.reportDataUpdatedAt = new Date();
     partnerState.products = safeProducts;
     partnerState.inventory = safeInventory;
     partnerState.allOrders = safeOrders;
@@ -739,6 +763,7 @@ async function loadPartnerProfile() {
     await refreshPartnerNotifications(false);
     renderPartnerShopStatus();
   } catch (error) {
+    if (shopId !== partnerState.shopId) return;
     console.error("Partner dashboard data could not be loaded:", error);
     document.getElementById("partnerRecentOrders").innerHTML = `<p class="partner-empty">${escapePartnerHtml(error.message)}</p>`;
     document.getElementById("partnerProductsContainer").innerHTML = `<p class="partner-empty">${escapePartnerHtml(error.message)}</p>`;
@@ -767,6 +792,12 @@ function renderPartnerDashboard(data) {
   document.getElementById("partnerStockQuantity").textContent = Number(data.stock_quantity || 0).toLocaleString("en-IN");
   document.getElementById("partnerCancelledOrders").textContent = cancelled.toLocaleString("en-IN");
   document.getElementById("partnerReportSales").textContent = formatPartnerCurrency(sales);
+  const reportUpdatedAt = document.getElementById("partnerReportUpdatedAt");
+  if (reportUpdatedAt) {
+    reportUpdatedAt.textContent = partnerState.reportDataUpdatedAt
+      ? `Data updated ${formatPartnerNotificationTime(partnerState.reportDataUpdatedAt)}`
+      : "Report time unavailable";
+  }
   document.getElementById("partnerReportSalesNote").textContent = sales > 0
     ? "Sum of item values on delivered orders."
     : "No sales data available.";
@@ -834,7 +865,7 @@ function renderPartnerDashboardLists() {
   const recent = partnerState.allOrders.slice(0, 5);
   recentContainer.innerHTML = recent.length
     ? recent.map(renderPartnerCompactOrder).join("")
-    : '<p class="partner-empty">No orders yet</p>';
+    : '<p class="partner-empty">No recent orders</p>';
 
   const live = partnerState.allOrders.filter(order => {
     const today = new Date();
@@ -863,7 +894,8 @@ function renderPartnerDashboardLists() {
 
 function renderPartnerCompactOrder(order) {
   const orderLabel = order.order_number || order.id;
-  return `<div class="partner-compact-row"><div class="partner-compact-main"><strong>${escapePartnerHtml(orderLabel)}</strong><small>${escapePartnerHtml(order.customer_name || "Customer")} · ${escapePartnerHtml(getPartnerStatus(order))}</small></div><span class="partner-compact-value">${formatPartnerCurrency(order.total_amount)}</span></div>`;
+  const placedAt = formatPartnerOrderDateTime(order.placed_at);
+  return `<div class="partner-compact-row"><div class="partner-compact-main"><strong>${escapePartnerHtml(orderLabel)}</strong><small>${escapePartnerHtml(order.customer_name || "Customer")} · ${escapePartnerHtml(getPartnerStatus(order))}</small><small>${escapePartnerHtml(placedAt.date)} · ${escapePartnerHtml(placedAt.time)} IST</small></div><span class="partner-compact-value">${formatPartnerCurrency(order.total_amount)}</span></div>`;
 }
 
 async function loadPartnerInventory() {
@@ -957,18 +989,199 @@ async function togglePartnerShopStatus() {
 }
 
 function getPartnerStatus(order) {
-  return order.status === "READY_FOR_PICKUP" ? "PACKED" : order.status || "PLACED";
+  return order.status || order.fulfillment_status || order.order_status || "PLACED";
 }
 
 function renderPartnerStatus(order) {
   const status = getPartnerStatus(order);
-  const nextStatus = { PLACED: "ACCEPTED", ACCEPTED: "PREPARING", PREPARING: "PACKED" }[status];
-  const statuses = [
-    ["ACCEPTED", "Accept"],
-    ["PREPARING", "Preparing"],
-    ["PACKED", "Ready for pickup"]
+  const nextAction = {
+    PLACED: ["ACCEPTED", "Accept order"],
+    ACCEPTED: ["PREPARING", "Start preparing"],
+    PREPARING: ["READY_FOR_PICKUP", "Ready for pickup"]
+  }[status];
+  if (!nextAction) return "";
+  const [nextStatus, label] = nextAction;
+  const updating = partnerState.orderStatusUpdating.has(order.id);
+  const error = partnerState.orderStatusErrors.get(order.id);
+  return `<div class="partner-order-action"><button type="button" class="partner-button partner-button-primary" ${updating ? "disabled" : ""} onclick="setPartnerStatus('${escapePartnerHtml(order.id)}', '${nextStatus}')">${updating ? "Updating..." : label}</button>${error ? `<p class="partner-order-error" role="alert">${escapePartnerHtml(error)}</p>` : ""}</div>`;
+}
+
+function formatPartnerOrderStatus(value) {
+  return String(value || "Status unavailable").replace(/_/g, " ").toLowerCase()
+    .replace(/\b[a-z]/g, letter => letter.toUpperCase());
+}
+
+function formatPartnerOrderTime(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(date)
+    : "Time unavailable";
+}
+
+function formatPartnerOrderDateTime(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return { date: "Date unavailable", time: "Time unavailable" };
+  return {
+    date: new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" }).format(date),
+    time: new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).format(date)
+  };
+}
+
+function escapePartnerCsvValue(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function buildPartnerOrdersCsv(orders) {
+  const columns = ["Order ID", "Date", "Time", "Customer", "Items", "Total", "Payment", "Status"];
+  const rows = (Array.isArray(orders) ? orders : []).map(order => {
+    const placed = formatPartnerOrderDateTime(order.placed_at);
+    const items = (Array.isArray(order.items) ? order.items : []).map(item =>
+      `${Number(item.quantity) || 0} x ${item.name || "Item"}${item.variant_name ? ` (${item.variant_name})` : ""}`
+    ).join("; ");
+    const total = Number(order.total_amount);
+    const payment = [order.payment_method, order.payment_status].filter(Boolean).join(" / ");
+    return [
+      order.order_number || order.id,
+      placed.date,
+      `${placed.time} IST`,
+      order.customer_name || "Customer",
+      items,
+      Number.isFinite(total) ? total.toFixed(2) : "",
+      payment,
+      formatPartnerOrderStatus(getPartnerStatus(order))
+    ];
+  });
+  return [columns, ...rows].map(row => row.map(escapePartnerCsvValue).join(",")).join("\r\n");
+}
+
+function buildPartnerSalesReportCsv(dashboard, orders, shopName, generatedAt) {
+  const summary = [
+    ["Metric", "Value"],
+    ["Restaurant", shopName || ""],
+    ["Report generated (IST)", formatPartnerNotificationTime(generatedAt)],
+    ["Order records included (API limit 100)", orders.length],
+    ["Pending orders", Number(dashboard.pending_orders) || 0],
+    ["Completed orders", Number(dashboard.completed_orders) || 0],
+    ["Cancelled orders", Number(dashboard.cancelled_orders) || 0],
+    ["Delivered sales (INR)", (Number(dashboard.delivered_item_value) || 0).toFixed(2)],
+    [],
+    ["Order ID", "Date", "Time", "Order Type", "Order Status", "Fulfillment Status", "Items", "Order Total (INR)", "Payment"]
   ];
-  return `<div class="flex gap-1 overflow-x-auto pt-2">${statuses.map(([key, label]) => `<button type="button" ${key !== nextStatus ? "disabled" : ""} onclick="setPartnerStatus('${escapePartnerHtml(order.id)}', '${key}')" class="px-2.5 py-1.5 rounded-lg border text-[10px] font-black shrink-0 ${status === key ? "bg-[#0B132B] text-white" : "bg-white text-slate-700"} ${key !== nextStatus ? "opacity-40" : ""}">${status === key ? "✓ " : ""}${label}</button>`).join("")}</div>`;
+  const rows = orders.map(order => {
+    const placed = formatPartnerOrderDateTime(order.placed_at);
+    const items = (Array.isArray(order.items) ? order.items : []).map(item =>
+      `${Number(item.quantity) || 0} x ${item.name || "Item"}${item.variant_name ? ` (${item.variant_name})` : ""}`
+    ).join("; ");
+    const total = Number(order.total_amount);
+    return [
+      order.order_number || order.id,
+      placed.date,
+      `${placed.time} IST`,
+      formatPartnerOrderStatus(order.order_type),
+      formatPartnerOrderStatus(order.order_status),
+      formatPartnerOrderStatus(getPartnerStatus(order)),
+      items,
+      Number.isFinite(total) ? total.toFixed(2) : "",
+      [order.payment_method, order.payment_status].filter(Boolean).join(" / ")
+    ];
+  });
+  return [...summary, ...rows].map(row => row.map(escapePartnerCsvValue).join(",")).join("\r\n");
+}
+
+function triggerPartnerCsvDownload(csv, filename) {
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+async function downloadPartnerOrdersCsv() {
+  const button = document.getElementById("partnerOrderCsvButton");
+  const message = document.getElementById("partnerOrderCsvStatus");
+  const shopId = partnerState.shopId;
+  const token = getPartnerAccessToken();
+  if (!shopId || !token || partnerState.orderCsvDownloading) return;
+
+  partnerState.orderCsvDownloading = true;
+  button.disabled = true;
+  button.textContent = "Preparing CSV...";
+  message.textContent = "Preparing the current shop's orders...";
+  try {
+    const rows = await partnerApiRequest(`/orders?bucket=all&shop_id=${encodeURIComponent(shopId)}`);
+    if (shopId !== partnerState.shopId || token !== getPartnerAccessToken()) return;
+    const orders = (Array.isArray(rows) ? rows : []).filter(order => order.shop_id === shopId);
+    const csv = buildPartnerOrdersCsv(orders);
+    triggerPartnerCsvDownload(csv, `myshopzy-orders-${new Date().toISOString().slice(0, 10)}.csv`);
+    message.textContent = `Downloaded CSV with ${orders.length} orders.`;
+  } catch (error) {
+    if (shopId === partnerState.shopId && token === getPartnerAccessToken()) {
+      message.textContent = error.message;
+    }
+  } finally {
+    partnerState.orderCsvDownloading = false;
+    button.disabled = false;
+    button.textContent = "Download CSV";
+  }
+}
+
+async function downloadPartnerSalesReportCsv() {
+  const button = document.getElementById("partnerReportCsvButton");
+  const message = document.getElementById("partnerReportCsvStatus");
+  const shopId = partnerState.shopId;
+  const token = getPartnerAccessToken();
+  if (!shopId || !token || partnerState.reportCsvDownloading) return;
+
+  partnerState.reportCsvDownloading = true;
+  button.disabled = true;
+  button.textContent = "Preparing...";
+  message.textContent = "Preparing this shop's report...";
+  try {
+    const [dashboard, rows] = await Promise.all([
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}/dashboard`),
+      partnerApiRequest(`/orders?bucket=all&shop_id=${encodeURIComponent(shopId)}`)
+    ]);
+    if (shopId !== partnerState.shopId || token !== getPartnerAccessToken()) return;
+    const orders = (Array.isArray(rows) ? rows : []).filter(order => order.shop_id === shopId);
+    const generatedAt = new Date();
+    const csv = buildPartnerSalesReportCsv(dashboard, orders, partnerState.label, generatedAt);
+    triggerPartnerCsvDownload(csv, `myshopzy-sales-report-${generatedAt.toISOString().slice(0, 10)}.csv`);
+    message.textContent = `Downloaded report with ${orders.length} orders.`;
+  } catch (error) {
+    if (shopId === partnerState.shopId && token === getPartnerAccessToken()) message.textContent = error.message;
+  } finally {
+    partnerState.reportCsvDownloading = false;
+    button.disabled = false;
+    button.textContent = "Download report CSV";
+  }
+}
+
+function formatPartnerOrderCurrency(value) {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function matchesPartnerOrderStatus(order) {
+  const status = getPartnerStatus(order);
+  switch (partnerState.orderStatusFilter) {
+    case "NEW": return ["PLACED", "ACCEPTED"].includes(status);
+    case "PREPARING": return status === "PREPARING";
+    case "READY_FOR_PICKUP": return status === "READY_FOR_PICKUP";
+    case "COMPLETED": return order.order_status === "DELIVERED" || status === "DELIVERED";
+    case "CANCELLED": return order.order_status === "CANCELLED" || status === "CANCELLED";
+    default: return true;
+  }
+}
+
+function setPartnerOrderStatusFilter(filter) {
+  partnerState.orderStatusFilter = filter;
+  const bucket = filter === "ALL" ? "all"
+    : ["COMPLETED", "CANCELLED"].includes(filter) ? "past" : "active";
+  document.getElementById("partnerOrderBucket").value = bucket;
+  startPartnerOrderListener(bucket);
 }
 
 function renderPartnerOrders() {
@@ -977,7 +1190,7 @@ function renderPartnerOrders() {
   const liveOrders = partnerState.allOrders.filter(order => ["PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP"].includes(order.order_status));
   const newCount = liveOrders.filter(order => ["PLACED", "ACCEPTED"].includes(getPartnerStatus(order))).length;
   const preparingCount = liveOrders.filter(order => getPartnerStatus(order) === "PREPARING").length;
-  const readyCount = liveOrders.filter(order => getPartnerStatus(order) === "PACKED").length;
+  const readyCount = liveOrders.filter(order => getPartnerStatus(order) === "READY_FOR_PICKUP").length;
   document.getElementById("partnerNewCount").textContent = newCount;
   document.getElementById("partnerPreparingCount").textContent = preparingCount;
   document.getElementById("partnerReadyCount").textContent = readyCount;
@@ -985,22 +1198,25 @@ function renderPartnerOrders() {
   navCount.textContent = liveOrders.length;
   navCount.hidden = liveOrders.length === 0;
 
-  const partnerOrders = partnerState.orders;
+  const partnerOrders = partnerState.orders.filter(matchesPartnerOrderStatus);
   if (!partnerOrders.length) {
-    container.innerHTML = '<p class="partner-empty">No orders yet</p>';
+    container.innerHTML = `<p class="partner-empty">${partnerState.orders.length ? "No orders match this filter" : "No orders yet"}</p>`;
     return;
   }
   container.innerHTML = partnerOrders.map(order => {
-    const items = (order.items || []).map(item => `${Number(item.quantity) || 0}x ${escapePartnerHtml(item.name)} · ${formatPartnerCurrency(item.price)}`).join("<br>");
+    const items = (order.items || []).map(item => `${Number(item.quantity) || 0}x ${escapePartnerHtml(item.name)}`).join("<br>");
     const isSelectedOrder = order.id === partnerState.selectedOrderId;
-    const pickupCodeAction = getPartnerStatus(order) === "PACKED"
+    const placedAt = formatPartnerOrderDateTime(order.placed_at);
+    const pickupCodeAction = getPartnerStatus(order) === "READY_FOR_PICKUP"
       ? `<div class="partner-pickup-code-action"><button type="button" id="partnerPickupCodeButton_${escapePartnerHtml(order.id)}" class="partner-button partner-button-outline" onclick="requestPartnerPickupCode('${escapePartnerHtml(order.id)}')">Send pickup code</button><p id="partnerPickupCodeMessage_${escapePartnerHtml(order.id)}" role="status" aria-live="polite"></p></div>`
       : "";
     return `<article id="partnerOrder_${escapePartnerHtml(order.id)}" tabindex="-1" class="partner-order-card ${isSelectedOrder ? "is-notification-target" : ""}">
-      <div class="partner-order-card-head"><div><h3>${escapePartnerHtml(order.order_number || order.id)}</h3><p>${escapePartnerHtml(order.customer_name || order.customer_phone || "Customer")}</p></div><span class="partner-order-badge">${escapePartnerHtml(getPartnerStatus(order))}</span></div>
+      <div class="partner-order-card-head"><div><h3>${escapePartnerHtml(order.order_number || order.id)}</h3><p>${escapePartnerHtml(order.customer_name || "Customer")}</p></div><span class="partner-order-badge">${escapePartnerHtml(formatPartnerOrderStatus(getPartnerStatus(order)))}</span></div>
+      <div class="partner-order-card-meta"><span>${escapePartnerHtml(formatPartnerOrderStatus(order.order_type))}</span><span>Date: ${escapePartnerHtml(placedAt.date)}</span><span>Time: ${escapePartnerHtml(placedAt.time)} IST</span><strong>${escapePartnerHtml(formatPartnerOrderCurrency(order.total_amount))}</strong></div>
       <p class="partner-order-items">${items || "No item details"}</p>
-      <p class="partner-order-address">Pickup: ${escapePartnerHtml(order.delivery_address || "Customer delivery address")}</p>
-      ${renderPartnerStatus(order)}
+      <div class="partner-order-card-meta"><span>Payment: ${escapePartnerHtml(formatPartnerOrderStatus(order.payment_status))}</span><span>Order: ${escapePartnerHtml(formatPartnerOrderStatus(order.order_status))}</span></div>
+      <p class="partner-order-address">Shop pickup: ${escapePartnerHtml(order.pickup_address || "Pickup location unavailable")}</p>
+      <div class="partner-order-card-actions"><button type="button" class="partner-button partner-button-outline" onclick="openPartnerOrderDetail('${escapePartnerHtml(order.id)}')">View details</button>${renderPartnerStatus(order)}</div>
       ${pickupCodeAction}
     </article>`;
   }).join("");
@@ -1014,14 +1230,65 @@ function renderPartnerOrders() {
   }
 }
 
+function renderPartnerOrderDetail(order) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  const placedAt = formatPartnerOrderDateTime(order.placed_at);
+  const itemRows = items.length ? items.map(item => {
+    const description = [item.name, item.variant_name, item.unit].filter(Boolean).map(escapePartnerHtml).join(" · ");
+    const quantity = Number(item.quantity) || 0;
+    const price = Number(item.price) || 0;
+    const lineTotal = item.line_total == null ? quantity * price : Number(item.line_total);
+    return `<div class="partner-order-detail-item"><span><strong>${description || "Item"}</strong><small>${quantity} × ${escapePartnerHtml(formatPartnerOrderCurrency(price))}</small></span><strong>${escapePartnerHtml(formatPartnerOrderCurrency(lineTotal))}</strong></div>`;
+  }).join("") : '<p class="partner-order-detail-empty">No item details are available.</p>';
+  const optionalAddress = order.delivery_address
+    ? `<section class="partner-order-detail-section"><h3>Delivery address</h3><p>${escapePartnerHtml(order.delivery_address)}</p></section>`
+    : "";
+  return `<div class="partner-order-detail-summary"><div><span>Order type</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.order_type))}</strong></div><div><span>Order status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.order_status))}</strong></div><div><span>Fulfillment status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.status))}</strong></div><div><span>Payment</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.payment_method))} · ${escapePartnerHtml(formatPartnerOrderStatus(order.payment_status))}</strong></div><div><span>Placed date</span><strong>${escapePartnerHtml(placedAt.date)}</strong></div><div><span>Placed time (IST)</span><strong>${escapePartnerHtml(placedAt.time)}</strong></div></div>
+    <section class="partner-order-detail-section"><h3>Items</h3><div class="partner-order-detail-items">${itemRows}</div></section>
+    <section class="partner-order-detail-section"><h3>Payment summary</h3><dl class="partner-order-totals"><div><dt>Subtotal</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.subtotal))}</dd></div><div><dt>Delivery charge</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.delivery_fee))}</dd></div><div><dt>Discount</dt><dd>−${escapePartnerHtml(formatPartnerOrderCurrency(order.discount_amount))}</dd></div><div><dt>Tax</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.tax_amount))}</dd></div><div class="is-total"><dt>Total</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.total_amount))}</dd></div></dl></section>
+    <section class="partner-order-detail-section"><h3>Shop pickup</h3><p>${escapePartnerHtml(order.pickup_address || "Pickup location unavailable")}</p></section>${optionalAddress}`;
+}
+
+async function openPartnerOrderDetail(orderId) {
+  const dialog = document.getElementById("partnerOrderDetailDialog");
+  const title = document.getElementById("partnerOrderDetailTitle");
+  const content = document.getElementById("partnerOrderDetailContent");
+  const shopId = partnerState.shopId;
+  const requestId = ++partnerState.orderDetailRequestId;
+  title.textContent = "Order details";
+  content.innerHTML = '<p class="partner-order-detail-empty">Loading order details...</p>';
+  if (!dialog.open) dialog.showModal();
+  try {
+    const result = await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}?shop_id=${encodeURIComponent(shopId)}`);
+    if (requestId !== partnerState.orderDetailRequestId || !dialog.open || shopId !== partnerState.shopId) return;
+    const order = (Array.isArray(result) ? result : []).find(item => item.shop_id === shopId);
+    if (!order) throw new Error("Order not found for this shop.");
+    title.textContent = order.order_number || "Order details";
+    content.innerHTML = renderPartnerOrderDetail(order);
+  } catch (error) {
+    if (requestId !== partnerState.orderDetailRequestId || !dialog.open) return;
+    content.innerHTML = `<p class="partner-order-detail-empty" role="alert">${escapePartnerHtml(error.message)}</p>`;
+  }
+}
+
+function closePartnerOrderDetail() {
+  partnerState.orderDetailRequestId += 1;
+  const dialog = document.getElementById("partnerOrderDetailDialog");
+  if (dialog?.open) dialog.close();
+}
+
 async function startPartnerOrderListener(bucket = partnerState.orderBucket) {
   partnerState.orderBucket = bucket;
+  const shopId = partnerState.shopId;
+  const requestId = ++partnerState.orderListRequestId;
   try {
-    const orders = await partnerApiRequest(`/orders?bucket=${encodeURIComponent(bucket)}&shop_id=${encodeURIComponent(partnerState.shopId)}`);
+    const orders = await partnerApiRequest(`/orders?bucket=${encodeURIComponent(bucket)}&shop_id=${encodeURIComponent(shopId)}`);
+    if (requestId !== partnerState.orderListRequestId || shopId !== partnerState.shopId) return;
     partnerState.orders = Array.isArray(orders) ? orders : [];
     if (bucket === "all") partnerState.allOrders = partnerState.orders;
     renderPartnerOrders();
   } catch (error) {
+    if (requestId !== partnerState.orderListRequestId || shopId !== partnerState.shopId) return;
     console.error("Partner order API failed:", error);
     document.getElementById("partnerOrdersContainer").innerHTML = `<p class="text-center text-rose-500 py-10 text-xs">${escapePartnerHtml(error.message)}</p>`;
   }
@@ -1031,7 +1298,10 @@ function startPartnerOrderRefresh() {
   if (partnerState.orderRefreshTimer) window.clearInterval(partnerState.orderRefreshTimer);
   partnerState.orderRefreshTimer = null;
   if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
-  partnerState.orderRefreshTimer = window.setInterval(refreshPartnerOrders, 15000);
+  partnerState.orderRefreshTimer = window.setInterval(() => {
+    refreshPartnerOrders();
+    refreshPartnerNotifications(true);
+  }, 15000);
 }
 
 function stopPartnerOrderRefresh() {
@@ -1042,14 +1312,12 @@ function stopPartnerOrderRefresh() {
 function handlePartnerVisibilityChange() {
   if (document.visibilityState === "hidden") {
     stopPartnerOrderRefresh();
-    stopPartnerNotificationRefresh();
     return;
   }
   if (getPartnerAccessToken() && partnerState.shopId) {
     refreshPartnerOrders();
-    startPartnerOrderRefresh();
     refreshPartnerNotifications(true);
-    startPartnerNotificationRefresh();
+    startPartnerOrderRefresh();
   }
 }
 
@@ -1066,6 +1334,7 @@ async function refreshPartnerOrders() {
     if (shopId !== partnerState.shopId) return;
     partnerState.allOrders = Array.isArray(orders) ? orders : [];
     partnerState.dashboard = dashboard;
+    partnerState.reportDataUpdatedAt = new Date();
     const activeStatuses = new Set(["DRAFT", "PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"]);
     const pastStatuses = new Set(["DELIVERED", "CANCELLED", "REJECTED"]);
     partnerState.orders = partnerState.orderBucket === "past"
@@ -1087,6 +1356,7 @@ async function requestPartnerPickupCode(orderId) {
   const button = document.getElementById(`partnerPickupCodeButton_${orderId}`);
   if (!partnerState.shopId || !orderId) return;
   if (button) button.disabled = true;
+  if (button) button.textContent = "Sending...";
   if (message) message.textContent = "Sending code to the restaurant contact...";
   try {
     await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}/shops/${encodeURIComponent(partnerState.shopId)}/pickup-otp`, {
@@ -1096,20 +1366,29 @@ async function requestPartnerPickupCode(orderId) {
   } catch (error) {
     if (message) message.textContent = error.message;
   } finally {
-    if (button) button.disabled = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Send pickup code";
+    }
   }
 }
 
 async function setPartnerStatus(orderId, status) {
+  if (!partnerState.shopId || partnerState.orderStatusUpdating.has(orderId)) return;
+  partnerState.orderStatusUpdating.add(orderId);
+  partnerState.orderStatusErrors.delete(orderId);
+  renderPartnerOrders();
   try {
     await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}/shops/${encodeURIComponent(partnerState.shopId)}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status })
     });
-    await loadPartnerProfile();
+    await startPartnerOrderListener(partnerState.orderBucket);
   } catch (error) {
-    console.error("Partner order status update failed:", error);
-    alert(`Unable to update order: ${error.message}`);
+    partnerState.orderStatusErrors.set(orderId, error.message);
+  } finally {
+    partnerState.orderStatusUpdating.delete(orderId);
+    renderPartnerOrders();
   }
 }
 
@@ -1132,7 +1411,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", handlePartnerVisibilityChange);
   window.addEventListener("beforeunload", () => {
     stopPartnerOrderRefresh();
-    stopPartnerNotificationRefresh();
     dismissPartnerToast();
   });
 });
