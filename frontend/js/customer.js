@@ -2591,7 +2591,7 @@ const categoryDefaultImages = {
   paan: "https://images.pexels.com/photos/103124/pexels-photo-103124.jpeg?auto=compress&cs=tinysrgb&w=150",
   dairy: "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=150",
   veggies: "https://images.pexels.com/photos/144248/potatoes-vegetables-erdfrucht-bio-144248.jpeg?auto=compress&cs=tinysrgb&w=150",
-  drinks: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Coca-Cola_can_-_2020.jpg/220px-Coca-Cola_can_-_2020.jpg",
+  drinks: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=300&q=80",
   snacks: "https://images.pexels.com/photos/568805/pexels-photo-568805.jpeg?auto=compress&cs=tinysrgb&w=150",
   breakfast: "https://images.pexels.com/photos/884600/pexels-photo-884600.jpeg?auto=compress&cs=tinysrgb&w=150",
   sweets: "https://images.pexels.com/photos/65882/chocolate-dark-coffee-confiserie-65882.jpeg?auto=compress&cs=tinysrgb&w=150",
@@ -2646,13 +2646,21 @@ const defaultHeroFeatureSlides = [
 
 let selectedCategoryPreviewId = "";
 
-function openCategoryPage(categoryId, categoryName = "") {
+function openCategoryPage(categoryId, categoryName = "", trigger = null) {
   const category = customerDatabaseCategories?.find(item => item.id === categoryId || item.slug === categoryId)
     || categories.find(item => item.id === categoryId);
+  if (categoryId === "restaurants" || category?.slug === "restaurants") {
+    window.location.href = "service.html?type=restaurant";
+    return;
+  }
   const categorySlug = category?.slug || categoryId;
   const query = new URLSearchParams({ type: "category", categorySlug });
   const name = category?.name || categoryName;
   if (name) query.set("categoryName", name);
+  if (trigger instanceof HTMLElement) {
+    trigger.classList.add("category-navigation-pending");
+    trigger.setAttribute("aria-busy", "true");
+  }
   window.location.href = `service.html?${query.toString()}`;
 }
 
@@ -2673,7 +2681,7 @@ function refreshCategoryPreviewProduct(productId) {
 }
 
 function renderCategoryPreviewProduct(product) {
-  const quantity = product.isDemo ? 0 : cartState[product.id] || 0;
+  const quantity = cartState[product.id] || 0;
   const productId = escapeAttribute(product.id);
   const unit = product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit || "1 pc";
   const price = getProductPrice(product, getSelectedProductWeight(product));
@@ -2682,14 +2690,12 @@ function renderCategoryPreviewProduct(product) {
 
   return `<article data-category-product-id="${productId}" class="min-w-0 category-product-card rounded-xl bg-white p-2 shadow-sm transition ${selectedClass}">
     <button type="button" data-preview-select onclick="selectCategoryPreview('${productId}')" aria-pressed="${selected}" class="block w-full text-left">
-      <div class="relative flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2"><img src="${escapeAttribute(product.image_url || "")}" alt="${escapeAttribute(product.name || "Product")}" loading="lazy" class="max-h-full max-w-full object-contain" onerror="this.classList.add('hidden')">${product.isDemo ? '<span class="absolute bottom-1 right-1 rounded bg-slate-800/80 px-1 text-[8px] font-black text-white">DEMO</span>' : ""}</div>
+      <div class="relative flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2"><img src="${escapeAttribute(product.image_url || "")}" alt="${escapeAttribute(product.name || "Product")}" loading="lazy" class="max-h-full max-w-full object-contain" onerror="this.classList.add('hidden')"></div>
       <p class="mt-2 truncate text-[10px] font-semibold text-slate-500">${escapeHtml(unit)}</p>
       <h4 class="mt-1 line-clamp-2 min-h-8 text-[11px] font-bold text-slate-900">${escapeHtml(product.name || "Product")}</h4>
     </button>
     <div class="mt-2 flex items-center justify-between gap-1"><strong class="text-xs font-black text-slate-900">₹${price}</strong>
-      ${product.isDemo
-        ? `<button type="button" data-preview-select onclick="selectCategoryPreview('${productId}')" aria-pressed="${selected}" class="rounded-lg border-2 border-emerald-700 bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-800">DEMO</button>`
-        : quantity === 0
+      ${quantity === 0
         ? `<button type="button" onclick="modifyCart('${productId}', 1)" class="rounded-lg border-2 border-emerald-700 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">ADD</button>`
         : `<div class="flex items-center gap-2 rounded-lg bg-emerald-700 px-2 py-1 text-[10px] font-black text-white"><button type="button" aria-label="Remove one" onclick="modifyCart('${productId}', -1)">-</button><span>${quantity}</span><button type="button" aria-label="Add one" onclick="modifyCart('${productId}', 1)">+</button></div>`}
     </div>
@@ -2702,25 +2708,15 @@ function renderCustomerCategoryPreviews() {
 
   container.innerHTML = categories.map(category => {
     const products = liveCatalog.filter(product => product.category === category.id).slice(0, 6);
-    const imageUrl = customerCategoryImages[category.id] || category.image_url || categoryDefaultImages[category.id] || "";
-    const demoProducts = Array.from({ length: 4 }, (_, index) => ({
-      id: `demo-${category.id}-${index + 1}`,
-      name: `${category.name} Demo ${index + 1}`,
-      category: category.id,
-      price: 49 + index * 20,
-      qty_value: 1,
-      qty_unit: "pc",
-      image_url: imageUrl,
-      isDemo: true
-    }));
-    while (products.length < 4) products.push(demoProducts[products.length]);
 
     return `<section class="space-y-3">
       <div class="flex items-center justify-between gap-2">
-        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="min-w-0 truncate text-left text-sm font-black text-slate-900">${escapeHtml(category.name)}</button>
-        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}')" class="shrink-0 text-[10px] font-black text-emerald-700">View all →</button>
+        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}', this)" class="min-w-0 truncate text-left text-sm font-black text-slate-900">${escapeHtml(category.name)}</button>
+        <button type="button" onclick="openCategoryPage('${escapeAttribute(category.id)}', '${escapeAttribute(category.name)}', this)" class="shrink-0 text-[10px] font-black text-emerald-700">View all →</button>
       </div>
-      <div class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3">${products.map(renderCategoryPreviewProduct).join("")}</div>
+      ${products.length
+        ? `<div class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3">${products.map(renderCategoryPreviewProduct).join("")}</div>`
+        : '<p class="rounded-xl border border-slate-200 bg-white px-3 py-5 text-center text-xs text-slate-500">No products available in this category yet.</p>'}
     </section>`;
   }).join("");
 }
@@ -2736,7 +2732,7 @@ function renderCustomerCategoryTiles() {
   container.innerHTML = tileCategories.map(category => {
     const categorySlug = category.slug || category.id;
     const imageUrl = customerCategoryImages[category.id] || customerCategoryImages[categorySlug] || category.image_url || categoryDefaultImages[category.id] || categoryDefaultImages[categorySlug] || '';
-    return `<button type="button" onclick="openCategoryPage('${escapeAttribute(categorySlug)}', '${escapeAttribute(category.name)}')" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
+    return `<button type="button" onclick="openCategoryPage('${escapeAttribute(categorySlug)}', '${escapeAttribute(category.name)}', this)" class="cat-card group flex min-h-[125px] flex-col items-center justify-between rounded-2xl border border-slate-200 bg-white p-2 text-center transition hover:border-emerald-500 hover:shadow-md">
       <span class="flex h-16 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-1"><img src="${escapeAttribute(imageUrl)}" alt="${escapeAttribute(category.name)}" class="max-h-full object-contain transition group-hover:scale-105" onerror="this.classList.add('hidden')"></span>
       <span class="mt-1 text-[11px] font-bold leading-tight text-slate-800">${escapeHtml(category.name)}</span>
     </button>`;
@@ -3038,23 +3034,91 @@ function renderWeightOptions(product) {
   </div>`;
 }
 
-function loadCustomerRestaurants() {
+const CUSTOMER_RESTAURANT_FALLBACK_IMAGE = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80";
+
+function resolveRestaurantAvailabilityLabel(restaurant) {
+  const candidates = [
+    restaurant?.status,
+    restaurant?.shop_status,
+    restaurant?.availability_status,
+    restaurant?.current_status,
+    restaurant?.is_open,
+    restaurant?.is_open_now,
+    restaurant?.is_active,
+    restaurant?.is_enabled,
+    restaurant?.is_closed,
+    restaurant?.closed,
+    restaurant?.availability?.status,
+    restaurant?.hours?.status
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "boolean") {
+      return { label: candidate ? "Open" : "Closed", tone: candidate ? "open" : "closed" };
+    }
+
+    if (typeof candidate === "string") {
+      const normalized = candidate.trim().toUpperCase();
+      if (["OPEN", "AVAILABLE", "ACTIVE", "ONLINE", "ENABLED", "READY"].includes(normalized)) {
+        return { label: "Open", tone: "open" };
+      }
+      if (["CLOSED", "UNAVAILABLE", "INACTIVE", "OFFLINE", "PAUSED", "SUSPENDED", "DISABLED"].includes(normalized)) {
+        return { label: "Closed", tone: "closed" };
+      }
+    }
+  }
+
+  return { label: "Availability not provided", tone: "unknown" };
+}
+
+function renderRestaurantAvailabilityPill(restaurant) {
+  const availability = resolveRestaurantAvailabilityLabel(restaurant);
+  const toneClasses = availability.tone === "open"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : availability.tone === "closed"
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : "border-slate-200 bg-slate-50 text-slate-500";
+
+  return `<span class="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black ${toneClasses}">${escapeHtml(availability.label)}</span>`;
+}
+
+function openRestaurantListing() {
+  window.location.href = "service.html?type=restaurant";
+}
+
+function openRestaurantMenu(shopId) {
+  if (!shopId) return;
+  window.location.href = `service.html?type=restaurant&shopId=${encodeURIComponent(shopId)}`;
+}
+
+function renderCustomerRestaurantCard(restaurant) {
+  const description = restaurant.cuisine || restaurant.description || "Restaurant menu";
+  return `<button type="button" onclick="openRestaurantMenu('${escapeAttribute(restaurant.id)}')" class="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-amber-400">
+    <img src="${CUSTOMER_RESTAURANT_FALLBACK_IMAGE}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover">
+    <span class="min-w-0 flex-1"><strong class="block truncate text-sm font-black text-slate-900">${escapeHtml(restaurant.name || "Restaurant")}</strong><span class="mt-1 block truncate text-[11px] text-slate-500">${escapeHtml(description)}</span>${renderRestaurantAvailabilityPill(restaurant)}</span>
+    <span class="shrink-0 text-[10px] font-black text-emerald-700">View menu ↗</span>
+  </button>`;
+}
+
+async function loadCustomerRestaurants() {
   const directory = document.getElementById('restaurantDirectory');
   if (!directory) return;
-  db.collection('restaurants').onSnapshot(snapshot => {
-    const restaurants = [];
-    snapshot.forEach(doc => restaurants.push({ id: doc.id, ...doc.data() }));
-    const nearby = restaurants.filter(item => Number(item.distance_km) <= 25);
-    serviceRestaurants = nearby;
+  directory.setAttribute("aria-busy", "true");
+  try {
+    const result = await fetchCustomerContent("/shops");
+    serviceRestaurants = Array.isArray(result.data)
+      ? result.data.filter(shop => String(shop.business_type || "").toUpperCase() === "RESTAURANT")
+      : [];
+    directory.removeAttribute("aria-busy");
     renderServiceRestaurantList();
-    if (!nearby.length) return;
-    directory.innerHTML = nearby.map(item => `
-      <button onclick="selectRestaurant('${escapeAttribute(item.id)}', '${escapeAttribute(item.name)}')" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
-        <img src="${escapeAttribute(item.image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80')}" alt="${escapeAttribute(item.name)}" class="w-20 h-20 rounded-xl object-cover">
-        <span><strong class="block text-sm font-black text-slate-900">${escapeHtml(item.name)}</strong><span class="block text-[11px] text-slate-500 mt-1">${escapeHtml(item.cuisine || 'Restaurant menu')}</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">${Number(item.distance_km).toFixed(1)} km · 25-45 min</span></span>
-      </button>
-    `).join('');
-  }, error => console.error('Restaurant directory error:', error));
+    directory.innerHTML = serviceRestaurants.length
+      ? serviceRestaurants.map(renderCustomerRestaurantCard).join("")
+      : '<p class="col-span-full rounded-xl border border-slate-200 bg-white p-4 text-center text-xs text-slate-500">No restaurants available yet.</p>';
+  } catch (error) {
+    console.error("Customer restaurant listing failed:", error);
+    directory.removeAttribute("aria-busy");
+    directory.innerHTML = '<p class="col-span-full rounded-xl border border-rose-200 bg-white p-4 text-xs text-rose-600">Unable to load restaurants right now.</p>';
+  }
 }
 
 function showServiceSection(section) {
@@ -3095,19 +3159,18 @@ function renderServiceRestaurantList() {
   }
 
   container.innerHTML = serviceRestaurants.map(restaurant => {
-    const dishes = liveCatalog.filter(product => product.category === "restaurants" && product.restaurant_id === restaurant.id);
-    const dishMarkup = dishes.length ? dishes.map(dish => `
-      <button type="button" onclick="openServiceDish('${escapeAttribute(dish.id)}')" class="min-w-[138px] text-left bg-white border border-slate-200 rounded-xl p-2 shadow-sm">
-        <img src="${escapeAttribute(dish.image_url || "")}" alt="${escapeAttribute(dish.name || "Dish")}" class="w-full h-20 rounded-lg object-contain bg-slate-50" onerror="this.style.display='none'">
-        <span class="block mt-1 text-[10px] font-bold text-slate-800 line-clamp-2">${escapeHtml(dish.name || "Dish")}</span>
-        <span class="block mt-1 text-[10px] font-black text-slate-900">₹${Number(dish.price || 0)}</span>
-      </button>
-    `).join("") : '<p class="text-[11px] text-slate-400 py-3">Menu items are being updated.</p>';
+    const dishMarkup = '<p class="text-[11px] text-slate-400 py-3">Menu items are being updated.</p>';
+    const availability = resolveRestaurantAvailabilityLabel(restaurant);
+    const statusClass = availability.tone === "open"
+      ? "text-emerald-700"
+      : availability.tone === "closed"
+        ? "text-rose-700"
+        : "text-slate-500";
     return `
       <article class="bg-white border border-slate-200 rounded-2xl p-3">
         <button type="button" onclick="selectRestaurant('${escapeAttribute(restaurant.id)}', '${escapeAttribute(restaurant.name || "Restaurant")}')" class="flex items-center gap-3 text-left">
           <img src="${escapeAttribute(restaurant.image_url || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80")}" alt="${escapeAttribute(restaurant.name || "Restaurant")}" class="w-16 h-16 rounded-xl object-cover">
-          <span><strong class="block text-sm font-black text-slate-900">${escapeHtml(restaurant.name || "Restaurant")}</strong><span class="block text-[11px] text-slate-500 mt-1">${escapeHtml(restaurant.cuisine || "Restaurant menu")}</span><span class="block text-[10px] font-black text-emerald-700 mt-1">${Number(restaurant.distance_km || 0).toFixed(1)} km · 25-45 min</span></span>
+          <span><strong class="block text-sm font-black text-slate-900">${escapeHtml(restaurant.name || "Restaurant")}</strong><span class="block text-[11px] text-slate-500 mt-1">${escapeHtml(restaurant.cuisine || "Restaurant menu")}</span><span class="mt-1 block text-[10px] font-black ${statusClass}">${escapeHtml(availability.label)}</span><span class="block text-[10px] font-black text-slate-700 mt-1">${Number(restaurant.distance_km || 0).toFixed(1)} km · 25-45 min</span></span>
         </button>
         <div class="relative mt-3">
           <button type="button" onclick="scrollServiceDishes(this, -1)" aria-label="Previous dishes" class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-[#0B132B] text-white text-xs font-black">‹</button>
@@ -3582,14 +3645,8 @@ function scrollToProducts(productsGrid) {
   requestAnimationFrame(animateScroll);
 }
 
-function selectRestaurant(restaurantId, restaurantName) {
-  activeCategory = "restaurants";
-  activeRestaurantId = restaurantId;
-  const heading = document.getElementById("categoryHeading");
-  if (heading) heading.innerText = `${restaurantName} Menu`;
-  filterAndRender();
-  const productsGrid = document.getElementById("productsGrid");
-  if (productsGrid) scrollToProducts(productsGrid);
+function selectRestaurant(restaurantId) {
+  openRestaurantMenu(restaurantId);
 }
 
 

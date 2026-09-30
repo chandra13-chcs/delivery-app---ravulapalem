@@ -264,23 +264,14 @@
     <div class="flex items-end justify-between gap-3 mb-3.5">
       <div>
         <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Restaurants near Mandapeta</h3>
-        <p class="text-[11px] text-slate-400 font-semibold">Fresh meals delivered from restaurants within 25 KM</p>
+        <p class="text-[11px] text-slate-400 font-semibold">Browse available restaurant menus</p>
       </div>
-      <button onclick="selectCategory('restaurants', this)" class="shrink-0 px-3 py-1.5 bg-[#0B132B] text-white rounded-xl text-[10px] font-black">Browse menus</button>
+      <button type="button" onclick="openRestaurantListing()" class="shrink-0 px-3 py-1.5 bg-[#0B132B] text-white rounded-xl text-[10px] font-black">Browse menus</button>
     </div>
-    <div id="restaurantDirectory" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
-        <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" alt="RTC Family Restaurant" class="w-20 h-20 rounded-xl object-cover">
-        <span><strong class="block text-sm font-black text-slate-900">RTC Family Restaurant</strong><span class="block text-[11px] text-slate-500 mt-1">South Indian · Meals · Biryani</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">1.8 km · 25-35 min</span></span>
-      </button>
-      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
-        <img src="https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=300" alt="Godavari Spice Kitchen" class="w-20 h-20 rounded-xl object-cover">
-        <span><strong class="block text-sm font-black text-slate-900">Godavari Spice Kitchen</strong><span class="block text-[11px] text-slate-500 mt-1">Andhra meals · Seafood · Tiffins</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">4.6 km · 30-40 min</span></span>
-      </button>
-      <button onclick="selectCategory('restaurants', this)" class="text-left p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-amber-400 transition flex gap-3">
-        <img src="https://images.pexels.com/photos/67468/pexels-photo-67468.jpeg?auto=compress&cs=tinysrgb&w=300" alt="Riverbank Cafe" class="w-20 h-20 rounded-xl object-cover">
-        <span><strong class="block text-sm font-black text-slate-900">Riverbank Cafe</strong><span class="block text-[11px] text-slate-500 mt-1">Chinese · Snacks · Beverages</span><span class="inline-block mt-2 text-[10px] font-black text-emerald-700">8.2 km · 35-45 min</span></span>
-      </button>
+    <div id="restaurantDirectory" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite" aria-busy="true">
+      <div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div>
+      <div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div>
+      <div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div>
     </div>
   </section>
 
