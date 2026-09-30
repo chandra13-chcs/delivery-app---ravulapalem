@@ -345,7 +345,7 @@ a { color: inherit; text-decoration: none; }
   .partner-topbar-title { min-width: 0; flex: 1; }
   .partner-topbar-title h1 { font-size: 15px; }
   .partner-notification-button { width: 34px; height: 34px; }
-  .partner-notification-panel { position: fixed; top: 70px; right: 12px; width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 86px); }
+  .partner-notification-panel { position: fixed; top: 70px; right: 12px; width: min(380px, calc(100vw - 48px)); max-height: calc(100vh - 86px); }
   .partner-notification-toast { right: 12px; bottom: 12px; }
   .partner-topbar-shop { display: grid; grid-template-columns: 1fr auto; gap: 4px 7px; justify-items: end; }
   .partner-topbar-shop label { display: none; }

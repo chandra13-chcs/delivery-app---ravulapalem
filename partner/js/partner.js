@@ -17,6 +17,7 @@ const partnerState = {
   selectedOrderId: "",
   orderRefreshTimer: null,
   orderRefreshInFlight: false,
+  notificationRefreshTimer: null,
   notifications: [],
   notificationsInitialized: false,
   seenNotificationIds: new Set(),
@@ -184,6 +185,17 @@ async function refreshPartnerNotifications(announceNew = false) {
   }
 }
 
+function startPartnerNotificationRefresh() {
+  stopPartnerNotificationRefresh();
+  if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
+  partnerState.notificationRefreshTimer = window.setInterval(() => refreshPartnerNotifications(true), 15000);
+}
+
+function stopPartnerNotificationRefresh() {
+  if (partnerState.notificationRefreshTimer) window.clearInterval(partnerState.notificationRefreshTimer);
+  partnerState.notificationRefreshTimer = null;
+}
+
 function showPartnerNotificationToast(notification) {
   const toast = document.getElementById("partnerNotificationToast");
   if (!toast) return;
@@ -348,10 +360,12 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
   renderPartnerShopStatus();
   await loadPartnerProfile();
   startPartnerOrderRefresh();
+  startPartnerNotificationRefresh();
 }
 
 function closePartnerDesk() {
   stopPartnerOrderRefresh();
+  stopPartnerNotificationRefresh();
   partnerState.orderRefreshInFlight = false;
   partnerState.notifications = [];
   partnerState.notificationsInitialized = false;
@@ -1028,11 +1042,14 @@ function stopPartnerOrderRefresh() {
 function handlePartnerVisibilityChange() {
   if (document.visibilityState === "hidden") {
     stopPartnerOrderRefresh();
+    stopPartnerNotificationRefresh();
     return;
   }
   if (getPartnerAccessToken() && partnerState.shopId) {
     refreshPartnerOrders();
     startPartnerOrderRefresh();
+    refreshPartnerNotifications(true);
+    startPartnerNotificationRefresh();
   }
 }
 
@@ -1058,7 +1075,6 @@ async function refreshPartnerOrders() {
         : partnerState.allOrders.filter(order => activeStatuses.has(order.order_status));
     renderPartnerDashboard(dashboard);
     renderPartnerOrders();
-    await refreshPartnerNotifications(true);
   } catch (error) {
     console.warn("Partner order refresh failed:", error.message);
   } finally {
@@ -1116,6 +1132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", handlePartnerVisibilityChange);
   window.addEventListener("beforeunload", () => {
     stopPartnerOrderRefresh();
+    stopPartnerNotificationRefresh();
     dismissPartnerToast();
   });
 });
