@@ -3,109 +3,226 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyShopzy Partner Console</title>
+  <title>MyShopzy | Partner Restaurant Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="../frontend/css/style.css">
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="../backend/firebase-config.js"></script>
+  <link rel="stylesheet" href="css/partner.css">
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans antialiased min-h-screen pb-10">
-  <header class="bg-[#0B132B] text-white px-4 py-3.5 sticky top-0 z-30 shadow-md">
-    <div class="max-w-3xl mx-auto flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">⚡</div>
-        <div><h1 class="text-xs font-black uppercase tracking-wider text-cyan-300">MyShopzy Partner Console</h1><p id="partnerHeaderSubtitle" class="text-[11px] text-slate-300">Restaurant and meat order desk</p></div>
+<body class="partner-body">
+  <section id="partnerSetup" class="partner-login-screen">
+    <div class="partner-login-brand">
+      <a class="partner-brand" href="../frontend/index.html" aria-label="MyShopzy home">
+        <span class="partner-brand-mark">M</span>
+        <span><strong>MyShopzy</strong><small>Restaurant partner</small></span>
+      </a>
+      <div class="partner-login-copy">
+        <span class="eyebrow">PARTNER PORTAL</span>
+        <h1>Your restaurant,<br>in good hands.</h1>
+        <p>Manage your menu, inventory and orders from one place.</p>
       </div>
-      <a href="../admin/admin.html" class="px-2.5 py-1.5 rounded-xl bg-[#1C2541] border border-slate-700 text-[10px] font-bold">Main Admin</a>
+      <p class="partner-login-footnote">Secure sign-in with your registered mobile number.</p>
     </div>
-  </header>
+    <div class="partner-login-content">
+      <form id="partnerLoginForm" class="partner-login-form" onsubmit="requestPartnerLoginCode(event)">
+        <span class="eyebrow">WELCOME BACK</span>
+        <h2>Sign in to your console</h2>
+        <p class="partner-muted">Enter the mobile number linked to your partner account.</p>
+        <label for="partnerLoginPhone">Mobile number</label>
+        <input id="partnerLoginPhone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+91 mobile number">
+        <div id="partnerOtpField" class="partner-form-row" hidden>
+          <label for="partnerLoginOtp">Verification code</label>
+          <input id="partnerLoginOtp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code">
+        </div>
+        <button id="partnerRequestOtpButton" type="submit" class="partner-button partner-button-primary">Send verification code</button>
+        <button id="partnerVerifyOtpButton" type="button" onclick="verifyPartnerLoginCode()" class="partner-button partner-button-green" hidden>Sign in</button>
+        <p id="partnerAuthMessage" class="partner-auth-message" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
 
-  <main class="max-w-3xl mx-auto px-4 pt-4 space-y-4">
-    <section id="partnerSetup" class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-      <div><h2 class="text-base font-black text-slate-900">Open partner desk</h2><p class="text-xs text-slate-500 mt-1">Select the partner account for this device.</p></div>
-      <div class="flex gap-2 bg-slate-100 p-1 rounded-xl">
-        <button type="button" id="restaurantTypeButton" onclick="setPartnerType('restaurant')" class="flex-1 py-2 rounded-lg bg-white text-slate-900 shadow-sm text-xs font-black">Restaurant</button>
-        <button type="button" id="meatTypeButton" onclick="setPartnerType('meat')" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Meat Partner</button>
-        <button type="button" id="storeTypeButton" onclick="setPartnerType('store')" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Extra Store</button>
+  <div id="partnerApp" class="partner-app" hidden>
+    <div id="partnerSidebarScrim" class="partner-sidebar-scrim" onclick="closePartnerSidebar()"></div>
+    <aside class="partner-sidebar" aria-label="Partner navigation">
+      <a class="partner-brand" href="#dashboard" onclick="navigatePartnerSection(event, 'dashboard')">
+        <span class="partner-brand-mark">M</span>
+        <span><strong>MyShopzy</strong><small>Restaurant console</small></span>
+      </a>
+      <div class="partner-sidebar-label">WORKSPACE</div>
+      <nav class="partner-nav">
+        <button type="button" class="partner-nav-link is-active" data-section="dashboard" onclick="navigatePartnerSection(event, 'dashboard')"><span class="nav-symbol">◫</span>Dashboard</button>
+        <button type="button" class="partner-nav-link" data-section="orders" onclick="navigatePartnerSection(event, 'orders')"><span class="nav-symbol">▤</span>Orders<span id="partnerNavOrderCount" class="partner-nav-count" hidden></span></button>
+        <button type="button" class="partner-nav-link" data-section="products" onclick="navigatePartnerSection(event, 'products')"><span class="nav-symbol">▦</span>Menu / Products</button>
+        <button type="button" class="partner-nav-link" data-section="inventory" onclick="navigatePartnerSection(event, 'inventory')"><span class="nav-symbol">▧</span>Inventory</button>
+        <button type="button" class="partner-nav-link" data-section="restaurant-info" onclick="navigatePartnerSection(event, 'restaurant-info')"><span class="nav-symbol">⌂</span>Restaurant Info</button>
+        <button type="button" class="partner-nav-link" data-section="reports" onclick="navigatePartnerSection(event, 'reports')"><span class="nav-symbol">▥</span>Sales &amp; Reports</button>
+        <button type="button" class="partner-nav-link" data-section="reviews" onclick="navigatePartnerSection(event, 'reviews')"><span class="nav-symbol">☆</span>Ratings &amp; Reviews</button>
+        <button type="button" class="partner-nav-link" data-section="settings" onclick="navigatePartnerSection(event, 'settings')"><span class="nav-symbol">⚙</span>Settings</button>
+      </nav>
+      <div class="partner-sidebar-bottom">
+        <div class="partner-account" id="partnerIdentityPanel">
+          <span class="partner-avatar" id="partnerAvatar">P</span>
+          <span class="partner-account-copy"><strong id="partnerAccountName">Partner account</strong><small id="partnerIdentityLabel">Restaurant</small></span>
+        </div>
+        <button type="button" class="partner-nav-link partner-logout" onclick="signOutPartner()"><span class="nav-symbol">⇥</span>Log out</button>
       </div>
-      <div id="restaurantPartnerField">
-        <label class="block text-[10px] font-black uppercase text-slate-500">Restaurant</label>
-        <select id="partnerRestaurantSelect" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold bg-white"><option value="">Loading restaurants...</option></select>
-      </div>
-      <div id="meatPartnerField" class="hidden">
-        <label class="block text-[10px] font-black uppercase text-slate-500">Partner desk name</label>
-        <select id="meatPartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"><option value="">Loading authorized shops...</option></select>
-      </div>
-      <div id="storePartnerField" class="hidden">
-        <label class="block text-[10px] font-black uppercase text-slate-500">Partner desk name</label>
-        <select id="storePartnerName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"><option value="">Loading authorized shops...</option></select>
-      </div>
-      <button type="button" onclick="openPartnerDesk()" class="w-full py-3 rounded-xl bg-[#0B132B] text-white text-xs font-black">Open order console</button>
-      <p class="text-[10px] text-slate-500">Partner tools require an authenticated account with active shop membership.</p>
-    </section>
+    </aside>
 
-    <section id="partnerDesk" class="hidden space-y-4">
-      <div class="grid grid-cols-3 gap-2">
-        <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">New</span><strong id="partnerNewCount" class="block text-xl font-black text-amber-600">0</strong></div>
-        <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">Preparing</span><strong id="partnerPreparingCount" class="block text-xl font-black text-blue-600">0</strong></div>
-        <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm"><span class="text-[10px] uppercase font-black text-slate-400">Ready</span><strong id="partnerReadyCount" class="block text-xl font-black text-emerald-600">0</strong></div>
+    <main id="partnerDesk" class="partner-main">
+      <header class="partner-topbar">
+        <button type="button" class="partner-menu-toggle" aria-label="Open navigation" onclick="togglePartnerSidebar()">☰</button>
+        <div class="partner-topbar-title">
+          <span class="partner-topbar-kicker">MYSHOPZY PARTNER</span>
+          <h1 id="partnerSectionTitle">Dashboard</h1>
+        </div>
+        <div class="partner-topbar-shop">
+          <label for="partnerShopSelect">Restaurant</label>
+          <select id="partnerShopSelect" onchange="selectPartnerShop(this.value)" aria-label="Select an authorized restaurant"></select>
+          <span id="partnerShopStatusLabel" class="partner-status-badge">Loading</span>
+        </div>
+      </header>
+
+      <div class="partner-content">
+        <section id="partnerDashboardPage" class="partner-page">
+          <div class="partner-page-heading">
+            <div><span class="eyebrow">OVERVIEW</span><h2 id="partnerWelcomeTitle">Restaurant dashboard</h2><p id="partnerHeaderSubtitle" class="partner-muted">Your restaurant activity at a glance.</p></div>
+            <button type="button" id="partnerShopStatusButton" class="partner-button partner-button-outline" onclick="togglePartnerShopStatus()">Shop status</button>
+          </div>
+
+          <div class="partner-kpi-grid" aria-live="polite">
+            <article class="partner-kpi"><div class="partner-kpi-top"><span>Total Orders</span><span class="kpi-symbol kpi-orange">▤</span></div><strong id="kpiTotalOrders">—</strong><small>All statuses</small></article>
+            <article class="partner-kpi"><div class="partner-kpi-top"><span>Total Sales</span><span class="kpi-symbol kpi-green">₹</span></div><strong id="kpiTotalSales">—</strong><small>Delivered item value</small></article>
+            <article class="partner-kpi"><div class="partner-kpi-top"><span>Pending Orders</span><span class="kpi-symbol kpi-blue">◷</span></div><strong id="kpiPendingOrders">—</strong><small>Awaiting completion</small></article>
+            <article class="partner-kpi"><div class="partner-kpi-top"><span>Completed Orders</span><span class="kpi-symbol kpi-green">✓</span></div><strong id="kpiCompletedOrders">—</strong><small>Delivered orders</small></article>
+          </div>
+
+          <div class="partner-dashboard-grid">
+            <section class="partner-panel partner-sales-panel">
+              <div class="partner-panel-heading"><div><h3>Sales Overview</h3><p>Delivered item value from your shop</p></div><span class="panel-mark">₹</span></div>
+              <div id="partnerSalesSummary" class="partner-sales-summary"></div>
+              <div id="partnerSalesChart" class="partner-sales-chart" aria-label="Recent daily delivered sales"></div>
+            </section>
+            <section class="partner-panel partner-status-panel">
+              <div class="partner-panel-heading"><div><h3>Order Status</h3><p>Current order distribution</p></div><span class="panel-mark panel-mark-green">◷</span></div>
+              <div id="partnerOrderStatus" class="partner-order-status"></div>
+            </section>
+          </div>
+
+          <section class="partner-panel partner-quick-panel">
+            <div class="partner-panel-heading"><div><h3>Quick Actions</h3><p>Common restaurant tasks</p></div></div>
+            <div class="partner-quick-actions">
+              <button type="button" onclick="startAddPartnerProduct()"><span>＋</span>Add New Item</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'products')"><span>▦</span>Manage Menu</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'inventory')"><span>▧</span>Update Inventory</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'orders')"><span>▤</span>View Orders</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'reports')"><span>▥</span>View Reports</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'restaurant-info')"><span>⌂</span>Restaurant Info</button>
+            </div>
+          </section>
+
+          <div class="partner-dashboard-grid partner-dashboard-lower">
+            <section class="partner-panel">
+              <div class="partner-panel-heading"><div><h3>Recent Orders</h3><p>Latest orders for this restaurant</p></div><button class="partner-text-button" onclick="navigatePartnerSection(null, 'orders')">View all</button></div>
+              <div id="partnerRecentOrders" class="partner-compact-list"></div>
+            </section>
+            <section class="partner-panel">
+              <div class="partner-panel-heading"><div><h3>Top Selling Items</h3><p>Based on delivered order items</p></div></div>
+              <div id="partnerTopItems" class="partner-compact-list"></div>
+            </section>
+          </div>
+
+          <div class="partner-dashboard-grid partner-dashboard-lower">
+            <section class="partner-panel">
+              <div class="partner-panel-heading"><div><h3>Today's Live Orders</h3><p>Orders currently in progress</p></div><button class="partner-text-button" onclick="navigatePartnerSection(null, 'orders')">Open orders</button></div>
+              <div class="partner-live-counts"><span>New <strong id="partnerNewCount">-</strong></span><span>Preparing <strong id="partnerPreparingCount">-</strong></span><span>Ready <strong id="partnerReadyCount">-</strong></span></div>
+              <div id="partnerLiveOrders" class="partner-compact-list"></div>
+            </section>
+            <section class="partner-panel">
+              <div class="partner-panel-heading"><div><h3>Restaurant Performance</h3><p>Menu and stock snapshot</p></div></div>
+              <div class="partner-performance-grid">
+                <div><span>Products</span><strong id="partnerTotalProducts">-</strong></div>
+                <div><span>Active items</span><strong id="partnerActiveProducts">-</strong></div>
+                <div><span>Stock units</span><strong id="partnerStockQuantity">-</strong></div>
+                <div><span>Cancelled</span><strong id="partnerCancelledOrders">-</strong></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="partnerOrdersView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">FULFILLMENT</span><h2 id="partnerDeskTitle">Orders</h2><p class="partner-muted">Accept, prepare, and hand off orders to the rider.</p></div>
+            <label class="partner-select-label">Show <select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)"><option value="active">Active orders</option><option value="past">Past orders</option></select></label>
+          </div>
+          <section class="partner-panel"><div id="partnerOrdersContainer" class="partner-order-list"><p class="partner-empty">Loading orders...</p></div></section>
+        </section>
+
+        <section id="partnerProductsView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">CATALOG</span><h2>Menu &amp; Products</h2><p class="partner-muted">Manage the items available from your restaurant.</p></div><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add New Item</button></div>
+          <form id="partnerProductForm" onsubmit="savePartnerProduct(event)" class="partner-panel partner-product-form">
+            <input type="hidden" id="partnerProductId"><input type="hidden" id="partnerProductVariantId"><input type="hidden" id="partnerProductMode">
+            <label>Item name<input id="partnerProductName" required placeholder="Product or dish name"></label>
+            <label>Category<select id="partnerProductCategory"><option value="">No category</option></select></label>
+            <label class="form-wide">Description<input id="partnerProductDescription" maxlength="2000" placeholder="Description"></label>
+            <label>Variant name<input id="partnerProductVariantName" maxlength="200" placeholder="Variant name (optional)"></label>
+            <label>Price<input id="partnerProductPrice" required type="number" min="0" step="0.01" placeholder="₹"></label>
+            <label>Compare-at price<input id="partnerProductComparePrice" type="number" min="0" step="0.01" placeholder="Optional"></label>
+            <label>SKU<input id="partnerProductSku" maxlength="200" placeholder="Optional"></label>
+            <label>Unit<input id="partnerProductUnit" placeholder="e.g. 1 plate"></label>
+            <label>Unit quantity<input id="partnerProductUnitQuantity" required type="number" min="0.001" max="999999999.999" step="0.001" value="1"></label>
+            <label class="form-wide">Image URL<input id="partnerProductImage" type="url" placeholder="HTTPS image URL (optional)"></label>
+            <label id="partnerImageDropzone" class="partner-upload form-wide">Drop image here or choose a file<input id="partnerProductFile" type="file" accept="image/*" onchange="handlePartnerImageFile(event)"></label>
+            <img id="partnerProductPreview" class="partner-product-preview" alt="Product preview" hidden>
+            <label class="partner-check-label"><input id="partnerProductVariantActive" type="checkbox" checked> Variant available</label>
+            <div class="partner-form-actions form-wide"><button type="submit" class="partner-button partner-button-primary">Save item</button><button type="button" class="partner-button partner-button-outline" onclick="resetPartnerProductForm()">Clear form</button></div>
+          </form>
+          <div id="partnerProductsContainer" class="partner-product-grid"></div>
+        </section>
+
+        <section id="partnerInventoryView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">STOCK CONTROL</span><h2>Inventory</h2><p class="partner-muted">Stock levels for your restaurant items.</p></div></div>
+          <section class="partner-panel"><div id="partnerInventoryContainer" class="partner-table-wrap"><p class="partner-empty">Loading inventory...</p></div></section>
+        </section>
+
+        <section id="partnerProfileView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">RESTAURANT PROFILE</span><h2>Restaurant Info</h2><p class="partner-muted">Keep your restaurant and pickup details current.</p></div></div>
+          <form onsubmit="savePartnerProfile(event)" class="partner-panel partner-profile-form">
+            <label>Restaurant name<input id="partnerProfileName" required></label>
+            <label>Description<textarea id="partnerProfileDescription" rows="3"></textarea></label>
+            <label class="form-wide">Pickup / kitchen address<input id="partnerProfileAddress" required></label>
+            <label>Address line 2<input id="partnerProfileAddress2"></label>
+            <label>Locality<input id="partnerProfileLocality"></label>
+            <label>City<input id="partnerProfileCity" required></label>
+            <label>State<input id="partnerProfileState" required></label>
+            <label>Postal code<input id="partnerProfilePostal" required></label>
+            <label>Phone<input id="partnerProfilePhone" type="tel" placeholder="+91"></label>
+            <label>Email<input id="partnerProfileEmail" type="email"></label>
+            <button type="submit" class="partner-button partner-button-primary form-wide">Save restaurant details</button>
+          </form>
+        </section>
+
+        <section id="partnerReportsView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">BUSINESS INSIGHTS</span><h2>Sales &amp; Reports</h2><p class="partner-muted">Sales totals come from delivered orders for this restaurant.</p></div></div>
+          <div class="partner-dashboard-grid">
+            <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Delivered Sales</h3><p>Delivered item value</p></div></div><strong id="partnerReportSales" class="partner-report-total">-</strong><p id="partnerReportSalesNote" class="partner-muted"></p></section>
+            <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Order Summary</h3><p>Counts from the partner dashboard API</p></div></div><div id="partnerReportCounts" class="partner-report-counts"></div></section>
+          </div>
+          <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Recent Sales Overview</h3><p>Daily delivered item value from the latest orders returned by the API</p></div></div><div id="partnerReportChart" class="partner-sales-chart"></div></section>
+        </section>
+
+        <section id="partnerReviewsView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">CUSTOMER FEEDBACK</span><h2>Ratings &amp; Reviews</h2><p class="partner-muted">Restaurant feedback will appear here when a partner reviews API is available.</p></div></div>
+          <section class="partner-panel"><div class="partner-placeholder-mark">☆</div><h3>Reviews are not available yet</h3><p class="partner-muted">This console does not currently have a partner-scoped ratings endpoint.</p></section>
+        </section>
+
+        <section id="partnerSettingsView" class="partner-page" hidden>
+          <div class="partner-page-heading"><div><span class="eyebrow">ACCOUNT</span><h2>Settings</h2><p class="partner-muted">Your signed-in partner identity and restaurant access.</p></div></div>
+          <section class="partner-panel partner-settings-panel"><div><span>Signed in as</span><strong id="partnerSettingsUser">Partner user</strong></div><div><span>Partner account</span><strong id="partnerSettingsPartner">Restaurant partner</strong></div><div><span>Shop access</span><strong id="partnerSettingsShop">Restaurant</strong></div><button type="button" class="partner-button partner-button-danger" onclick="signOutPartner()">Log out</button></section>
+        </section>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-live="polite">
-        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Products</span><strong id="partnerTotalProducts" class="block text-lg font-black text-slate-800">0</strong></div>
-        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Active</span><strong id="partnerActiveProducts" class="block text-lg font-black text-emerald-700">0</strong></div>
-        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Stock units</span><strong id="partnerStockQuantity" class="block text-lg font-black text-blue-700">0</strong></div>
-        <div class="bg-white rounded-xl p-3 border border-slate-200"><span class="text-[10px] uppercase font-black text-slate-400">Delivered item value</span><strong id="partnerDeliveredValue" class="block text-lg font-black text-emerald-700">₹0</strong></div>
-      </div>
-      <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-        <p>Pending orders: <strong id="partnerPendingOrders" class="text-slate-900">0</strong></p>
-        <p>Completed: <strong id="partnerCompletedOrders" class="text-slate-900">0</strong></p>
-        <p>Cancelled: <strong id="partnerCancelledOrders" class="text-slate-900">0</strong></p>
-      </div>
-      <div class="flex items-center justify-between gap-3"><div><h2 id="partnerDeskTitle" class="text-base font-black text-slate-900">Partner orders</h2><p class="text-[11px] text-slate-500">Accept, prepare, and hand off orders to the rider.</p></div><div class="flex gap-1.5"><button type="button" id="partnerShopStatusButton" onclick="togglePartnerShopStatus()" class="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black">Shop status</button><button type="button" onclick="copyPartnerConsoleLink()" class="px-3 py-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] font-black">Copy Console Link</button><button type="button" onclick="closePartnerDesk()" class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black">Switch partner</button></div></div>
-      <div class="flex gap-1 bg-slate-200/70 p-1 rounded-xl">
-        <button type="button" onclick="switchPartnerView('orders')" id="partnerOrdersTab" class="flex-1 py-2 rounded-lg bg-white text-slate-900 shadow-sm text-xs font-black">Orders</button>
-        <button type="button" onclick="switchPartnerView('products')" id="partnerProductsTab" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Products</button>
-        <button type="button" onclick="switchPartnerView('profile')" id="partnerProfileTab" class="flex-1 py-2 rounded-lg text-slate-500 text-xs font-bold">Location</button>
-      </div>
-      <div id="partnerOrdersView"><div class="flex justify-end"><select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)" class="mb-2 px-2.5 py-2 border border-slate-200 rounded-xl bg-white text-[10px] font-bold"><option value="active">Active orders</option><option value="past">Past orders</option></select></div><div id="partnerOrdersContainer" class="space-y-3"><p class="text-center text-slate-400 py-10 text-xs">Connecting to orders...</p></div></div>
-      <div id="partnerProductsView" class="hidden space-y-3">
-        <form onsubmit="savePartnerProduct(event)" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <input type="hidden" id="partnerProductId">
-          <input type="hidden" id="partnerProductVariantId">
-          <input type="hidden" id="partnerProductMode">
-          <input id="partnerProductName" required placeholder="Product or dish name" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <select id="partnerProductCategory" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold bg-white"><option value="">No category</option></select>
-          <input id="partnerProductDescription" maxlength="2000" placeholder="Description" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs">
-          <input id="partnerProductVariantName" maxlength="200" placeholder="Variant name (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductPrice" required type="number" min="0" step="0.01" placeholder="Price (₹)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductComparePrice" type="number" min="0" step="0.01" placeholder="Compare-at price (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductSku" maxlength="200" placeholder="SKU (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductUnit" placeholder="Unit e.g. 1 plate / 500g" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductUnitQuantity" required type="number" min="0.001" max="999999999.999" step="0.001" value="1" placeholder="Unit quantity" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold">
-          <input id="partnerProductImage" type="text" placeholder="Image URL (optional)" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs">
-          <label id="partnerImageDropzone" class="sm:col-span-2 flex items-center justify-center min-h-12 px-3 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 text-[11px] font-bold text-slate-500 cursor-pointer text-center">Drop image here or choose from laptop/gallery<input id="partnerProductFile" type="file" accept="image/*" class="hidden" onchange="handlePartnerImageFile(event)"></label>
-          <img id="partnerProductPreview" class="hidden sm:col-span-3 w-24 h-24 rounded-xl object-contain bg-slate-50 border border-slate-200" alt="Product preview">
-          <button type="submit" class="py-2.5 bg-[#0B132B] text-white rounded-xl text-xs font-black">Save product</button>
-          <label class="flex items-center gap-2 text-[11px] font-bold text-slate-600"><input id="partnerProductVariantActive" type="checkbox" checked>Variant available</label>
-          <button type="button" onclick="resetPartnerProductForm()" class="py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-black sm:col-span-3">Clear form</button>
-        </form>
-        <div id="partnerProductsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-      </div>
-      <div id="partnerProfileView" class="hidden">
-        <form onsubmit="savePartnerProfile(event)" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-          <div><label class="block text-[10px] font-black uppercase text-slate-500">Partner name</label><input id="partnerProfileName" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></div>
-          <div><label class="block text-[10px] font-black uppercase text-slate-500">Description</label><textarea id="partnerProfileDescription" rows="2" class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></textarea></div>
-          <div><label class="block text-[10px] font-black uppercase text-slate-500">Pickup / kitchen address</label><input id="partnerProfileAddress" required class="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-bold"></div>
-          <div class="grid grid-cols-2 gap-2"><input id="partnerProfileAddress2" placeholder="Address line 2" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileLocality" placeholder="Locality" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileCity" required placeholder="City" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileState" required placeholder="State" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfilePostal" required placeholder="Postal code" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfilePhone" placeholder="+91 phone" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"><input id="partnerProfileEmail" type="email" placeholder="Email" class="px-3 py-2.5 border border-slate-200 rounded-xl text-xs"></div>
-          <button type="submit" class="w-full py-2.5 bg-[#0B132B] text-white rounded-xl text-xs font-black">Save location details</button>
-        </form>
-      </div>
-    </section>
-  </main>
+    </main>
+  </div>
+
   <script src="js/partner.js"></script>
 </body>
 </html>
