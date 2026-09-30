@@ -8,8 +8,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const PARTNER_ORDER_PROJECTION = `
   SELECT o.id, o.order_number, o.customer_user_id, o.status AS order_status,
-         o.order_type, o.currency, o.subtotal, o.delivery_fee, o.tax_amount,
-         o.discount_amount, o.rider_tip, o.total_amount, o.customer_note,
+      o.order_type, o.currency, o.subtotal, o.delivery_fee, o.tax_amount,
+      o.discount_amount, o.rider_tip, o.total_amount, payment.method AS payment_method,
+      payment.status AS payment_status,
          o.placed_at, o.accepted_at, o.dispatched_at, o.delivered_at,
          u.display_name AS customer_name, u.phone_e164 AS customer_phone,
          oa.recipient_name, oa.recipient_phone_e164, oa.address_line1,
@@ -23,6 +24,13 @@ const PARTNER_ORDER_PROJECTION = `
   JOIN users u ON u.id = o.customer_user_id
   LEFT JOIN order_addresses oa ON oa.order_id = o.id
   LEFT JOIN LATERAL (
+    SELECT p.method, p.status
+    FROM payments p
+    WHERE p.order_id = o.id
+    ORDER BY p.created_at DESC
+    LIMIT 1
+  ) payment ON true
+  LEFT JOIN LATERAL (
     SELECT jsonb_agg(
       jsonb_build_object(
         'id', oi.id,
@@ -34,6 +42,8 @@ const PARTNER_ORDER_PROJECTION = `
         'unit', oi.unit_snapshot,
         'quantity', oi.quantity,
         'price', oi.unit_price,
+        'discount_amount', oi.discount_amount,
+        'tax_amount', oi.tax_amount,
         'line_total', oi.line_total,
         'pickup_source_name', f.shop_name_snapshot,
         'pickup_source_address', f.pickup_address_snapshot
@@ -66,6 +76,10 @@ function presentPartnerOrder(row) {
     pickup_address: row.pickup_address_snapshot,
     subtotal: Number(row.subtotal),
     delivery_fee: Number(row.delivery_fee),
+    tax_amount: Number(row.tax_amount ?? 0),
+    discount_amount: Number(row.discount_amount ?? 0),
+    payment_method: row.payment_method || "COD",
+    payment_status: row.payment_status || "PENDING",
     total_amount: Number(row.total_amount),
     placed_at: row.placed_at,
     created_at_ms: placedAt && Number.isFinite(placedAt.getTime()) ? placedAt.getTime() : null,
