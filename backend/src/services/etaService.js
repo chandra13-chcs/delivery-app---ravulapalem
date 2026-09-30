@@ -8,6 +8,7 @@ const ETA_CONFIG_SETTING_KEY = "delivery_eta_config";
 const ETA_MODES = new Set(["SHOP_TO_CUSTOMER", "RIDER_TO_CUSTOMER"]);
 const DEFAULT_ETA_CONFIG = Object.freeze({
   version: 1,
+  customer_delivery_promise_minutes: 30,
   average_delivery_speed_kmh: 20,
   preparation_buffer_minutes: 10,
   minimum_eta_minutes: 10,
@@ -25,12 +26,17 @@ function normalizeEtaConfig(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || value.version !== 1) {
     throw new Error("ETA configuration is invalid.");
   }
+  const promiseMinutes = value.customer_delivery_promise_minutes;
+  if (!Number.isInteger(promiseMinutes) || promiseMinutes < 5 || promiseMinutes > 180) {
+    throw new Error("Customer delivery promise minutes must be an integer between 5 and 180.");
+  }
   const speed = value.average_delivery_speed_kmh;
   if (typeof speed !== "number" || !Number.isFinite(speed) || speed < 1 || speed > 80) {
     throw new Error("Average delivery speed must be between 1 and 80 km/h.");
   }
   return {
     version: 1,
+    customer_delivery_promise_minutes: promiseMinutes,
     average_delivery_speed_kmh: speed,
     preparation_buffer_minutes: normalizeInteger(value.preparation_buffer_minutes, "Preparation buffer", 0, 180),
     minimum_eta_minutes: normalizeInteger(value.minimum_eta_minutes, "Minimum ETA", 0, 180),

@@ -39,6 +39,7 @@ let riderTrackingMarker = null;
 let riderTrackingPollTimer = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
+const FALLBACK_CUSTOMER_DELIVERY_PROMISE_MINUTES = 30;
 const delaySupportShownFor = new Set();
 let editingAddressIndex = null;
 const LEGACY_CUSTOMER_ADDRESS_IMPORT_LIMIT = 100;
@@ -332,33 +333,51 @@ async function markAllCustomerNotificationsRead() {
   }
 }
 
-function getOrderDeadlineMs(order) {
-  const explicitDeadline = Number(order?.delivery_deadline_ms);
-  if (Number.isFinite(explicitDeadline)) return explicitDeadline;
-  const createdAt = Number(order?.created_at_ms);
-  return Number.isFinite(createdAt) ? createdAt + (25 * 60 * 1000) : null;
+function readSafeEtaPayload(rawValue) {
+  if (!rawValue) return null;
+  try {
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
-function formatDeliveryCountdown(deadlineMs, status) {
-  if (String(status || "").toUpperCase() === "DELIVERED") return "Delivered";
-  if (!Number.isFinite(Number(deadlineMs))) return "25 min delivery";
-  const remaining = Math.max(0, Number(deadlineMs) - Date.now());
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000).toString().padStart(2, "0");
-  return remaining > 0 ? `${minutes}:${seconds} left` : "Arriving now";
+function getCustomerDeliveryPromiseMinutes() {
+  const fromResponse = Number(window.__customerDeliveryPromiseMinutes);
+  if (Number.isInteger(fromResponse) && fromResponse > 0) {
+    return fromResponse;
+  }
+  return FALLBACK_CUSTOMER_DELIVERY_PROMISE_MINUTES;
+}
+
+function getCustomerDeliveryPromiseText() {
+  return `Delivery within ${getCustomerDeliveryPromiseMinutes()} minutes`;
+}
+
+function formatDynamicEtaText(eta) {
+  const minimum = Number(eta?.eta_min_minutes);
+  const maximum = Number(eta?.eta_max_minutes);
+  if (!eta?.available || !Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum < minimum) {
+    return "Delivery time will be updated shortly";
+  }
+  const distance = Number(eta.distance_km);
+  const distanceText = Number.isFinite(distance) ? ` (${distance.toFixed(1)} km)` : "";
+  return `Estimated delivery: ${minimum}-${maximum} min${distanceText}`;
 }
 
 function updateCustomerCountdowns() {
-  document.querySelectorAll("[data-delivery-deadline]").forEach(element => {
-    element.innerText = formatDeliveryCountdown(element.dataset.deliveryDeadline, element.dataset.orderStatus);
-    const deadline = Number(element.dataset.deliveryDeadline);
-    if (deadline > 0 && deadline <= Date.now() && element.dataset.orderStatus !== "DELIVERED") {
-      const orderId = element.dataset.orderId || "unknown";
-      if (!delaySupportShownFor.has(orderId)) {
-        delaySupportShownFor.add(orderId);
-        openCustomerSupport(orderId);
-      }
+  document.querySelectorAll("[data-delivery-eta]").forEach(element => {
+    if (element.dataset.orderStatus === "DELIVERED") {
+      element.innerText = "Delivered";
+      return;
     }
+    const etaPayload = readSafeEtaPayload(element.dataset.deliveryEta);
+    if (etaPayload?.available) {
+      element.innerText = formatDynamicEtaText(etaPayload);
+      return;
+    }
+    element.innerText = getCustomerDeliveryPromiseText();
   });
 }
 
@@ -366,8 +385,8 @@ function openCustomerSupport(orderId = "") {
   const modal = document.getElementById("customerSupportModal");
   const message = document.getElementById("customerSupportMessage");
   if (message) message.innerText = orderId && orderId !== "unknown"
-    ? `Order ${orderId} has crossed the promised 25-minute window. Our support team can help right away.`
-    : "Your delivery has crossed the promised 25-minute window. Our support team can help right away.";
+    ? `Order ${orderId} has crossed the promised 30-minute window. Our support team can help right away.`
+    : "Your delivery has crossed the promised 30-minute window. Our support team can help right away.";
   if (modal) modal.classList.remove("hidden");
 }
 
@@ -377,9 +396,7 @@ function closeCustomerSupport() {
 }
 
 function startCustomerCountdowns() {
-  if (customerCountdownTimer) clearInterval(customerCountdownTimer);
   updateCustomerCountdowns();
-  customerCountdownTimer = setInterval(updateCustomerCountdowns, 1000);
 }
 
 function formatOrderDateTime(order) {
@@ -421,15 +438,20 @@ function openCustomerRiderTracker(orderId) {
   const refresh = async () => {
     try {
       const tracking = await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/tracking`);
+      const configuredPromise = Number(tracking?.customer_delivery_promise_minutes);
+      if (Number.isInteger(configuredPromise) && configuredPromise > 0) {
+        window.__customerDeliveryPromiseMinutes = configuredPromise;
+      }
       if (!tracking?.available) {
         const etaMessage = tracking?.eta?.available
           ? `Estimated delivery: ${formatCustomerEta(tracking.eta)}.`
-          : "ETA unavailable.";
+          : getCustomerDeliveryPromiseText() + ".";
         if (status) status.innerText = `Live tracking becomes available after the rider accepts the delivery. ${etaMessage}`;
         return;
       }
       if (!tracking.location) {
-        if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is assigned; waiting for a location update. ${formatCustomerEta(tracking.eta)}.`;
+        const etaText = tracking?.eta?.available ? formatCustomerEta(tracking.eta) : getCustomerDeliveryPromiseText();
+        if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is assigned; waiting for a location update. ${etaText}.`;
         return;
       }
 
@@ -446,7 +468,8 @@ function openCustomerRiderTracker(orderId) {
         }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(tracking.rider_name || 'Delivery partner')}</b><br>Live delivery partner`).openPopup();
       }
       riderTrackingMap.setView(position, 16);
-      if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is live. Updated ${new Date(location.recorded_at).toLocaleTimeString()} · ${formatCustomerEta(tracking.eta)}.`;
+      const etaText = tracking?.eta?.available ? formatCustomerEta(tracking.eta) : getCustomerDeliveryPromiseText();
+      if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is live. Updated ${new Date(location.recorded_at).toLocaleTimeString()} · ${etaText}.`;
     } catch (error) {
       console.error("Customer rider tracking request failed:", error);
       if (status) status.innerText = error.message || "Live location is temporarily unavailable.";
@@ -3363,7 +3386,7 @@ function filterAndRender() {
               >
 
               <span class="absolute bottom-1 left-1 bg-slate-900 text-amber-300 text-[8px] font-black px-1 rounded">
-                ⚡ 25 MINS
+                ⚡ 30 MINS
               </span>
 
             </div>
@@ -5221,8 +5244,8 @@ async function toggleOrdersView() {
             </div>
 
             <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
-              <span>Dedicated delivery time</span>
-              <span data-delivery-deadline="${getOrderDeadlineMs(order) || ""}" data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}">${formatDeliveryCountdown(getOrderDeadlineMs(order), order.status)}</span>
+              <span>Delivery promise</span>
+              <span data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}" data-delivery-eta="${JSON.stringify({ available: false }).replace(/"/g, '&quot;')}">${getCustomerDeliveryPromiseText()}</span>
             </div>
 
             <p class="text-[11px] text-slate-500">
@@ -5322,6 +5345,15 @@ async function openOrderDetailReceipt(
 // 46. RENDER RECEIPT
 // ==========================================
 
+async function requestCustomerEtaForOrder(orderId) {
+  try {
+    const tracking = await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/tracking`);
+    return tracking?.eta || null;
+  } catch {
+    return null;
+  }
+}
+
 function renderReceipt(
   orderId,
   targetOrder
@@ -5405,9 +5437,21 @@ function renderReceipt(
 
   const receiptCountdown = document.getElementById("receiptDeliveryCountdown");
   if (receiptCountdown) {
-    receiptCountdown.dataset.deliveryDeadline = getOrderDeadlineMs(targetOrder) || "";
     receiptCountdown.dataset.orderStatus = targetOrder.status || "PLACED";
-    receiptCountdown.innerText = formatDeliveryCountdown(getOrderDeadlineMs(targetOrder), targetOrder.status);
+    receiptCountdown.dataset.deliveryEta = "";
+    requestCustomerEtaForOrder(orderId)
+      .then(eta => {
+        const safeEta = eta && typeof eta === "object" ? eta : null;
+        if (!safeEta || !safeEta.available) {
+          receiptCountdown.innerText = getCustomerDeliveryPromiseText();
+          return;
+        }
+        receiptCountdown.dataset.deliveryEta = JSON.stringify(safeEta);
+        receiptCountdown.innerText = formatDynamicEtaText(safeEta);
+      })
+      .catch(() => {
+        receiptCountdown.innerText = "Delivery time will be updated shortly";
+      });
   }
 
   const trackingBox = document.getElementById("customerRiderTrackingBox");

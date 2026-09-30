@@ -30,6 +30,7 @@ async function updateAdminEtaConfig(req, res) {
   try {
     config = normalizeEtaConfig({
       version: 1,
+      customer_delivery_promise_minutes: req.body?.customer_delivery_promise_minutes,
       average_delivery_speed_kmh: req.body?.average_delivery_speed_kmh,
       preparation_buffer_minutes: req.body?.preparation_buffer_minutes,
       minimum_eta_minutes: req.body?.minimum_eta_minutes,
