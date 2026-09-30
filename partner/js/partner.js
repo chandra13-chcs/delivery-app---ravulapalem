@@ -14,6 +14,13 @@ const partnerState = {
   allOrders: [],
   products: [],
   orderBucket: "active",
+  selectedOrderId: "",
+  orderRefreshTimer: null,
+  orderRefreshInFlight: false,
+  notifications: [],
+  notificationsInitialized: false,
+  seenNotificationIds: new Set(),
+  notificationToastTimer: null,
   unsubscribe: null,
   productUnsubscribe: null,
   profileAddress: ""
@@ -98,6 +105,10 @@ async function signOutPartner() {
   partnerState.shops = [];
   partnerState.dashboard = null;
   partnerState.inventory = [];
+  partnerState.notifications = [];
+  partnerState.notificationsInitialized = false;
+  partnerState.seenNotificationIds.clear();
+  partnerState.selectedOrderId = "";
   await loadPartnerRestaurants();
 }
 
@@ -114,6 +125,136 @@ async function partnerApiRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.message || `Partner API request failed (${response.status}).`);
   return payload?.data;
+}
+
+function isPartnerNotificationUnread(notification) {
+  return notification?.read_at == null && notification?.status !== "READ";
+}
+
+function formatPartnerNotificationTime(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date)
+    : "";
+}
+
+function renderPartnerNotifications() {
+  const list = document.getElementById("partnerNotificationList");
+  const unreadCount = partnerState.notifications.filter(isPartnerNotificationUnread).length;
+  const badge = document.getElementById("partnerNotificationBadge");
+  const markAllButton = document.getElementById("partnerMarkAllReadButton");
+  const summary = document.getElementById("partnerNotificationSummary");
+  badge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+  badge.hidden = unreadCount === 0;
+  markAllButton.disabled = unreadCount === 0;
+  summary.textContent = unreadCount ? `${unreadCount} unread` : "No new notifications";
+
+  if (!partnerState.notifications.length) {
+    list.innerHTML = '<p class="partner-notification-empty">No new notifications</p>';
+    return;
+  }
+  list.innerHTML = partnerState.notifications.map(notification => {
+    const unread = isPartnerNotificationUnread(notification);
+    return `<button type="button" class="partner-notification-item ${unread ? "is-unread" : ""}" data-notification-id="${escapePartnerHtml(notification.id)}">
+      <span class="partner-notification-dot" aria-hidden="true"></span>
+      <span class="partner-notification-copy"><strong>${escapePartnerHtml(notification.title || "MyShopzy notification")}</strong><span>${escapePartnerHtml(notification.body || "")}</span><small>${escapePartnerHtml(formatPartnerNotificationTime(notification.created_at))}</small></span>
+    </button>`;
+  }).join("");
+}
+
+async function refreshPartnerNotifications(announceNew = false) {
+  if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
+  const token = getPartnerAccessToken();
+  const shopId = partnerState.shopId;
+  try {
+    const rows = await partnerApiRequest("/notifications");
+    if (token !== getPartnerAccessToken() || shopId !== partnerState.shopId) return;
+    const notifications = Array.isArray(rows) ? rows : [];
+    const newlyUnread = notifications.filter(notification => isPartnerNotificationUnread(notification)
+      && !partnerState.seenNotificationIds.has(notification.id));
+    if (announceNew && partnerState.notificationsInitialized) {
+      newlyUnread.slice(0, 1).forEach(showPartnerNotificationToast);
+    }
+    notifications.forEach(notification => partnerState.seenNotificationIds.add(notification.id));
+    partnerState.notifications = notifications;
+    partnerState.notificationsInitialized = true;
+    renderPartnerNotifications();
+  } catch (error) {
+    console.warn("Partner notifications could not be loaded:", error.message);
+  }
+}
+
+function showPartnerNotificationToast(notification) {
+  const toast = document.getElementById("partnerNotificationToast");
+  if (!toast) return;
+  document.getElementById("partnerToastTitle").textContent = notification.title || "New MyShopzy alert";
+  document.getElementById("partnerToastMessage").textContent = notification.body || "Open notifications to view details.";
+  toast.hidden = false;
+  if (partnerState.notificationToastTimer) window.clearTimeout(partnerState.notificationToastTimer);
+  partnerState.notificationToastTimer = window.setTimeout(dismissPartnerToast, 6500);
+}
+
+function dismissPartnerToast() {
+  const toast = document.getElementById("partnerNotificationToast");
+  if (toast) toast.hidden = true;
+  if (partnerState.notificationToastTimer) window.clearTimeout(partnerState.notificationToastTimer);
+  partnerState.notificationToastTimer = null;
+}
+
+function togglePartnerNotificationPanel() {
+  const panel = document.getElementById("partnerNotificationPanel");
+  const button = document.getElementById("partnerNotificationButton");
+  panel.hidden = !panel.hidden;
+  button.setAttribute("aria-expanded", String(!panel.hidden));
+  if (!panel.hidden) refreshPartnerNotifications(false);
+}
+
+function closePartnerNotificationPanel() {
+  document.getElementById("partnerNotificationPanel").hidden = true;
+  document.getElementById("partnerNotificationButton").setAttribute("aria-expanded", "false");
+}
+
+async function markPartnerNotificationRead(notificationId) {
+  await partnerApiRequest(`/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH" });
+  partnerState.notifications = partnerState.notifications.map(notification => notification.id === notificationId
+    ? { ...notification, status: "READ", read_at: notification.read_at || new Date().toISOString() }
+    : notification);
+  renderPartnerNotifications();
+}
+
+async function openPartnerNotification(notificationId) {
+  const notification = partnerState.notifications.find(item => item.id === notificationId);
+  if (!notification) return;
+  try {
+    await markPartnerNotificationRead(notificationId);
+  } catch (error) {
+    console.warn("Partner notification could not be marked read:", error.message);
+  }
+  closePartnerNotificationPanel();
+  const orderId = notification.payload?.order_id;
+  if (typeof orderId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId)) return;
+  const shop = partnerState.shops.find(item => item.id === notification.payload?.shop_id);
+  if (!shop) return;
+  if (partnerState.shopId !== shop.id) await openPartnerDesk(shop.id);
+  partnerState.selectedOrderId = orderId;
+  document.getElementById("partnerOrderBucket").value = "all";
+  navigatePartnerSection(null, "orders");
+}
+
+async function markAllPartnerNotificationsRead() {
+  const button = document.getElementById("partnerMarkAllReadButton");
+  button.disabled = true;
+  try {
+    await partnerApiRequest("/notifications/read-all", { method: "PATCH" });
+    const readAt = new Date().toISOString();
+    partnerState.notifications = partnerState.notifications.map(notification => isPartnerNotificationUnread(notification)
+      ? { ...notification, status: "READ", read_at: readAt }
+      : notification);
+    renderPartnerNotifications();
+  } catch (error) {
+    console.error("Partner notifications could not be marked read:", error);
+    button.disabled = false;
+  }
 }
 
 function escapePartnerHtml(value) {
@@ -206,9 +347,18 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
   document.getElementById("partnerSidebarScrim").hidden = true;
   renderPartnerShopStatus();
   await loadPartnerProfile();
+  startPartnerOrderRefresh();
 }
 
 function closePartnerDesk() {
+  stopPartnerOrderRefresh();
+  partnerState.orderRefreshInFlight = false;
+  partnerState.notifications = [];
+  partnerState.notificationsInitialized = false;
+  partnerState.seenNotificationIds.clear();
+  dismissPartnerToast();
+  closePartnerNotificationPanel();
+  renderPartnerNotifications();
   partnerState.unsubscribe?.();
   partnerState.unsubscribe = null;
   partnerState.productUnsubscribe?.();
@@ -572,6 +722,7 @@ async function loadPartnerProfile() {
     renderPartnerInventory(safeInventory);
     renderPartnerDashboard(dashboard);
     renderPartnerOrders();
+    await refreshPartnerNotifications(false);
     renderPartnerShopStatus();
   } catch (error) {
     console.error("Partner dashboard data could not be loaded:", error);
@@ -827,13 +978,26 @@ function renderPartnerOrders() {
   }
   container.innerHTML = partnerOrders.map(order => {
     const items = (order.items || []).map(item => `${Number(item.quantity) || 0}x ${escapePartnerHtml(item.name)} · ${formatPartnerCurrency(item.price)}`).join("<br>");
-    return `<article class="partner-order-card">
+    const isSelectedOrder = order.id === partnerState.selectedOrderId;
+    const pickupCodeAction = getPartnerStatus(order) === "PACKED"
+      ? `<div class="partner-pickup-code-action"><button type="button" id="partnerPickupCodeButton_${escapePartnerHtml(order.id)}" class="partner-button partner-button-outline" onclick="requestPartnerPickupCode('${escapePartnerHtml(order.id)}')">Send pickup code</button><p id="partnerPickupCodeMessage_${escapePartnerHtml(order.id)}" role="status" aria-live="polite"></p></div>`
+      : "";
+    return `<article id="partnerOrder_${escapePartnerHtml(order.id)}" tabindex="-1" class="partner-order-card ${isSelectedOrder ? "is-notification-target" : ""}">
       <div class="partner-order-card-head"><div><h3>${escapePartnerHtml(order.order_number || order.id)}</h3><p>${escapePartnerHtml(order.customer_name || order.customer_phone || "Customer")}</p></div><span class="partner-order-badge">${escapePartnerHtml(getPartnerStatus(order))}</span></div>
       <p class="partner-order-items">${items || "No item details"}</p>
       <p class="partner-order-address">Pickup: ${escapePartnerHtml(order.delivery_address || "Customer delivery address")}</p>
       ${renderPartnerStatus(order)}
+      ${pickupCodeAction}
     </article>`;
   }).join("");
+  if (partnerState.selectedOrderId) {
+    const target = document.getElementById(`partnerOrder_${partnerState.selectedOrderId}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+      partnerState.selectedOrderId = "";
+    }
+  }
 }
 
 async function startPartnerOrderListener(bucket = partnerState.orderBucket) {
@@ -846,6 +1010,77 @@ async function startPartnerOrderListener(bucket = partnerState.orderBucket) {
   } catch (error) {
     console.error("Partner order API failed:", error);
     document.getElementById("partnerOrdersContainer").innerHTML = `<p class="text-center text-rose-500 py-10 text-xs">${escapePartnerHtml(error.message)}</p>`;
+  }
+}
+
+function startPartnerOrderRefresh() {
+  if (partnerState.orderRefreshTimer) window.clearInterval(partnerState.orderRefreshTimer);
+  partnerState.orderRefreshTimer = null;
+  if (!getPartnerAccessToken() || !partnerState.shopId || document.visibilityState === "hidden") return;
+  partnerState.orderRefreshTimer = window.setInterval(refreshPartnerOrders, 15000);
+}
+
+function stopPartnerOrderRefresh() {
+  if (partnerState.orderRefreshTimer) window.clearInterval(partnerState.orderRefreshTimer);
+  partnerState.orderRefreshTimer = null;
+}
+
+function handlePartnerVisibilityChange() {
+  if (document.visibilityState === "hidden") {
+    stopPartnerOrderRefresh();
+    return;
+  }
+  if (getPartnerAccessToken() && partnerState.shopId) {
+    refreshPartnerOrders();
+    startPartnerOrderRefresh();
+  }
+}
+
+async function refreshPartnerOrders() {
+  if (!getPartnerAccessToken() || !partnerState.shopId || partnerState.orderRefreshInFlight
+      || document.visibilityState === "hidden") return;
+  partnerState.orderRefreshInFlight = true;
+  const shopId = partnerState.shopId;
+  try {
+    const [orders, dashboard] = await Promise.all([
+      partnerApiRequest(`/orders?bucket=all&shop_id=${encodeURIComponent(shopId)}`),
+      partnerApiRequest(`/shops/${encodeURIComponent(shopId)}/dashboard`)
+    ]);
+    if (shopId !== partnerState.shopId) return;
+    partnerState.allOrders = Array.isArray(orders) ? orders : [];
+    partnerState.dashboard = dashboard;
+    const activeStatuses = new Set(["DRAFT", "PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"]);
+    const pastStatuses = new Set(["DELIVERED", "CANCELLED", "REJECTED"]);
+    partnerState.orders = partnerState.orderBucket === "past"
+      ? partnerState.allOrders.filter(order => pastStatuses.has(order.order_status))
+      : partnerState.orderBucket === "all"
+        ? partnerState.allOrders
+        : partnerState.allOrders.filter(order => activeStatuses.has(order.order_status));
+    renderPartnerDashboard(dashboard);
+    renderPartnerOrders();
+    await refreshPartnerNotifications(true);
+  } catch (error) {
+    console.warn("Partner order refresh failed:", error.message);
+  } finally {
+    partnerState.orderRefreshInFlight = false;
+  }
+}
+
+async function requestPartnerPickupCode(orderId) {
+  const message = document.getElementById(`partnerPickupCodeMessage_${orderId}`);
+  const button = document.getElementById(`partnerPickupCodeButton_${orderId}`);
+  if (!partnerState.shopId || !orderId) return;
+  if (button) button.disabled = true;
+  if (message) message.textContent = "Sending code to the restaurant contact...";
+  try {
+    await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}/shops/${encodeURIComponent(partnerState.shopId)}/pickup-otp`, {
+      method: "POST"
+    });
+    if (message) message.textContent = "Pickup code sent to the restaurant's registered contact.";
+  } catch (error) {
+    if (message) message.textContent = error.message;
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -864,3 +1099,23 @@ async function setPartnerStatus(orderId, status) {
 
 document.addEventListener("DOMContentLoaded", loadPartnerRestaurants);
 document.addEventListener("DOMContentLoaded", loadPartnerProductCategories);
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("partnerNotificationPanel").addEventListener("click", event => {
+    const notification = event.target.closest("[data-notification-id]");
+    if (notification) openPartnerNotification(notification.dataset.notificationId);
+  });
+  document.addEventListener("click", event => {
+    const panel = document.getElementById("partnerNotificationPanel");
+    if (!panel.hidden && !panel.contains(event.target) && !event.target.closest("#partnerNotificationButton")) {
+      closePartnerNotificationPanel();
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closePartnerNotificationPanel();
+  });
+  document.addEventListener("visibilitychange", handlePartnerVisibilityChange);
+  window.addEventListener("beforeunload", () => {
+    stopPartnerOrderRefresh();
+    dismissPartnerToast();
+  });
+});

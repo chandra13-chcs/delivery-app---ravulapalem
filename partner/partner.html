@@ -76,6 +76,16 @@
           <span class="partner-topbar-kicker">MYSHOPZY PARTNER</span>
           <h1 id="partnerSectionTitle">Dashboard</h1>
         </div>
+        <div class="partner-notification-wrap">
+          <button type="button" id="partnerNotificationButton" class="partner-notification-button" aria-label="Notifications" title="Notifications" aria-expanded="false" aria-controls="partnerNotificationPanel" onclick="togglePartnerNotificationPanel()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+            <span id="partnerNotificationBadge" class="partner-notification-badge" hidden>0</span>
+          </button>
+          <section id="partnerNotificationPanel" class="partner-notification-panel" aria-label="Partner notifications" hidden>
+            <header class="partner-notification-panel-head"><div><h2>Notifications</h2><p id="partnerNotificationSummary">No new notifications</p></div><div class="partner-notification-panel-actions"><button type="button" id="partnerMarkAllReadButton" onclick="markAllPartnerNotificationsRead()" disabled>Mark all read</button><button type="button" onclick="closePartnerNotificationPanel()" aria-label="Close notifications">×</button></div></header>
+            <div id="partnerNotificationList" class="partner-notification-list"><p class="partner-notification-empty">No new notifications</p></div>
+          </section>
+        </div>
         <div class="partner-topbar-shop">
           <label for="partnerShopSelect">Restaurant</label>
           <select id="partnerShopSelect" onchange="selectPartnerShop(this.value)" aria-label="Select an authorized restaurant"></select>
@@ -152,7 +162,7 @@
 
         <section id="partnerOrdersView" class="partner-page" hidden>
           <div class="partner-page-heading"><div><span class="eyebrow">FULFILLMENT</span><h2 id="partnerDeskTitle">Orders</h2><p class="partner-muted">Accept, prepare, and hand off orders to the rider.</p></div>
-            <label class="partner-select-label">Show <select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)"><option value="active">Active orders</option><option value="past">Past orders</option></select></label>
+            <label class="partner-select-label">Show <select id="partnerOrderBucket" onchange="startPartnerOrderListener(this.value)"><option value="active">Active orders</option><option value="past">Past orders</option><option value="all">All orders</option></select></label>
           </div>
           <section class="partner-panel"><div id="partnerOrdersContainer" class="partner-order-list"><p class="partner-empty">Loading orders...</p></div></section>
         </section>
@@ -225,6 +235,9 @@
         </section>
       </div>
     </main>
+    <div id="partnerNotificationToast" class="partner-notification-toast" role="status" aria-live="polite" hidden>
+      <span class="partner-toast-mark" aria-hidden="true">!</span><span><strong id="partnerToastTitle">New MyShopzy alert</strong><small id="partnerToastMessage">Open notifications to view details.</small></span><button type="button" onclick="dismissPartnerToast()" aria-label="Dismiss notification">×</button>
+    </div>
   </div>
 
   <script src="js/partner.js"></script>
