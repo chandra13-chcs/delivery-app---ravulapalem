@@ -7,6 +7,7 @@ const partnerState = {
   user: null,
   memberships: [],
   shops: [],
+  categories: [],
   dashboard: null,
   inventory: [],
   orders: [],
@@ -176,11 +177,13 @@ async function loadPartnerProductCategories() {
     const response = await fetch(`${PARTNER_API_ROOT}/categories`, { headers: { Accept: "application/json" } });
     const payload = await response.json().catch(() => null);
     if (!response.ok) throw new Error(payload?.message || "Unable to load categories.");
+    partnerState.categories = Array.isArray(payload.data) ? payload.data : [];
     const select = document.getElementById("partnerProductCategory");
     if (!select) return;
-    select.innerHTML = '<option value="">No category</option>' + (payload.data || []).map(category =>
+    select.innerHTML = '<option value="">No category</option>' + partnerState.categories.map(category =>
       `<option value="${escapePartnerHtml(category.id)}">${escapePartnerHtml(category.name)}</option>`
     ).join("");
+    renderPartnerProducts(partnerState.products);
   } catch (error) {
     console.error("Partner product categories could not be loaded:", error);
   }
@@ -275,7 +278,13 @@ function closePartnerSidebar() {
 function startAddPartnerProduct() {
   navigatePartnerSection(null, "products");
   resetPartnerProductForm();
+  document.getElementById("partnerProductModalTitle").textContent = "Add Product";
+  document.getElementById("partnerProductModal").showModal();
   document.getElementById("partnerProductName").focus();
+}
+
+function closePartnerProductModal() {
+  document.getElementById("partnerProductModal").close();
 }
 
 async function startPartnerProductListener() {
@@ -300,15 +309,45 @@ function renderPartnerProducts(products) {
   container.innerHTML = products.length ? products.map(product => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
     const sourceImage = product.images?.[0]?.public_url || "";
-    const imageUrl = /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(sourceImage)
-      ? sourceImage
-      : (() => { try { const image = new URL(sourceImage); return ["http:", "https:"].includes(image.protocol) ? image.href : ""; } catch { return ""; } })();
+    const imageUrl = (() => { try { const image = new URL(sourceImage); return ["http:", "https:"].includes(image.protocol) && !image.username && !image.password ? image.href : ""; } catch { return ""; } })();
     return `
     <article class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-3">
       <img src="${escapePartnerHtml(imageUrl)}" class="w-16 h-16 rounded-xl object-contain bg-slate-50" onerror="this.style.display='none'" alt="">
       <div class="flex-1 min-w-0"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><h3 class="text-xs font-black text-slate-900 truncate">${escapePartnerHtml(product.name)}</h3><p class="text-[10px] text-slate-500 mt-1">${escapePartnerHtml(product.status)}</p></div><button type="button" onclick="togglePartnerProductStatus('${escapePartnerHtml(product.id)}','${product.status === "ACTIVE" ? "PAUSED" : "ACTIVE"}')" class="shrink-0 px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">${product.status === "ACTIVE" ? "Deactivate" : "Activate"}</button></div><p class="text-[11px] text-slate-500 mt-1">${escapePartnerHtml(product.description || "")}</p><div class="flex gap-1 mt-2"><button type="button" onclick="editPartnerProduct('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black">Edit product</button><button type="button" onclick="addPartnerVariant('${escapePartnerHtml(product.id)}')" class="px-2 py-1 rounded-lg bg-cyan-50 text-cyan-900 text-[10px] font-black">Add variant</button></div><div class="mt-2 space-y-2">${variants.map(variant => `<div class="rounded-lg border border-slate-100 p-2"><div class="flex items-center justify-between gap-2"><div><strong class="text-[11px] text-slate-800">${escapePartnerHtml(variant.name || "Variant")}</strong><span class="ml-1 text-[10px] text-slate-500">${escapePartnerHtml(variant.unit_label || "Unit")}</span><p class="text-[11px] text-emerald-700">₹${Number(variant.price || 0).toFixed(2)} · Stock ${Number(variant.quantity_on_hand || 0)}</p></div><div class="flex gap-1"><button type="button" onclick="editPartnerVariant('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold">Edit</button><button type="button" onclick="savePartnerVariantAvailability('${escapePartnerHtml(product.id)}','${escapePartnerHtml(variant.id)}',${variant.is_active === false})" class="px-2 py-1 rounded bg-amber-50 text-amber-800 text-[10px] font-bold">${variant.is_active === false ? "Enable" : "Pause"}</button></div></div><div class="flex items-center gap-2 mt-2"><label class="text-[10px] text-slate-500">Stock <input id="partnerStock_${escapePartnerHtml(variant.id)}" type="number" min="0" step="0.001" value="${Number(variant.quantity_on_hand || 0)}" class="w-20 ml-1 px-2 py-1 border border-slate-200 rounded-lg"></label><button type="button" onclick="savePartnerInventory('${escapePartnerHtml(variant.id)}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black">Update stock</button></div></div>`).join("")}</div></div>
     </article>
-  `; }).join("") : '<p class="partner-empty">No products added yet</p>';
+  `; }).join("") : '<div class="partner-products-empty"><p>No products added yet</p><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add Product</button></div>';
+
+  if (!products.length) return;
+  const cards = container.querySelectorAll("article");
+  products.forEach((product, index) => {
+    const card = cards[index];
+    const content = card?.querySelector(".flex-1");
+    if (!content) return;
+    const image = card.querySelector("img");
+    const sourceImage = product.images?.[0]?.public_url || "";
+    const imageUrl = (() => { try { const imageValue = new URL(sourceImage); return ["http:", "https:"].includes(imageValue.protocol) && !imageValue.username && !imageValue.password ? imageValue.href : ""; } catch { return ""; } })();
+    if (!imageUrl && image) {
+      image.hidden = true;
+      const fallback = document.createElement("div");
+      fallback.className = "partner-product-image-fallback";
+      fallback.textContent = (product.name || "P").trim().charAt(0).toUpperCase();
+      image.before(fallback);
+    }
+    const category = partnerState.categories.find(item => item.id === product.category_id)?.name || "Uncategorized";
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const defaultVariant = variants.find(item => item.is_default) || variants[0];
+    const availableVariantCount = variants.filter(item => item.is_active !== false).length;
+    const availability = variants.length ? `${availableVariantCount}/${variants.length} variants available` : "No variants";
+    const details = document.createElement("div");
+    details.className = "partner-product-details";
+    details.innerHTML = `<span class="partner-product-category">${escapePartnerHtml(category)}</span><span class="partner-product-status-badge ${product.status === "ACTIVE" ? "" : "is-inactive"}">${escapePartnerHtml(product.status || "UNKNOWN")}</span><strong>${defaultVariant ? `₹${Number(defaultVariant.price || 0).toFixed(2)}` : "Price not set"}</strong><span>${escapePartnerHtml(defaultVariant?.unit_label || "")}</span><span class="partner-availability ${availableVariantCount ? "is-available" : "is-unavailable"}">${availability}</span>`;
+    const statusLine = content.querySelector("p");
+    if (statusLine) statusLine.insertAdjacentElement("afterend", details);
+    const actions = document.createElement("div");
+    actions.className = "partner-product-actions";
+    actions.innerHTML = `<button type="button" class="partner-text-button" onclick="deletePartnerProduct('${escapePartnerHtml(product.id)}')">Deactivate from menu</button>`;
+    content.append(actions);
+  });
 }
 
 async function savePartnerInventory(variantId) {
@@ -343,47 +382,11 @@ function resetPartnerProductForm() {
   document.getElementById("partnerProductUnitQuantity").value = "1";
   document.getElementById("partnerProductVariantActive").checked = true;
   document.getElementById("partnerProductImage").value = "";
-  document.getElementById("partnerProductFile").value = "";
-  document.getElementById("partnerProductPreview").hidden = true;
   ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
     document.getElementById(id).disabled = false;
   });
-  document.getElementById("partnerImageDropzone").classList.remove("hidden");
   document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save product";
-}
-
-function handlePartnerImageFile(event) {
-  const file = event.target.files?.[0];
-  if (file) loadPartnerImageFile(file);
-}
-
-function loadPartnerImageFile(file) {
-  if (!file.type.startsWith("image/")) return alert("Please choose an image file.");
-  const reader = new FileReader();
-  reader.onload = () => {
-    const image = new Image();
-    image.onload = () => {
-      const maxSize = 800;
-      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      let quality = 0.82;
-      let dataUrl = canvas.toDataURL("image/webp", quality);
-      while (dataUrl.length > 76000 && quality > 0.42) {
-        quality = Math.max(0.42, quality - 0.1);
-        dataUrl = canvas.toDataURL("image/webp", quality);
-      }
-      if (dataUrl.length > 80000) return alert("Please choose a smaller image.");
-      document.getElementById("partnerProductImage").value = dataUrl;
-      const preview = document.getElementById("partnerProductPreview");
-      preview.src = dataUrl;
-      preview.hidden = false;
-    };
-    image.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+  document.getElementById("partnerProductModalTitle").textContent = "Add Product";
 }
 
 async function savePartnerProduct(event) {
@@ -421,9 +424,10 @@ async function savePartnerProduct(event) {
       const suffix = `/shops/${encodeURIComponent(partnerState.shopId)}/products${productId ? `/${encodeURIComponent(productId)}` : ""}`;
       await partnerApiRequest(suffix, { method: productId ? "PATCH" : "POST", body: JSON.stringify(product) });
     }
+    closePartnerProductModal();
     resetPartnerProductForm();
-    await startPartnerProductListener();
-    alert(mode ? "Variant saved." : "Product saved.");
+    await Promise.all([startPartnerProductListener(), loadPartnerInventory()]);
+    document.getElementById("partnerProductFeedback").textContent = mode ? "Variant saved." : productId ? "Product updated." : "Product added.";
   } catch (error) {
     console.error("Partner product save failed:", error);
     alert(`Unable to save product: ${error.message}`);
@@ -449,6 +453,8 @@ async function editPartnerProduct(productId) {
   const imageUrl = product.images?.[0]?.public_url || "";
   document.getElementById("partnerProductImage").value = imageUrl.startsWith("data:image/") ? "" : imageUrl;
   switchPartnerView("products");
+  document.getElementById("partnerProductModalTitle").textContent = "Edit Product";
+  document.getElementById("partnerProductModal").showModal();
   document.getElementById("partnerProductName").focus();
 }
 
@@ -462,8 +468,8 @@ function preparePartnerVariantForm(productId) {
   ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
     document.getElementById(id).disabled = true;
   });
-  document.getElementById("partnerImageDropzone").classList.add("hidden");
   document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save variant";
+  document.getElementById("partnerProductModalTitle").textContent = "Add Variant";
   return product;
 }
 
@@ -471,6 +477,7 @@ function addPartnerVariant(productId) {
   const product = preparePartnerVariantForm(productId || document.getElementById("partnerProductId").value);
   if (!product) return;
   switchPartnerView("products");
+  document.getElementById("partnerProductModal").showModal();
   document.getElementById("partnerProductVariantName").focus();
 }
 
@@ -488,6 +495,8 @@ function editPartnerVariant(productId, variantId) {
   document.getElementById("partnerProductUnitQuantity").value = variant.unit_quantity ?? 1;
   document.getElementById("partnerProductVariantActive").checked = variant.is_active !== false;
   switchPartnerView("products");
+  document.getElementById("partnerProductModalTitle").textContent = "Edit Variant";
+  document.getElementById("partnerProductModal").showModal();
   document.getElementById("partnerProductVariantName").focus();
 }
 
@@ -509,16 +518,18 @@ async function togglePartnerProductStatus(productId, status) {
       method: "PATCH", body: JSON.stringify({ status })
     });
     await startPartnerProductListener();
+    document.getElementById("partnerProductFeedback").textContent = status === "ACTIVE" ? "Product made available." : "Product deactivated.";
   } catch (error) {
     alert(`Unable to update product status: ${error.message}`);
   }
 }
 
 async function deletePartnerProduct(productId) {
-  if (!confirm("Delete this product from your partner catalog?")) return;
+  if (!confirm("Remove this product from your menu? It will be deactivated, not permanently deleted.")) return;
   try {
     await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/products/${encodeURIComponent(productId)}`, { method: "DELETE" });
     await startPartnerProductListener();
+    document.getElementById("partnerProductFeedback").textContent = "Product removed from the active menu.";
   } catch (error) {
     console.error("Partner product delete failed:", error);
     alert(`Unable to delete product: ${error.message}`);
@@ -853,19 +864,3 @@ async function setPartnerStatus(orderId, status) {
 
 document.addEventListener("DOMContentLoaded", loadPartnerRestaurants);
 document.addEventListener("DOMContentLoaded", loadPartnerProductCategories);
-document.addEventListener("DOMContentLoaded", () => {
-  const dropzone = document.getElementById("partnerImageDropzone");
-  if (!dropzone) return;
-  ["dragenter", "dragover"].forEach(eventName => dropzone.addEventListener(eventName, event => {
-    event.preventDefault();
-    dropzone.classList.add("border-emerald-500", "bg-emerald-50");
-  }));
-  ["dragleave", "drop"].forEach(eventName => dropzone.addEventListener(eventName, event => {
-    event.preventDefault();
-    dropzone.classList.remove("border-emerald-500", "bg-emerald-50");
-  }));
-  dropzone.addEventListener("drop", event => {
-    const file = event.dataTransfer.files?.[0];
-    if (file) loadPartnerImageFile(file);
-  });
-});
