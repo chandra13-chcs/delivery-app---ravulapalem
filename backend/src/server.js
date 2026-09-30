@@ -26,6 +26,7 @@ const adminBannerRoutes = require("./routes/adminBannerRoutes");
 const adminSettingsRoutes = require("./routes/adminSettingsRoutes");
 const publicContentRoutes = require("./routes/publicContentRoutes");
 const addressRoutes = require("./routes/addressRoutes");
+const locationRoutes = require("./routes/locationRoutes");
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use("/api/admin/orders", adminOrderRoutes);
 app.use("/api/partner", partnerRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/location", locationRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {

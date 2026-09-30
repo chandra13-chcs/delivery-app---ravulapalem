@@ -7,6 +7,7 @@ const {
   createPartnerNotifications,
   createAdminNotifications
 } = require("../services/notificationService");
+const { evaluateDeliveryServiceability } = require("../services/serviceabilityService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_STATUSES = ["DRAFT", "PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"];
@@ -362,6 +363,19 @@ async function createCustomerOrder(req, res) {
       address = normalizeAddress(savedAddress.rows[0]);
     }
 
+    if (orderType === "GOODS") {
+      const serviceability = await evaluateDeliveryServiceability({
+        latitude: address.latitude,
+        longitude: address.longitude,
+        postal_code: address.postalCode
+      }, client);
+      if (!serviceability.serviceable) {
+        const error = httpError(422, "Delivery is not available at the selected address.");
+        error.data = { serviceability };
+        throw error;
+      }
+    }
+
     let resolvedLines = [];
     if (orderType === "GOODS") {
       const databaseCart = await client.query(
@@ -550,7 +564,7 @@ async function createCustomerOrder(req, res) {
     });
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});
-    if (error.status) return res.status(error.status).json({ success: false, message: error.message, data: null });
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message, data: error.data ?? null });
     if (error.code === "23505") return res.status(409).json({ success: false, message: "An order with these details already exists.", data: null });
     if (error.code === "23514" || error.code === "22P02" || error.code === "23503") {
       return res.status(400).json({ success: false, message: "Order details are invalid or unavailable.", data: null });
