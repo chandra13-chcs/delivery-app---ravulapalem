@@ -13,6 +13,7 @@ const {
 } = require("../services/otpService");
 const { ORDER_PROJECTION, ACTIVE_STATUSES, PAST_STATUSES, presentOrder } = require("./orderController");
 const { loadRiderEarningConfig, calculateRiderEarningSnapshot } = require("../services/riderEarningsService");
+const { calculateEta, calculateCustomerOrderEta, unavailableEta } = require("../services/etaService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_ASSIGNMENT_STATUSES = ["OFFERED", "ACCEPTED", "PICKING_UP", "OUT_FOR_DELIVERY"];
@@ -1043,9 +1044,13 @@ async function getCustomerTracking(req, res) {
   if (!validateUuid(orderId)) return respondError(res, 400, "Invalid order id.");
   try {
     const orderResult = await db.query(
-      `SELECT o.id, o.status, o.customer_user_id, da.id AS assignment_id,
-              da.status AS assignment_status, ru.display_name AS rider_name
+          `SELECT o.id, o.status, o.customer_user_id, o.order_type,
+            oa.latitude AS delivery_latitude, oa.longitude AS delivery_longitude,
+            oa.postal_code AS delivery_postal_code,
+            da.id AS assignment_id, da.status AS assignment_status,
+            ru.display_name AS rider_name
        FROM orders o
+           LEFT JOIN order_addresses oa ON oa.order_id = o.id
        LEFT JOIN LATERAL (
          SELECT da.* FROM delivery_assignments da
          WHERE da.order_id = o.id AND da.status = ANY($3::text[])
@@ -1060,7 +1065,14 @@ async function getCustomerTracking(req, res) {
     if (!order) return respondError(res, 404, "Order not found.");
     const visible = ["ACCEPTED", "PICKING_UP", "OUT_FOR_DELIVERY"].includes(order.assignment_status);
     if (!visible || !order.assignment_id) {
-      return res.json({ success: true, data: { available: false, order_status: order.status } });
+      let eta;
+      try {
+        eta = await calculateCustomerOrderEta(order, db);
+      } catch (error) {
+        console.error("Customer order ETA unavailable:", error.message);
+        eta = unavailableEta("ETA_CONFIGURATION_UNAVAILABLE");
+      }
+      return res.json({ success: true, data: { available: false, order_status: order.status, eta } });
     }
     const locationResult = await db.query(
       `SELECT latitude, longitude, accuracy_m, heading_degrees, speed_mps, recorded_at
@@ -1071,6 +1083,19 @@ async function getCustomerTracking(req, res) {
       [order.assignment_id]
     );
     const location = locationResult.rows[0];
+    let eta = unavailableEta("RIDER_LOCATION_UNAVAILABLE");
+    if (location) {
+      try {
+        eta = await calculateEta({
+          origin: { latitude: location.latitude, longitude: location.longitude },
+          destination: { latitude: order.delivery_latitude, longitude: order.delivery_longitude },
+          mode: "RIDER_TO_CUSTOMER"
+        }, db);
+      } catch (error) {
+        console.warn("Live rider ETA unavailable:", error.message);
+        eta = unavailableEta("ETA_COORDINATES_UNAVAILABLE");
+      }
+    }
     return res.json({ success: true, data: {
       available: true,
       order_status: order.status,
@@ -1082,7 +1107,8 @@ async function getCustomerTracking(req, res) {
         heading_degrees: location.heading_degrees == null ? null : Number(location.heading_degrees),
         speed_mps: location.speed_mps == null ? null : Number(location.speed_mps),
         recorded_at: location.recorded_at
-      } : null
+      } : null,
+      eta
     } });
   } catch (error) {
     console.error("Customer delivery tracking lookup failed:", error.message);

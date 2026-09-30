@@ -37,7 +37,6 @@ let customerMarker = null;
 let riderTrackingMap = null;
 let riderTrackingMarker = null;
 let riderTrackingPollTimer = null;
-let riderTrackingDestination = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
 const delaySupportShownFor = new Set();
@@ -409,15 +408,6 @@ function openCustomerRiderTracker(orderId) {
     riderTrackingMarker.remove();
     riderTrackingMarker = null;
   }
-  riderTrackingDestination = null;
-  customerOrderApiRequest(`/${encodeURIComponent(orderId)}`).then(order => {
-    if (Number.isFinite(Number(order?.delivery_latitude)) && Number.isFinite(Number(order?.delivery_longitude))) {
-      riderTrackingDestination = {
-        lat: Number(order.delivery_latitude),
-        lng: Number(order.delivery_longitude)
-      };
-    }
-  }).catch(error => console.warn("Tracking destination load failed:", error));
   if (!riderTrackingMap) {
     riderTrackingMap = L.map("customerRiderTrackingMap").setView([DARK_STORE_COORDS.lat, DARK_STORE_COORDS.lng], 14);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -432,11 +422,14 @@ function openCustomerRiderTracker(orderId) {
     try {
       const tracking = await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/tracking`);
       if (!tracking?.available) {
-        if (status) status.innerText = "Live tracking becomes available after the rider accepts the delivery.";
+        const etaMessage = tracking?.eta?.available
+          ? `Estimated delivery: ${formatCustomerEta(tracking.eta)}.`
+          : "ETA unavailable.";
+        if (status) status.innerText = `Live tracking becomes available after the rider accepts the delivery. ${etaMessage}`;
         return;
       }
       if (!tracking.location) {
-        if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is assigned; waiting for a location update.`;
+        if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is assigned; waiting for a location update. ${formatCustomerEta(tracking.eta)}.`;
         return;
       }
 
@@ -453,13 +446,7 @@ function openCustomerRiderTracker(orderId) {
         }).addTo(riderTrackingMap).bindPopup(`<b>${escapeHtml(tracking.rider_name || 'Delivery partner')}</b><br>Live delivery partner`).openPopup();
       }
       riderTrackingMap.setView(position, 16);
-      let etaText = "";
-      if (riderTrackingDestination) {
-        const distance = calculateDistanceKm(position[0], position[1], riderTrackingDestination.lat, riderTrackingDestination.lng);
-        const etaMinutes = Math.max(1, Math.ceil((distance / 25) * 60));
-        etaText = ` · Approx. ${etaMinutes} min (${distance.toFixed(1)} km)`;
-      }
-      if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is live. Updated ${new Date(location.recorded_at).toLocaleTimeString()}${etaText}`;
+      if (status) status.innerText = `${tracking.rider_name || 'Your rider'} is live. Updated ${new Date(location.recorded_at).toLocaleTimeString()} · ${formatCustomerEta(tracking.eta)}.`;
     } catch (error) {
       console.error("Customer rider tracking request failed:", error);
       if (status) status.innerText = error.message || "Live location is temporarily unavailable.";
@@ -467,6 +454,17 @@ function openCustomerRiderTracker(orderId) {
   };
   refresh();
   riderTrackingPollTimer = setInterval(refresh, 4000);
+}
+
+function formatCustomerEta(eta) {
+  const minimum = Number(eta?.eta_min_minutes);
+  const maximum = Number(eta?.eta_max_minutes);
+  if (!eta?.available || !Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum < minimum) {
+    return "ETA unavailable";
+  }
+  const distance = Number(eta.distance_km);
+  const distanceText = Number.isFinite(distance) ? ` (${distance.toFixed(1)} km)` : "";
+  return `ETA ${minimum}-${maximum} min${distanceText}`;
 }
 
 function closeCustomerRiderTracker() {
