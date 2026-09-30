@@ -12,9 +12,12 @@ let salesReportRequestId = 0;
 const SALES_REPORT_PAGE_SIZE = 25;
 let ADMIN_RIDER_PROFILES = [];
 let ADMIN_DELIVERY_RIDERS = [];
+let adminOrderTableRows = [];
+let adminDeliveryOrdersLoaded = false;
 let adminOrderIdsInitialized = false;
 let adminOrderPollTimer = null;
 let adminTrackingPollTimer = null;
+let adminWorkspaceStarted = false;
 let adminKnownOrderIds = new Set();
 let adminCountdownTimer = null;
 let pendingAdminOrderAlerts = [];
@@ -41,6 +44,11 @@ async function adminRiderApiRequest(path, options = {}) {
         localStorage.removeItem(key);
       });
       sessionStorage.removeItem('hub_session_unlocked');
+      if (adminOrderPollTimer) clearInterval(adminOrderPollTimer);
+      if (adminTrackingPollTimer) clearInterval(adminTrackingPollTimer);
+      adminOrderPollTimer = null;
+      adminTrackingPollTimer = null;
+      adminWorkspaceStarted = false;
       document.getElementById('adminAuthLock')?.classList.remove('hidden');
     }
     const message = payload?.message || `Request failed with status ${response.status}`;
@@ -65,6 +73,46 @@ async function loadAdminRiderEarningConfig() {
     if (status) status.textContent = config.configured ? 'Saved configuration loaded.' : 'Default configuration loaded.';
   } catch (error) {
     if (status) status.textContent = error.message || 'Unable to load rider earnings configuration.';
+  }
+}
+
+async function loadAdminEtaConfig() {
+  const status = document.getElementById('adminEtaConfigStatus');
+  if (status) status.textContent = 'Loading ETA configuration...';
+  try {
+    const result = await adminRiderApiRequest('/api/admin/deliveries/eta-config', { cache: 'no-store' });
+    const config = result.data;
+    document.getElementById('adminEtaPromise').value = String(config.customer_delivery_promise_minutes);
+    document.getElementById('adminEtaSpeed').value = String(config.average_delivery_speed_kmh);
+    document.getElementById('adminEtaPrep').value = String(config.preparation_buffer_minutes);
+    document.getElementById('adminEtaMinimum').value = String(config.minimum_eta_minutes);
+    document.getElementById('adminEtaMaximumBuffer').value = String(config.maximum_eta_buffer_minutes);
+    if (status) status.textContent = config.configured ? 'Saved configuration loaded.' : 'Default configuration loaded.';
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Unable to load ETA configuration.';
+  }
+}
+
+async function saveAdminEtaConfig(event) {
+  event.preventDefault();
+  const button = document.getElementById('saveAdminEtaConfigButton');
+  const status = document.getElementById('adminEtaConfigStatus');
+  const payload = {
+    customer_delivery_promise_minutes: Number(document.getElementById('adminEtaPromise').value),
+    average_delivery_speed_kmh: Number(document.getElementById('adminEtaSpeed').value),
+    preparation_buffer_minutes: Number(document.getElementById('adminEtaPrep').value),
+    minimum_eta_minutes: Number(document.getElementById('adminEtaMinimum').value),
+    maximum_eta_buffer_minutes: Number(document.getElementById('adminEtaMaximumBuffer').value)
+  };
+  if (button) button.disabled = true;
+  if (status) status.textContent = 'Saving ETA configuration...';
+  try {
+    await adminRiderApiRequest('/api/admin/deliveries/eta-config', { method: 'PUT', body: JSON.stringify(payload) });
+    if (status) status.textContent = 'ETA configuration saved.';
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Unable to save ETA configuration.';
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -165,7 +213,7 @@ function formatOrderDateTime(order) {
     date = new Date(Number(order.created_at.seconds) * 1000);
   }
   if (!date || Number.isNaN(date.getTime())) return "Date unavailable";
-  return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 }
 
 function getAdminLocalDateKey(date) {
@@ -206,6 +254,7 @@ async function startRegisteredRiderListener() {
     await loadEligibleDeliveryRiders();
     renderAdminRiderStatus();
     renderRiderVerificationQueue();
+    renderAdminRiderDirectory();
     refreshAdminRiderAssignmentFields();
   } catch (error) {
     console.error("Registered rider listener error:", error);
@@ -223,14 +272,15 @@ async function loadEligibleDeliveryRiders() {
 }
 
 function renderRiderVerificationQueue() {
-  const container = document.getElementById("riderVerificationQueue");
-  if (!container) return;
+  const containers = document.querySelectorAll("#adminRiderVerificationQueue");
+  if (!containers.length) return;
   const pending = ADMIN_RIDER_PROFILES.filter(profile => ["PENDING", "SUBMITTED"].includes(String(profile.verification_status || "PENDING").toUpperCase()));
-  if (!pending.length) {
-    container.innerHTML = '<p class="text-xs font-bold text-emerald-700">No pending rider verification requests.</p>';
-    return;
-  }
-  container.innerHTML = pending.map(profile => `
+  containers.forEach(container => {
+    if (!pending.length) {
+      container.innerHTML = '<p class="text-xs font-bold text-emerald-700">No pending rider verification requests.</p>';
+      return;
+    }
+    container.innerHTML = pending.map(profile => `
     <article class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
       <div class="flex items-start justify-between gap-2">
         <div><h3 class="text-base font-black text-slate-900">${escapeAdminHtml(profile.name || "Unnamed rider")}</h3><p class="text-xs text-slate-500">${escapeAdminHtml(profile.mobile || "-")} · ${escapeAdminHtml(profile.email || "-")}</p></div>
@@ -250,8 +300,32 @@ function renderRiderVerificationQueue() {
         <button onclick="reviewRiderVerification('${encodeURIComponent(profile.id)}', 'REJECTED')" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Reject rider</button>
       </div>
     </article>
-  `).join("");
-  loadRiderVerificationPreviews(container);
+        `).join("");
+        loadRiderVerificationPreviews(container);
+    });
+}
+
+function renderAdminRiderDirectory() {
+  const tbody = document.getElementById('adminRiderDirectory');
+  if (!tbody) return;
+  const available = ADMIN_RIDER_PROFILES.filter(rider => rider.is_available).length;
+  const pending = ADMIN_RIDER_PROFILES.filter(rider => ['PENDING', 'SUBMITTED'].includes(String(rider.verification_status || '').toUpperCase())).length;
+  const activeAssignments = new Map(allFetchedOrders
+    .filter(order => order.assigned_rider_id && ['ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(String(order.assignment_status || '').toUpperCase()))
+    .map(order => [order.assigned_rider_id, order.order_number || order.id]));
+  const setCount = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
+  setCount('adminRiderCountAll', ADMIN_RIDER_PROFILES.length);
+  setCount('adminRiderCountPending', pending);
+  setCount('adminRiderCountAvailable', available);
+  setCount('adminRiderCountOnDelivery', activeAssignments.size);
+  if (!ADMIN_RIDER_PROFILES.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">No riders yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ADMIN_RIDER_PROFILES.map(rider => {
+    const joined = rider.created_at ? new Date(rider.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium' }) : '-';
+    return `<tr><td><strong>${escapeAdminHtml(rider.name || 'Rider')}</strong></td><td>${escapeAdminHtml(rider.mobile || '-')}<br>${escapeAdminHtml(rider.email || '')}</td><td>${escapeAdminHtml(rider.verification_status || '-')}</td><td>${rider.is_available ? 'Available' : 'Unavailable'}</td><td>${escapeAdminHtml(activeAssignments.get(rider.id) || '-')}</td><td>${escapeAdminHtml(joined)}</td></tr>`;
+  }).join('');
 }
 
 function renderRiderVerificationDocument(profile, label, pathField, fileField) {
@@ -401,18 +475,81 @@ async function assignOrderToRider(orderId, riderId) {
   }
 }
 
-async function verifyAdminAccess() {
+function clearAdminLoginFeedback(field) {
+  const error = document.getElementById('adminLoginError');
+  const fieldMessage = document.getElementById(field === 'email' ? 'adminEmailMessage' : 'adminLoginError');
+  const input = document.getElementById(field === 'email' ? 'adminLoginIdentifier' : 'adminLoginPassword');
+  if (error) error.textContent = '';
+  if (fieldMessage && fieldMessage !== error) fieldMessage.textContent = '';
+  input?.removeAttribute('aria-invalid');
+}
+
+function showAdminPassword() {
+  const input = document.getElementById('adminLoginPassword');
+  const toggle = document.getElementById('adminPasswordToggle');
+  if (!input || !toggle) return;
+  const showing = input.type === 'password';
+  input.type = showing ? 'text' : 'password';
+  toggle.textContent = showing ? 'Hide' : 'Show';
+  toggle.setAttribute('aria-label', `${showing ? 'Hide' : 'Show'} password`);
+  toggle.setAttribute('aria-pressed', String(showing));
+}
+
+function getAdminLoginFailureMessage(status, payload) {
+  const backendMessage = typeof payload?.message === 'string' ? payload.message.trim() : '';
+  const safeBackendMessage = backendMessage.length <= 180
+    && !/[\r\n]/.test(backendMessage)
+    && !/\b(stack|syntaxerror|typeerror|referenceerror|postgres|database query|sqlstate)\b/i.test(backendMessage)
+    ? backendMessage : '';
+
+  if (status === 401) {
+    if (backendMessage === 'Invalid credentials.') return 'Invalid email or password.';
+    return safeBackendMessage || 'Invalid email or password.';
+  }
+  if (status === 403) return safeBackendMessage || 'Your account is not authorized to access this portal.';
+  if (status === 400) return 'Enter a valid email address and password.';
+  if (status >= 500) return 'Something went wrong. Please try again.';
+  return safeBackendMessage || 'Something went wrong. Please try again.';
+}
+
+async function verifyAdminAccess(event) {
+  event?.preventDefault();
   const identifierInput = document.getElementById('adminLoginIdentifier');
   const passwordInput = document.getElementById('adminLoginPassword');
   const errorMessage = document.getElementById('adminLoginError');
+  const emailMessage = document.getElementById('adminEmailMessage');
   const button = document.getElementById('adminLoginButton');
+  const buttonText = document.getElementById('adminLoginButtonText');
+  const spinner = document.getElementById('adminLoginSpinner');
   const identifier = identifierInput?.value.trim() || '';
   const password = passwordInput?.value || '';
-  if (!identifier || !password || !errorMessage || !button) return;
+  if (!identifierInput || !passwordInput || !errorMessage || !button) return;
 
-  errorMessage.classList.add('hidden');
+  clearAdminLoginFeedback('email');
+  clearAdminLoginFeedback('password');
+  if (!identifier) {
+    if (emailMessage) emailMessage.textContent = 'Enter your admin email address.';
+    identifierInput.setAttribute('aria-invalid', 'true');
+    identifierInput.focus();
+    return;
+  }
+  if (!identifierInput.validity.valid) {
+    if (emailMessage) emailMessage.textContent = 'Enter a valid email address.';
+    identifierInput.setAttribute('aria-invalid', 'true');
+    identifierInput.focus();
+    return;
+  }
+  if (!password) {
+    if (errorMessage) errorMessage.textContent = 'Enter your password.';
+    passwordInput.setAttribute('aria-invalid', 'true');
+    passwordInput.focus();
+    return;
+  }
+
   button.disabled = true;
-  button.textContent = 'Signing In...';
+  button.setAttribute('aria-busy', 'true');
+  if (buttonText) buttonText.textContent = 'Signing in...';
+  spinner?.classList.remove('hidden');
   try {
     const response = await fetch(`${ADMIN_RIDER_API_BASE_URL}/api/admin/auth/login`, {
       method: 'POST',
@@ -421,20 +558,29 @@ async function verifyAdminAccess() {
       cache: 'no-store'
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok || typeof payload?.access_token !== 'string') {
-      throw new Error(payload?.message || 'Unable to sign in.');
+    if (!response.ok) {
+      errorMessage.textContent = getAdminLoginFailureMessage(response.status, payload);
+      return;
+    }
+    if (typeof payload?.access_token !== 'string') {
+      errorMessage.textContent = 'Something went wrong. Please try again.';
+      return;
     }
     sessionStorage.setItem('admin_access_token', payload.access_token);
     sessionStorage.setItem('hub_session_unlocked', 'true');
     passwordInput.value = '';
     document.getElementById('adminAuthLock')?.classList.add('hidden');
-    switchView('orders');
+    startAdminAuthenticatedWorkspace();
+    switchView('home');
   } catch (error) {
-    errorMessage.textContent = error.message || 'Unable to sign in.';
-    errorMessage.classList.remove('hidden');
+    errorMessage.textContent = error instanceof TypeError
+      ? 'Unable to connect to MyShopzy server. Please try again.'
+      : 'Something went wrong. Please try again.';
   } finally {
     button.disabled = false;
-    button.textContent = 'Sign In';
+    button.setAttribute('aria-busy', 'false');
+    if (buttonText) buttonText.textContent = 'Sign In';
+    spinner?.classList.add('hidden');
   }
 }
 
@@ -443,6 +589,7 @@ function switchView(tab) {
   const selectedTab = String(tab || 'home');
   const homeSec = document.getElementById('homeViewSection');
   const ordersSec = document.getElementById('ordersViewSection');
+  const deliverySec = document.getElementById('deliveryViewSection');
   const analyticsSec = document.getElementById('analyticsViewSection');
   const riderSec = document.getElementById('riderVerificationViewSection');
   const expensesSec = document.getElementById('expensesViewSection');
@@ -451,32 +598,44 @@ function switchView(tab) {
   const partnersSec = document.getElementById('partnersViewSection');
   const banSec = document.getElementById('bannersViewSection');
   const categoriesSec = document.getElementById('categoriesViewSection');
+  const notificationsSec = document.getElementById('notificationsViewSection');
+  const unavailableSec = document.getElementById('adminUnavailableViewSection');
+  const breadcrumb = document.getElementById('breadcrumbLabel');
+  const viewTitles = {
+    home: 'Dashboard', orders: 'Orders', deliveryOps: 'Deliveries', analytics: 'Sales & Reports',
+    riderVerification: 'Riders', expenses: 'Expenses', deliveryPricing: 'Settings', settings: 'Settings',
+    inventory: 'Inventory', partners: 'Partners', shops: 'Restaurants & Shops', banners: 'Banners',
+    offers: 'Offers & Promotions', categories: 'Categories', notifications: 'Notifications',
+    customers: 'Customers', payments: 'Payments', support: 'Support', auditLogs: 'Audit Logs'
+  };
+  if (breadcrumb) breadcrumb.textContent = viewTitles[selectedTab] || 'Dashboard';
 
   const navbarButtons = Array.from(document.querySelectorAll('.nav-item'));
-  [homeSec, ordersSec, analyticsSec, riderSec, expensesSec, pricingSec, invSec, partnersSec, banSec, categoriesSec].forEach(el => el && el.classList.add('hidden'));
+  [homeSec, ordersSec, deliverySec, analyticsSec, riderSec, expensesSec, pricingSec, invSec, partnersSec, banSec, categoriesSec, notificationsSec, unavailableSec].forEach(el => el && el.classList.add('hidden'));
   navbarButtons.forEach((item) => {
     const itemTab = String(item.dataset.tab || '');
-    const active = itemTab === selectedTab;
+    const active = itemTab === selectedTab || (selectedTab === 'shops' && itemTab === 'partners');
     item.classList.toggle('active', active);
     item.setAttribute('aria-current', active ? 'page' : 'false');
   });
+  document.body.classList.remove('sidebar-open');
 
   if (selectedTab === 'home') {
     if (homeSec) homeSec.classList.remove('hidden');
+    loadAdminDashboard();
   } else if (selectedTab === 'orders') {
     if (ordersSec) ordersSec.classList.remove('hidden');
+    loadAdminOrdersView();
+  } else if (selectedTab === 'deliveryOps') {
+    if (deliverySec) deliverySec.classList.remove('hidden');
+    renderAdminDeliveries(allFetchedOrders, adminDeliveryOrdersLoaded);
+  } else if (selectedTab === 'riderVerification') {
+    if (riderSec) riderSec.classList.remove('hidden');
     renderRiderVerificationQueue();
-    const container = document.getElementById('adminQueueContainer');
-    if (container) {
-      container.innerHTML = '<p class="text-sm font-bold text-slate-500">Loading dispatch queue...</p>';
-    }
   } else if (selectedTab === 'analytics') {
     if (analyticsSec) analyticsSec.classList.remove('hidden');
     initSalesDatePicker();
     calculateAndRenderAnalytics();
-  } else if (selectedTab === 'riderVerification') {
-    if (riderSec) riderSec.classList.remove('hidden');
-    renderRiderVerificationQueue();
   } else if (selectedTab === 'expenses') {
     if (expensesSec) expensesSec.classList.remove('hidden');
   } else if (selectedTab === 'deliveryPricing') {
@@ -484,17 +643,193 @@ function switchView(tab) {
     loadAdminRiderEarningConfig();
   } else if (selectedTab === 'inventory') {
     if (invSec) invSec.classList.remove('hidden');
+    loadAdminRestaurants();
     loadAdminInventory();
+    loadCategoryManager();
     loadAdminPostgresCatalog();
-  } else if (selectedTab === 'partners') {
+  } else if (selectedTab === 'partners' || selectedTab === 'shops') {
     if (partnersSec) partnersSec.classList.remove('hidden');
-  } else if (selectedTab === 'banners') {
+    loadAdminPartnerAccounts();
+  } else if (selectedTab === 'banners' || selectedTab === 'offers') {
     if (banSec) banSec.classList.remove('hidden');
     loadAdminBanners();
     loadAdminDailyOffer();
   } else if (selectedTab === 'categories') {
     if (categoriesSec) categoriesSec.classList.remove('hidden');
     loadCategoryManager();
+  } else if (selectedTab === 'notifications') {
+    if (notificationsSec) notificationsSec.classList.remove('hidden');
+    loadAdminNotificationPage();
+  } else if (selectedTab === 'settings' || selectedTab === 'deliveryPricing') {
+    if (pricingSec) pricingSec.classList.remove('hidden');
+    loadAdminRiderEarningConfig();
+    loadAdminEtaConfig();
+  } else if (['customers', 'payments', 'support', 'auditLogs'].includes(selectedTab)) {
+    if (unavailableSec) unavailableSec.classList.remove('hidden');
+    renderAdminUnavailableSection(selectedTab);
+  }
+}
+
+async function loadAdminOrdersView() {
+  const tbody = document.getElementById('adminOrdersTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="16" class="empty-cell">Loading orders...</td></tr>';
+  const bucket = document.getElementById('adminOrderBucketFilter')?.value || 'all';
+  try {
+    const result = await adminRiderApiRequest(`/api/admin/orders?bucket=${encodeURIComponent(bucket)}`, { cache: 'no-store' });
+    adminOrderTableRows = Array.isArray(result?.data) ? result.data : [];
+    filterAdminOrders();
+  } catch (error) {
+    adminOrderTableRows = [];
+    tbody.innerHTML = `<tr><td colspan="16" class="empty-cell">Unable to load orders: ${escapeAdminHtml(error.message)}</td></tr>`;
+  }
+}
+
+function filterAdminOrders() {
+  const tbody = document.getElementById('adminOrdersTableBody');
+  if (!tbody) return;
+  const search = String(document.getElementById('adminOrderSearch')?.value || '').trim().toLowerCase();
+  const status = document.getElementById('adminOrderStatusFilter')?.value || '';
+  const payment = document.getElementById('adminOrderPaymentFilter')?.value || '';
+  const from = document.getElementById('adminOrderDateFrom')?.value || '';
+  const to = document.getElementById('adminOrderDateTo')?.value || '';
+  const rows = adminOrderTableRows.filter(order => {
+    const shopNames = (order.fulfillments || []).map(item => item.shop_name || '').join(' ');
+    const haystack = [order.order_number, order.id, order.customer_name, order.customer_phone, shopNames].join(' ').toLowerCase();
+    const orderDate = order.placed_at ? getAdminReportDateKey(new Date(order.placed_at)) : '';
+    return (!search || haystack.includes(search))
+      && (!status || order.status === status)
+      && (!payment || order.payment_status === payment)
+      && (!from || (orderDate && orderDate >= from))
+      && (!to || (orderDate && orderDate <= to));
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="16" class="empty-cell">${adminOrderTableRows.length ? 'No orders match these filters.' : 'No orders yet.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(order => {
+    const shops = (order.fulfillments || []).map(item => item.shop_name).filter(Boolean).join(', ') || 'Not available yet';
+    const items = (order.items || []).map(item => `${Number(item.quantity || 0)} × ${item.name}`).join(', ') || 'Not available yet';
+    const date = order.placed_at ? new Date(order.placed_at) : null;
+    const validDate = date && Number.isFinite(date.getTime());
+    const orderDate = validDate ? date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium' }) : 'Not available yet';
+    const orderTime = validDate ? date.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : 'Not available yet';
+    return `<tr>
+      <td><strong>${escapeAdminHtml(order.order_number || order.id)}</strong></td>
+      <td>${escapeAdminHtml(order.customer_name || 'Not available yet')}<br><span>${escapeAdminHtml(order.customer_phone || '')}</span></td>
+      <td>${escapeAdminHtml(shops)}</td>
+      <td>${escapeAdminHtml(order.order_type || 'Not available yet')}</td>
+      <td>${escapeAdminHtml(items)}</td>
+      <td>${formatSalesCurrency(order.subtotal)}</td>
+      <td>${formatSalesCurrency(order.delivery_fee)}</td>
+      <td>${formatSalesCurrency(order.tax_amount)}</td>
+      <td>${formatSalesCurrency(order.offer_discount)}</td>
+      <td class="table-amount">${formatSalesCurrency(order.total_amount)}</td>
+      <td>${escapeAdminHtml(order.payment_mode || 'Not available yet')}</td>
+      <td>${escapeAdminHtml(order.payment_status || 'Not available yet')}</td>
+      <td>${escapeAdminHtml(orderDate)}</td>
+      <td>${escapeAdminHtml(orderTime)}</td>
+      <td>${escapeAdminHtml(order.status || 'Not available yet')}</td>
+      <td><button type="button" class="table-action" onclick="openAdminOrderDetails('${encodeURIComponent(order.id)}')">View details</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAdminDeliveries(orders = [], loaded = true, errorMessage = '') {
+  const tbody = document.getElementById('adminDeliveriesTableBody');
+  if (!tbody) return;
+  if (!loaded) {
+    tbody.innerHTML = '<tr><td colspan="13" class="empty-cell">Loading deliveries...</td></tr>';
+    return;
+  }
+  if (errorMessage) {
+    tbody.innerHTML = `<tr><td colspan="13" class="empty-cell">Unable to load deliveries: ${escapeAdminHtml(errorMessage)}</td></tr>`;
+    return;
+  }
+  const rows = Array.isArray(orders) ? orders : [];
+  const terminalStatuses = ['DELIVERED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'];
+  const active = rows.filter(order => !terminalStatuses.includes(String(order.status || '').toUpperCase()));
+  const assignments = rows.filter(order => order.assignment_id);
+  const count = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
+  count('deliveryCountTotal', assignments.length);
+  count('deliveryCountPending', active.filter(order => !order.assignment_id).length);
+  count('deliveryCountAssigned', assignments.filter(order => ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(String(order.assignment_status || '').toUpperCase())).length);
+  count('deliveryCountPickupPending', assignments.filter(order => ['ACCEPTED', 'PICKING_UP'].includes(String(order.assignment_status || '').toUpperCase())).length);
+  count('deliveryCountPickedUp', 'Not available yet');
+  count('deliveryCountOut', rows.filter(order => order.status === 'OUT_FOR_DELIVERY').length);
+  count('deliveryCountDelivered', rows.filter(order => order.status === 'DELIVERED').length);
+  count('deliveryCountFailed', rows.filter(order => ['DELIVERY_FAILED', 'CANCELLED', 'REJECTED'].includes(String(order.status || '').toUpperCase())).length);
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="13" class="empty-cell">No deliveries yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(order => {
+    const shops = (order.fulfillments || []).map(item => item.shop_name).filter(Boolean).join(', ') || 'Not available yet';
+    const assignmentId = order.assignment_id ? encodeURIComponent(order.assignment_id) : '';
+    const canTrack = assignmentId && ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(String(order.assignment_status || '').toUpperCase());
+    const actions = `<button type="button" class="table-action" onclick="openAdminOrderDetails('${encodeURIComponent(order.id)}')">View details</button>${canTrack ? ` <button type="button" class="table-action" onclick="openAdminRiderTracker('${assignmentId}')">Track</button>` : ''}`;
+    return `<tr>
+      <td>${escapeAdminHtml(order.assignment_id || 'Not assigned')}</td>
+      <td><strong>${escapeAdminHtml(order.order_number || order.id)}</strong></td>
+      <td>${escapeAdminHtml(order.customer_name || 'Not available yet')}</td>
+      <td>${escapeAdminHtml(shops)}</td>
+      <td>${escapeAdminHtml(order.assigned_rider || 'Not assigned')}</td>
+      <td>${escapeAdminHtml(order.assignment_status || 'Not available yet')}</td>
+      <td>${escapeAdminHtml(order.status || 'Not available yet')}</td>
+      <td>Not available yet</td>
+      <td>Not available yet</td>
+      <td>Not available yet</td>
+      <td>Not available yet</td>
+      <td>Not available yet</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAdminUnavailableSection(section) {
+  const title = document.getElementById('adminUnavailableTitle');
+  const message = document.getElementById('adminUnavailableMessage');
+  const descriptions = {
+    customers: ['Customer management', 'No platform-wide admin customer list, profile, address, or account-status endpoint is available. Customer data is not exposed through partner-scoped APIs.'],
+    payments: ['Payments', 'Reports provide payment totals and the latest payment status per order. There is no admin transaction listing, refund management, or provider reconciliation endpoint.'],
+    support: ['Support', 'Support tables exist in PostgreSQL, but no admin ticket or message routes are registered.'],
+    auditLogs: ['Audit logs', 'The backend writes audit events for several admin operations, but no admin audit-log read endpoint is registered.']
+  };
+  const [heading, detail] = descriptions[section] || ['Unavailable', 'No admin API is registered for this section.'];
+  if (title) title.textContent = heading;
+  if (message) message.textContent = detail;
+}
+
+async function loadAdminNotificationPage() {
+  const list = document.getElementById('adminNotificationList');
+  if (!list) return;
+  list.innerHTML = '<p class="empty-state">Loading notifications...</p>';
+  try {
+    const notifications = await adminNotificationsApiRequest('');
+    const rows = Array.isArray(notifications) ? notifications : [];
+    const unread = rows.filter(item => !item.read_at && item.status !== 'READ').length;
+    const count = document.getElementById('adminNotificationUnreadCount');
+    if (count) count.textContent = String(unread);
+    if (!rows.length) {
+      list.innerHTML = '<p class="empty-state">No notifications yet.</p>';
+      return;
+    }
+    list.innerHTML = rows.map(item => `<article class="notification-row ${item.read_at || item.status === 'READ' ? '' : 'notification-unread'}">
+      <div><strong>${escapeAdminHtml(item.title || 'Notification')}</strong><p>${escapeAdminHtml(item.body || '')}</p><span>${escapeAdminHtml(item.payload?.event || item.channel || 'System')} · ${item.created_at ? escapeAdminHtml(new Date(item.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })) : 'Date unavailable'}</span></div>
+      ${item.read_at || item.status === 'READ' ? '<span class="notification-read-label">Read</span>' : `<button type="button" class="table-action" onclick="markAdminNotificationRead('${encodeURIComponent(item.id)}')">Mark read</button>`}
+    </article>`).join('');
+  } catch (error) {
+    list.innerHTML = `<p class="empty-state">Unable to load notifications: ${escapeAdminHtml(error.message)}</p>`;
+  }
+}
+
+async function markAdminNotificationRead(encodedId) {
+  try {
+    await adminNotificationsApiRequest(`/${encodeURIComponent(decodeURIComponent(encodedId))}/read`, { method: 'PATCH' });
+    await loadAdminNotificationPage();
+  } catch (error) {
+    alert(`Unable to mark notification as read: ${error.message}`);
   }
 }
 
@@ -580,6 +915,11 @@ function loadAdminRestaurants() {
   const select = document.getElementById('pRestaurant');
   const list = document.getElementById('adminRestaurantsList');
   if (!select && !list) return;
+  if (typeof db === 'undefined' || typeof db.collection !== 'function') {
+    if (select) select.innerHTML = '<option value="">Legacy Firebase restaurant catalog unavailable</option>';
+    if (list) list.innerHTML = '<p class="text-xs text-slate-500">Legacy Firebase restaurant data is unavailable.</p>';
+    return;
+  }
 
   db.collection('restaurants').onSnapshot(snapshot => {
     adminRestaurants = [];
@@ -695,6 +1035,11 @@ async function loadAdminPartnerAccounts() {
       adminPartnerApiRequest(`/${encodeURIComponent(partner.id)}`)
     ));
     const partnerDetails = details.sort((left, right) => String(left.display_name).localeCompare(String(right.display_name)));
+    const setPartnerCount = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
+    setPartnerCount('adminPartnerCountAll', partnerDetails.length);
+    setPartnerCount('adminPartnerCountActive', partnerDetails.filter(partner => partner.status === 'ACTIVE').length);
+    setPartnerCount('adminPartnerCountPending', partnerDetails.filter(partner => partner.status === 'PENDING').length);
+    setPartnerCount('adminPartnerCountSuspended', partnerDetails.filter(partner => partner.status === 'SUSPENDED').length);
     adminPartnerRecords = partnerDetails;
     adminPartnerAccounts = partnerDetails.flatMap(partner => partner.shops.map(shop => ({
       id: shop.id,
@@ -711,6 +1056,10 @@ async function loadAdminPartnerAccounts() {
     if (!document.getElementById('inventoryViewSection')?.classList.contains('hidden')) loadAdminPostgresCatalog();
   } catch (error) {
     console.error('PostgreSQL partner list failed:', error);
+    ['adminPartnerCountAll', 'adminPartnerCountActive', 'adminPartnerCountPending', 'adminPartnerCountSuspended'].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = '-';
+    });
     container.innerHTML = `<p class="text-xs font-bold text-rose-600">Unable to load partners: ${escapeAdminHtml(error.message)}</p>`;
   }
 }
@@ -1124,6 +1473,10 @@ async function handleAddNewProduct(e) {
 function loadAdminInventory() {
   const tbody = document.getElementById('inventoryTableBody');
   if (!tbody) return;
+  if (typeof db === 'undefined' || typeof db.collection !== 'function') {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-cell">Legacy Firebase inventory is unavailable.</td></tr>';
+    return;
+  }
 
   db.collection("products").onSnapshot((snapshot) => {
     let prods = [];
@@ -1537,6 +1890,12 @@ async function adminPartnerApiRequest(path, options = {}) {
 
 function renderAdminNotifications(panel, notifications) {
   panel.replaceChildren();
+  const unreadCount = notifications.filter(notification => !notification.read_at && notification.status !== 'READ').length;
+  const badge = document.getElementById('adminNotificationUnreadCount');
+  if (badge) {
+    badge.textContent = unreadCount ? String(unreadCount) : '';
+    badge.classList.toggle('hidden', !unreadCount);
+  }
   const heading = document.createElement('strong');
   heading.className = 'block border-b border-slate-200 px-3 py-2 text-xs text-slate-800';
   heading.textContent = 'Notifications';
@@ -1908,6 +2267,8 @@ function renderAdminOrders(orders) {
     container.appendChild(row);
   });
 
+  renderAdminRiderDirectory();
+
   const analyticsSec = document.getElementById('analyticsViewSection');
   if (analyticsSec && !analyticsSec.classList.contains('hidden')) calculateAndRenderAnalytics();
 }
@@ -1926,18 +2287,22 @@ function startLiveOrderQueue() {
         : [];
       adminKnownOrderIds = currentIds;
       allFetchedOrders = orders;
+      adminDeliveryOrdersLoaded = true;
       const activeOrderIds = new Set(orders.filter(order => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(String(order.status || '').toUpperCase())).map(order => order.id));
       pendingAdminOrderAlerts = pendingAdminOrderAlerts.filter(order => activeOrderIds.has(order.id));
       newOrders.forEach(order => pendingAdminOrderAlerts.push(order));
       if (newOrders.length) adminAlertSoundStopped = false;
       const today = getAdminLocalDateKey(new Date());
       renderAdminOrders(orders.filter(order => getAdminOrderDateKey(order) === today));
+      renderAdminDeliveries(orders, true);
       showNextAdminOrderAlert();
       if (!pendingAdminOrderAlerts.length) stopAdminOrderSound();
       adminOrderIdsInitialized = true;
     } catch (error) {
       console.error('Admin order API failed:', error);
       container.innerHTML = `<p class="text-center text-rose-500 py-10">Unable to load orders: ${escapeAdminHtml(error.message)}</p>`;
+      adminDeliveryOrdersLoaded = false;
+      renderAdminDeliveries([], true, error.message);
     }
   };
   refresh();
@@ -2048,7 +2413,7 @@ function renderSalesOrderRows(result) {
   } else {
     tbody.innerHTML = rows.map(order => `<tr class="border-b border-slate-50">
       <td class="px-4 py-3 font-bold text-slate-900">${escapeAdminHtml(order.order_number)}</td>
-      <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(new Date(order.placed_at).toLocaleString())}</td>
+      <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(new Date(order.placed_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }))}</td>
       <td class="px-4 py-3 text-slate-600">${escapeAdminHtml(order.shop_names || 'N/A')}</td>
       <td class="px-4 py-3 font-bold">${escapeAdminHtml(order.status)}</td>
       <td class="px-4 py-3 text-right">${formatSalesCurrency(order.gross_order_value)}</td>
@@ -2114,6 +2479,8 @@ async function loadSalesReports() {
       : `${selectedFilterDate} to ${selectedFilterToDate}`;
     const dateLabel = document.getElementById('activeDateLabel');
     if (dateLabel) dateLabel.textContent = rangeLabel;
+    const generatedAt = document.getElementById('reportGeneratedAt');
+    if (generatedAt) generatedAt.textContent = `Generated at: ${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date())} IST`;
     setSalesReportFeedback('');
   } catch (error) {
     if (requestId !== salesReportRequestId) return;
@@ -2143,6 +2510,20 @@ function resetSalesToToday() {
   if (toInput) toInput.value = today;
   selectedFilterDate = today;
   selectedFilterToDate = today;
+  salesShopPage = 0;
+  salesOrderPage = 0;
+  calculateAndRenderAnalytics();
+}
+
+function setSalesReportRange(days) {
+  const from = getAdminDateDaysAgoKey(Math.max(0, Number(days) - 1));
+  const to = getAdminReportDateKey();
+  const fromInput = document.getElementById('salesFilterFrom');
+  const toInput = document.getElementById('salesFilterTo');
+  if (fromInput) fromInput.value = from;
+  if (toInput) toInput.value = to;
+  selectedFilterDate = from;
+  selectedFilterToDate = to;
   salesShopPage = 0;
   salesOrderPage = 0;
   calculateAndRenderAnalytics();
@@ -2186,6 +2567,185 @@ function exportDailyOrdersCSV() {
   URL.revokeObjectURL(csvUrl);
 }
 
+function getAdminDateDaysAgoKey(daysAgo) {
+  const [year, month, day] = getAdminReportDateKey().split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day - daysAgo));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function setDashboardMetric(name, value) {
+  document.querySelectorAll(`[data-dashboard-metric="${name}"]`).forEach(element => {
+    element.textContent = value;
+  });
+}
+
+function renderDashboardStatusChart(statuses) {
+  const container = document.getElementById('dashboardStatusChart');
+  if (!container) return;
+  const rows = Array.isArray(statuses) ? statuses : [];
+  const total = rows.reduce((sum, row) => sum + Number(row.order_count || 0), 0);
+  if (!total) {
+    container.innerHTML = '<p class="empty-state">No order data available for this period.</p>';
+    return;
+  }
+  container.innerHTML = rows.map(row => {
+    const count = Number(row.order_count || 0);
+    const width = Math.max(2, Math.round(count / total * 100));
+    return `<div class="chart-row"><div class="chart-row-label"><span>${escapeAdminHtml(String(row.status).replaceAll('_', ' '))}</span><strong>${count}</strong></div><div class="chart-track"><span style="width:${width}%"></span></div></div>`;
+  }).join('');
+}
+
+function renderDashboardPartnerPerformance(shops) {
+  const container = document.getElementById('dashboardPartnerPerformance');
+  if (!container) return;
+  const totals = new Map();
+  (Array.isArray(shops) ? shops : []).forEach(shop => {
+    const name = shop.partner_name || 'Unknown partner';
+    const current = totals.get(name) || { orders: 0, sales: 0 };
+    current.orders += Number(shop.order_count || 0);
+    current.sales += Number(shop.sales_amount || 0);
+    totals.set(name, current);
+  });
+  const rows = Array.from(totals, ([name, values]) => ({ name, ...values }))
+    .sort((left, right) => right.sales - left.sales).slice(0, 5);
+  if (!rows.length) {
+    container.innerHTML = '<p class="empty-state">No partner sales data available for this period.</p>';
+    return;
+  }
+  const maxSales = Math.max(...rows.map(row => row.sales), 1);
+  container.innerHTML = rows.map(row => `<div class="chart-row"><div class="chart-row-label"><span>${escapeAdminHtml(row.name)} · ${row.orders} orders</span><strong>${formatSalesCurrency(row.sales)}</strong></div><div class="chart-track"><span style="width:${Math.max(2, Math.round(row.sales / maxSales * 100))}%"></span></div></div>`).join('');
+}
+
+function renderDashboardRecentOrders(orders) {
+  const tbody = document.getElementById('dashboardRecentOrders');
+  if (!tbody) return;
+  const rows = Array.isArray(orders) ? orders.slice(0, 8) : [];
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-cell">No orders yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(order => {
+    const shops = Array.isArray(order.fulfillments) ? order.fulfillments.map(item => item.shop_name).filter(Boolean).join(', ') : '';
+    const items = Array.isArray(order.items) ? order.items.map(item => `${Number(item.quantity || 0)} × ${item.name}`).join(', ') : '';
+    const date = order.placed_at ? new Date(order.placed_at) : null;
+    const dateLabel = date && Number.isFinite(date.getTime())
+      ? date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })
+      : 'Date unavailable';
+    return `<tr>
+      <td><strong>${escapeAdminHtml(order.order_number || order.id)}</strong></td>
+      <td>${escapeAdminHtml(dateLabel)}</td>
+      <td>${escapeAdminHtml(order.customer_name || 'Customer')}</td>
+      <td>${escapeAdminHtml(shops || 'Shop unavailable')}</td>
+      <td>${escapeAdminHtml(items || '-')}</td>
+      <td class="table-amount">${formatSalesCurrency(order.total_amount)}</td>
+      <td>${escapeAdminHtml(order.payment_mode || '-')} · ${escapeAdminHtml(order.payment_status || 'Unavailable')}</td>
+      <td>${escapeAdminHtml(order.status || '-')}</td>
+      <td>${escapeAdminHtml(order.assignment_status || 'Unassigned')}</td>
+      <td><button type="button" class="table-action" onclick="openAdminOrderDetails('${encodeURIComponent(order.id)}')">View details</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadAdminDashboard() {
+  const from = getAdminDateDaysAgoKey(29);
+  const to = getAdminReportDateKey();
+  const query = new URLSearchParams({ from, to });
+  const results = await Promise.allSettled([
+    adminRiderApiRequest(`/api/admin/reports/summary?${query}`, { cache: 'no-store' }),
+    adminRiderApiRequest(`/api/admin/reports/shops?${query}&limit=50&offset=0`, { cache: 'no-store' }),
+    adminRiderApiRequest('/api/admin/orders?bucket=all', { cache: 'no-store' }),
+    adminPartnerApiRequest(''),
+    adminRiderApiRequest('/api/admin/riders', { cache: 'no-store' }),
+    adminRiderApiRequest('/api/admin/deliveries/orders?bucket=active', { cache: 'no-store' })
+  ]);
+
+  const [reportResult, partnerReportResult, ordersResult, partnersResult, ridersResult, deliveriesResult] = results;
+  if (reportResult.status === 'fulfilled') {
+    const report = reportResult.value?.data || {};
+    const summary = report.summary || {};
+    setDashboardMetric('sales', formatSalesCurrency(summary.gross_order_value));
+    setDashboardMetric('orders', String(summary.total_orders ?? 0));
+    setDashboardMetric('completed', String(summary.completed_orders ?? 0));
+    setDashboardMetric('cancelled', String(summary.cancelled_orders ?? 0));
+    renderDashboardStatusChart(report.status_breakdown);
+  } else {
+    ['sales', 'orders', 'completed', 'cancelled'].forEach(name => setDashboardMetric(name, '-'));
+    renderDashboardStatusChart([]);
+  }
+  renderDashboardPartnerPerformance(partnerReportResult.status === 'fulfilled' ? partnerReportResult.value?.data : []);
+
+  const partners = partnersResult.status === 'fulfilled' && Array.isArray(partnersResult.value)
+    ? partnersResult.value : null;
+  setDashboardMetric('partners', partners ? String(partners.filter(partner => partner.status === 'ACTIVE').length) : '-');
+
+  const riders = ridersResult.status === 'fulfilled' && Array.isArray(ridersResult.value?.data)
+    ? ridersResult.value.data : null;
+  setDashboardMetric('riders', riders ? String(riders.filter(rider => rider.is_available).length) : '-');
+
+  const deliveries = deliveriesResult.status === 'fulfilled' && Array.isArray(deliveriesResult.value?.data)
+    ? deliveriesResult.value.data : null;
+  const pending = deliveries?.filter(order => order.status === 'PLACED').length;
+  setDashboardMetric('pending', pending == null ? '-' : String(pending));
+  setDashboardMetric('deliveries', deliveries ? String(deliveries.filter(order => order.assignment_id).length) : '-');
+  const activity = document.getElementById('dashboardActivityNote');
+  if (activity) activity.textContent = deliveries ? `${deliveries.length} active orders in dispatch` : 'Delivery activity unavailable';
+
+  if (ordersResult.status === 'fulfilled') {
+    const orders = Array.isArray(ordersResult.value?.data) ? ordersResult.value.data : [];
+    renderDashboardRecentOrders(orders);
+  } else {
+    const tbody = document.getElementById('dashboardRecentOrders');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-cell">Orders unavailable for this admin account.</td></tr>';
+  }
+}
+
+async function openAdminOrderDetails(encodedOrderId) {
+  const orderId = decodeURIComponent(encodedOrderId);
+  const dialog = document.getElementById('adminOrderDetailsDialog');
+  const content = document.getElementById('adminOrderDetailsContent');
+  if (!dialog || !content) return;
+  content.innerHTML = '<p class="empty-state">Loading order details...</p>';
+  dialog.showModal();
+  try {
+    const result = await adminRiderApiRequest(`/api/admin/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+    const order = result?.data;
+    if (!order) throw new Error('Order details were unavailable.');
+    const itemRows = (order.items || []).map(item => `<tr><td>${escapeAdminHtml(item.name)}</td><td>${Number(item.quantity)}</td><td>${formatSalesCurrency(item.price)}</td><td>${formatSalesCurrency(item.line_total)}</td></tr>`).join('');
+    const fulfillmentRows = (order.fulfillments || []).map(item => `<li>${escapeAdminHtml(item.shop_name || 'Shop')} · ${escapeAdminHtml(item.status || 'Status unavailable')}</li>`).join('');
+    const timeline = [
+      ['Placed', order.placed_at],
+      ['Accepted', order.accepted_at],
+      ['Dispatched', order.dispatched_at],
+      ['Delivered', order.delivered_at],
+      ['Cancelled', order.cancelled_at]
+    ].filter(([, timestamp]) => timestamp).map(([label, timestamp]) => `<li><strong>${label}</strong><span>${escapeAdminHtml(new Date(timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }))}</span></li>`).join('');
+    content.innerHTML = `<div class="detail-grid">
+      <div><span>Order</span><strong>${escapeAdminHtml(order.order_number || order.id)}</strong></div>
+      <div><span>Customer</span><strong>${escapeAdminHtml(order.customer_name || 'Customer')} · ${escapeAdminHtml(order.customer_phone || '-')}</strong></div>
+      <div><span>Restaurant / shop</span><strong>${escapeAdminHtml((order.fulfillments || []).map(item => item.shop_name).filter(Boolean).join(', ') || 'Not available yet')}</strong></div>
+      <div><span>Current order status</span><strong>${escapeAdminHtml(order.status || 'Not available yet')}</strong></div>
+      <div><span>Payment method / status</span><strong>${escapeAdminHtml(order.payment_mode || 'Not available yet')} · ${escapeAdminHtml(order.payment_status || 'Not available yet')}</strong></div>
+      <div><span>Placed at</span><strong>${escapeAdminHtml(formatOrderDateTime(order))}</strong></div>
+      <div><span>Delivery address</span><strong>${escapeAdminHtml(order.delivery_address || order.parcel_drop_address || '-')}</strong></div>
+    </div>
+    <div class="detail-table-wrap"><table class="admin-table"><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>${itemRows || '<tr><td colspan="4" class="empty-cell">No item details.</td></tr>'}</tbody></table></div>
+    <ul class="detail-fulfillments">${fulfillmentRows || '<li>Fulfillment details unavailable.</li>'}</ul>
+    <dl class="detail-totals"><div><dt>Subtotal</dt><dd>${formatSalesCurrency(order.subtotal)}</dd></div><div><dt>Delivery fee</dt><dd>${formatSalesCurrency(order.delivery_fee)}</dd></div><div><dt>Tax</dt><dd>${formatSalesCurrency(order.tax_amount)}</dd></div><div><dt>Discount</dt><dd>${formatSalesCurrency(order.offer_discount)}</dd></div><div><dt>Total</dt><dd>${formatSalesCurrency(order.total_amount)}</dd></div></dl>
+    <section class="detail-timeline"><h3>Order timeline</h3>${timeline ? `<ol>${timeline}</ol>` : '<p>Not available yet</p>'}<p class="detail-disclaimer">Full order state history is not exposed by the current admin order API.</p></section>`;
+  } catch (error) {
+    content.innerHTML = `<p class="empty-state">${escapeAdminHtml(error.message || 'Unable to load order details.')}</p>`;
+  }
+}
+
+function startAdminAuthenticatedWorkspace() {
+  if (adminWorkspaceStarted) return;
+  adminWorkspaceStarted = true;
+  startLiveOrderQueue();
+  startRegisteredRiderListener();
+  loadAdminPartnerAccounts();
+  toggleRestaurantProductFields();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', event => {
     if (event.target.closest('button, [onclick]')) {
@@ -2197,17 +2757,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (sessionStorage.getItem('hub_session_unlocked') === 'true' && getAdminAccessToken()) {
     const lock = document.getElementById('adminAuthLock');
     if (lock) lock.classList.add('hidden');
-    switchView('orders');
+    startAdminAuthenticatedWorkspace();
+    switchView('home');
   } else {
     sessionStorage.removeItem('hub_session_unlocked');
   }
-  startLiveOrderQueue();
-  startRegisteredRiderListener();
-  loadAdminRestaurants();
-  loadAdminPartnerAccounts();
-  toggleRestaurantProductFields();
-  loadAdminInventory();
-  loadCategoryManager();
   // ==========================================
 // 🗺️ LIVE RIDER TRACKING (Admin Side)
 // ==========================================

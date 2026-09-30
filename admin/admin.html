@@ -596,6 +596,214 @@
       .profile-name { display: none; }
       .caret { display: none; }
     }
+
+    .sidebar-nav { overflow-y: auto; min-height: 0; }
+    .nav-group-label { padding: 14px 12px 4px; color: #8190a7; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .nav-item { border-radius: 9px; padding: 10px 12px; font-size: 13px; }
+    .nav-item.active { background: #1b3555; border-color: rgba(141, 183, 235, .2); box-shadow: inset 3px 0 #5ba7e8; }
+    .workspace { min-width: 0; }
+    .topbar { gap: 16px; }
+    .global-search { width: min(360px, 34vw); min-width: 170px; display: flex; align-items: center; gap: 9px; padding: 9px 12px; color: #718096; background: #f7f9fc; border: 1px solid #e3e8ef; border-radius: 9px; }
+    .global-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #14243a; font-size: 12px; }
+    .page-content { max-width: 1440px; margin: auto; padding: 30px 34px 48px; }
+    .dashboard-title { font-size: 28px; letter-spacing: 0; }
+    .dashboard-header { padding-bottom: 10px; }
+    .dashboard-subtitle { font-size: 13px; }
+    .dashboard-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+    .orders-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+    .dashboard-kpi, .dashboard-panel { min-width: 0; background: #fff; border: 1px solid #e5eaf0; border-radius: 10px; box-shadow: 0 3px 12px rgba(19, 40, 63, .035); }
+    .dashboard-kpi { padding: 17px 18px; }
+    .dashboard-kpi-label { color: #6d7b8d; font-size: 11px; font-weight: 700; }
+    .dashboard-kpi-value { margin-top: 9px; color: #14243a; font-size: 25px; font-weight: 800; line-height: 1.15; }
+    .dashboard-kpi-note { margin-top: 7px; color: #8793a2; font-size: 10px; }
+    .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 14px; }
+    .dashboard-panel { padding: 18px; }
+    .dashboard-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #edf0f4; }
+    .dashboard-panel-title { margin: 0; color: #17283d; font-size: 14px; font-weight: 800; }
+    .dashboard-panel-subtitle { margin: 5px 0 0; color: #7b8795; font-size: 10px; }
+    .chart-list { display: grid; gap: 13px; padding-top: 15px; }
+    .chart-row-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; color: #526174; font-size: 10px; text-transform: capitalize; }
+    .chart-row-label strong { color: #20344a; }
+    .chart-track { height: 6px; overflow: hidden; background: #edf1f5; border-radius: 10px; }
+    .chart-track span { display: block; height: 100%; background: #2783ba; border-radius: inherit; }
+    .empty-state { padding: 20px 12px; color: #8591a0; text-align: center; font-size: 12px; }
+    .activity-lines { display: grid; gap: 13px; padding-top: 16px; }
+    .activity-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #657386; font-size: 11px; }
+    .activity-line strong { color: #192d43; font-size: 12px; }
+    .dashboard-table-wrap, .detail-table-wrap { width: 100%; overflow-x: auto; }
+    .admin-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+    .admin-table th { padding: 11px 12px; color: #7c8998; background: #f8fafc; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    .admin-table td { padding: 12px; border-top: 1px solid #edf0f4; color: #526174; vertical-align: middle; }
+    .admin-table td strong { color: #1a2e44; }
+    .table-amount { color: #1d694e !important; font-weight: 800; white-space: nowrap; }
+    .table-action { padding: 6px 9px; color: #17699a; background: #edf7fc; border: 1px solid #d8edf7; border-radius: 6px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .empty-cell { padding: 28px 12px !important; color: #8591a0 !important; text-align: center; }
+    .section-heading { margin: 4px 0 18px; }
+    .section-heading h1 { margin: 0; color: #17283d; font-size: 23px; font-weight: 800; }
+    .section-heading p { margin: 6px 0 0; color: #748194; font-size: 12px; }
+    .filter-bar { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(130px, .4fr)); gap: 9px; padding: 14px; background: #fff; border: 1px solid #e5eaf0; border-radius: 10px; }
+    .filter-bar input, .filter-bar select { min-width: 0; width: 100%; padding: 9px 10px; color: #25384d; background: #fff; border: 1px solid #dfe5ec; border-radius: 7px; font-size: 11px; }
+    .admin-data-section { margin-top: 16px; padding: 0; overflow: hidden; background: #fff; border: 1px solid #e5eaf0; border-radius: 10px; }
+    .admin-data-section-head { padding: 15px 17px; border-bottom: 1px solid #edf0f4; }
+    .admin-data-section-head h2 { margin: 0; color: #17283d; font-size: 13px; font-weight: 800; }
+    .admin-data-section-head p { margin: 5px 0 0; color: #7b8795; font-size: 10px; }
+    .dashboard-shell main.max-w-5xl, .dashboard-shell main.max-w-7xl { max-width: 1440px; }
+    #adminOrderDetailsDialog { width: min(760px, calc(100vw - 24px)); max-width: 760px; max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: 12px; box-shadow: 0 25px 80px rgba(15, 35, 55, .25); }
+    #adminOrderDetailsDialog::backdrop { background: rgba(14, 27, 43, .55); }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .detail-grid div { min-width: 0; padding: 11px; background: #f7f9fb; border-radius: 7px; }
+    .detail-grid span, .detail-grid strong { display: block; }
+    .detail-grid span { margin-bottom: 5px; color: #7b8795; font-size: 9px; text-transform: uppercase; }
+    .detail-grid strong { overflow-wrap: anywhere; color: #23384d; font-size: 11px; }
+    .detail-fulfillments { margin: 15px 0; color: #637184; font-size: 11px; }
+    .detail-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin: 15px 0 0; padding-top: 12px; border-top: 1px solid #edf0f4; }
+    .detail-totals div { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+    .detail-totals dt { color: #718094; }
+    .detail-totals dd { margin: 0; color: #23384d; font-weight: 700; }
+    .detail-disclaimer { margin: 12px 0 0; color: #8793a2; font-size: 10px; }
+    .detail-timeline { margin-top: 17px; padding-top: 13px; border-top: 1px solid #edf0f4; }
+    .detail-timeline h3 { margin: 0 0 10px; color: #23384d; font-size: 12px; font-weight: 800; }
+    .detail-timeline ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .detail-timeline li { display: flex; justify-content: space-between; gap: 12px; color: #526174; font-size: 10px; }
+    .detail-timeline li span { text-align: right; }
+    .notification-list { display: grid; }
+    .notification-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 15px 17px; border-bottom: 1px solid #edf0f4; }
+    .notification-row:last-child { border-bottom: 0; }
+    .notification-row strong { color: #20344a; font-size: 12px; }
+    .notification-row p { margin: 5px 0; color: #627184; font-size: 11px; }
+    .notification-row span { color: #8793a2; font-size: 9px; }
+    .notification-unread { background: #f1f8fb; }
+    .notification-read-label { white-space: nowrap; }
+    .bell-btn { position: relative; }
+    .bell-btn span:not(.hidden) { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center; color: #fff; background: #c7493b; border: 2px solid #fff; border-radius: 20px; font-size: 8px; font-weight: 800; }
+    @media (max-width: 1024px) {
+      .page-content { padding: 24px 22px 38px; }
+      .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .orders-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dashboard-columns { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 700px) {
+      .topbar { height: 62px; }
+      .topbar-left { flex: 1; min-width: 0; }
+      .global-search { flex: 1; width: auto; min-width: 0; }
+      .dashboard-sidebar { width: min(300px, 86vw); }
+      body.sidebar-open::after { content: ""; position: fixed; inset: 0; z-index: 30; background: rgba(9, 22, 37, .45); }
+      .dashboard-sidebar { z-index: 40; }
+      .page-content { padding: 20px 14px 32px; }
+      .dashboard-kpis { gap: 9px; }
+      .dashboard-kpi { padding: 13px; }
+      .dashboard-kpi-value { font-size: 21px; }
+      .filter-bar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .filter-bar input:first-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 420px) {
+      .current-meta { display: none; }
+      .topbar-right { gap: 7px; }
+      .bell-btn, .menu-btn { width: 32px; height: 32px; }
+      .profile-box { padding: 3px; }
+      .dashboard-kpi-label { font-size: 10px; }
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+
+    .admin-login-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      overflow-y: auto;
+      padding: 28px;
+      background: #f1f4f7;
+      background-image: radial-gradient(circle at 12% 14%, rgba(54, 112, 147, .09), transparent 27%),
+        repeating-linear-gradient(135deg, transparent 0 38px, rgba(20, 43, 68, .018) 39px 40px);
+      font-family: "Plus Jakarta Sans", sans-serif;
+    }
+    .admin-login-overlay.hidden { display: none; }
+    .admin-login-shell {
+      display: grid;
+      width: min(100%, 930px);
+      min-height: min(590px, calc(100dvh - 56px));
+      grid-template-columns: minmax(280px, .86fr) minmax(360px, 1.14fr);
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #e1e7ed;
+      border-radius: 12px;
+      box-shadow: 0 26px 75px rgba(17, 37, 59, .14);
+    }
+    .admin-login-brand {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 34px 38px;
+      color: #fff;
+      background-color: #102039;
+      background-image: linear-gradient(150deg, rgba(40, 121, 101, .2), transparent 58%),
+        repeating-linear-gradient(135deg, transparent 0 34px, rgba(255, 255, 255, .025) 35px 36px);
+    }
+    .admin-login-brand-head { display: flex; align-items: center; gap: 11px; }
+    .admin-login-brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: #13233a; background: #f2ad58; font-size: 19px; font-weight: 800; }
+    .admin-login-brand-name strong, .admin-login-brand-name small { display: block; }
+    .admin-login-brand-name strong { font-size: 15px; font-weight: 800; }
+    .admin-login-brand-name small { margin-top: 2px; color: #aebbd0; font-size: 10px; }
+    .admin-login-brand-copy { max-width: 360px; margin: 42px 0; }
+    .admin-login-eyebrow { margin: 0; color: #eab15e; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+    .admin-login-brand-copy h1 { margin: 16px 0 13px; font-size: clamp(30px, 3vw, 42px); line-height: 1.14; font-weight: 800; }
+    .admin-login-brand-copy p { max-width: 320px; margin: 0; color: #c1ccdb; font-size: 13px; line-height: 1.7; }
+    .admin-login-footnote { margin: 0; color: #aebbd0; font-size: 10px; }
+    .admin-login-content { display: grid; min-width: 0; place-items: center; padding: 42px clamp(28px, 5vw, 70px); }
+    .admin-login-form { width: min(100%, 365px); }
+    .admin-login-form h2 { margin: 10px 0 7px; color: #172338; font-size: 24px; font-weight: 800; }
+    .admin-login-description { margin: 0; color: #718096; font-size: 12px; line-height: 1.6; }
+    .admin-login-form label { display: block; margin: 21px 0 7px; color: #48566b; font-size: 11px; font-weight: 700; }
+    .admin-login-input {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      padding: 11px 12px;
+      color: #172338;
+      background: #fff;
+      border: 1px solid #dce3eb;
+      border-radius: 6px;
+      outline: none;
+      font-size: 12px;
+    }
+    .admin-login-input:focus { border-color: #6da998; box-shadow: 0 0 0 3px rgba(40, 121, 101, .12); }
+    .admin-login-input[aria-invalid="true"] { border-color: #b85359; }
+    .admin-password-wrap { position: relative; }
+    .admin-password-wrap .admin-login-input { padding-right: 68px; }
+    .admin-password-toggle { position: absolute; top: 50%; right: 10px; padding: 5px; transform: translateY(-50%); color: #526174; background: transparent; border: 0; font-size: 10px; font-weight: 800; }
+    .admin-login-submit { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: 9px; margin-top: 22px; padding: 10px 14px; color: #fff; background: #102039; border: 1px solid #102039; border-radius: 6px; font-size: 11px; font-weight: 800; transition: background .16s ease; }
+    .admin-login-submit:hover:not(:disabled) { background: #1b304f; }
+    .admin-login-submit:disabled { cursor: wait; opacity: .78; }
+    .admin-login-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: admin-login-spin .7s linear infinite; }
+    @keyframes admin-login-spin { to { transform: rotate(360deg); } }
+    .admin-login-message { min-height: 18px; margin: 11px 0 0; color: #b33f49; font-size: 11px; line-height: 1.5; }
+    .admin-login-message:empty { min-height: 0; margin: 0; }
+    .admin-login-security { display: flex; align-items: center; gap: 7px; margin-top: 20px; color: #8793a2; font-size: 10px; }
+    .admin-login-security-mark { color: #287965; font-size: 13px; }
+    @media (max-width: 700px) {
+      .admin-login-overlay { place-items: start center; padding: 12px; }
+      .admin-login-shell { width: min(100%, 470px); min-height: 0; grid-template-columns: minmax(0, 1fr); }
+      .admin-login-brand { min-height: 184px; padding: 20px 23px; }
+      .admin-login-brand-copy { margin: 24px 0 0; }
+      .admin-login-brand-copy h1 { margin: 8px 0 6px; font-size: 25px; }
+      .admin-login-brand-copy p { font-size: 11px; }
+      .admin-login-footnote { display: none; }
+      .admin-login-content { padding: 25px 23px 28px; }
+      .admin-login-form h2 { font-size: 21px; }
+      .admin-login-form label { margin-top: 17px; }
+      .admin-login-submit { margin-top: 18px; }
+    }
+    @media (max-width: 420px) {
+      .admin-login-overlay { padding: 8px; }
+      .admin-login-shell { border-radius: 9px; }
+      .admin-login-brand { min-height: 166px; padding: 16px 18px; }
+      .admin-login-content { padding: 20px 18px 23px; }
+      .admin-login-brand-copy { margin-top: 18px; }
+      .admin-login-brand-copy h1 { font-size: 22px; }
+    }
   </style>
 </head>
 <body class="bg-brand-slateBg text-slate-900 font-sans antialiased min-h-screen pb-20">
@@ -610,34 +818,26 @@
       </div>
 
       <nav class="sidebar-nav" aria-label="Main navigation">
-        <button type="button" class="nav-item active" data-tab="home" onclick="switchView('home')">
-          <span class="icon-wrap">⌂</span>
-          <span>Home</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="orders" onclick="switchView('orders')">
-          <span class="icon-wrap">🔔</span>
-          <span>Orders</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="analytics" onclick="switchView('analytics')">
-          <span class="icon-wrap">📊</span>
-          <span>Sales &amp; Reports</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="inventory" onclick="switchView('inventory')">
-          <span class="icon-wrap">📦</span>
-          <span>Inventory</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="partners" onclick="switchView('partners')">
-          <span class="icon-wrap">👥</span>
-          <span>Partner Accounts</span>
-        </button>
-        <button type="button" class="nav-item" data-tab="banners" onclick="switchView('banners')">
-          <span class="icon-wrap">🖼️</span>
-          <span>Banners &amp; Categories</span>
-        </button>
-        <a href="../frontend/index.html" target="_blank" rel="noreferrer" class="nav-item">
-          <span class="icon-wrap">🌐</span>
-          <span>Storefront</span>
-        </a>
+        <div class="nav-group-label">Workspace</div>
+        <button type="button" class="nav-item active" data-tab="home" onclick="switchView('home')"><span class="icon-wrap">⌂</span><span>Dashboard</span></button>
+        <button type="button" class="nav-item" data-tab="orders" onclick="switchView('orders')"><span class="icon-wrap">▤</span><span>Orders</span></button>
+        <button type="button" class="nav-item" data-tab="partners" onclick="switchView('partners')"><span class="icon-wrap">♧</span><span>Partners</span></button>
+        <button type="button" class="nav-item" data-tab="shops" onclick="switchView('shops')"><span class="icon-wrap">⌂</span><span>Restaurants &amp; Shops</span></button>
+        <button type="button" class="nav-item" data-tab="customers" onclick="switchView('customers')"><span class="icon-wrap">◉</span><span>Customers</span></button>
+        <button type="button" class="nav-item" data-tab="riderVerification" onclick="switchView('riderVerification')"><span class="icon-wrap">♧</span><span>Riders</span></button>
+        <div class="nav-group-label">Operations</div>
+        <button type="button" class="nav-item" data-tab="payments" onclick="switchView('payments')"><span class="icon-wrap">₹</span><span>Payments</span></button>
+        <button type="button" class="nav-item" data-tab="deliveryOps" onclick="switchView('deliveryOps')"><span class="icon-wrap">⇢</span><span>Deliveries</span></button>
+        <button type="button" class="nav-item" data-tab="analytics" onclick="switchView('analytics')"><span class="icon-wrap">▥</span><span>Sales &amp; Reports</span></button>
+        <button type="button" class="nav-item" data-tab="notifications" onclick="switchView('notifications')"><span class="icon-wrap">♧</span><span>Notifications</span></button>
+        <div class="nav-group-label">Platform</div>
+        <button type="button" class="nav-item" data-tab="offers" onclick="switchView('offers')"><span class="icon-wrap">◇</span><span>Offers &amp; Promotions</span></button>
+        <button type="button" class="nav-item" data-tab="categories" onclick="switchView('categories')"><span class="icon-wrap">▦</span><span>Categories</span></button>
+        <button type="button" class="nav-item" data-tab="support" onclick="switchView('support')"><span class="icon-wrap">?</span><span>Support</span></button>
+        <button type="button" class="nav-item" data-tab="settings" onclick="switchView('settings')"><span class="icon-wrap">⚙</span><span>Settings</span></button>
+        <button type="button" class="nav-item" data-tab="auditLogs" onclick="switchView('auditLogs')"><span class="icon-wrap">≡</span><span>Audit Logs</span></button>
+        <a href="../frontend/index.html" target="_blank" rel="noreferrer" class="nav-item"><span class="icon-wrap">↗</span><span>Storefront</span></a>
+        <button type="button" class="nav-item" onclick="logoutAdminSession()"><span class="icon-wrap">⇥</span><span>Logout</span></button>
       </nav>
 
       <div class="sidebar-status">
@@ -655,14 +855,11 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="menu-btn" id="sidebarToggle" type="button" aria-label="Toggle sidebar">☰</button>
-          <div class="current-meta">
-            <span id="currentDateLabel">Wed, 28 Sep 2026</span>
-            <span>•</span>
-            <span id="currentTimeLabel">08:24 PM</span>
-          </div>
+          <div class="current-meta"><span id="breadcrumbLabel">Dashboard</span><span>·</span><span id="currentDateLabel"></span><span>·</span><span id="currentTimeLabel"></span><span>IST</span></div>
         </div>
+        <label class="global-search" aria-label="Search orders"><span aria-hidden="true">⌕</span><input id="adminGlobalSearch" type="search" placeholder="Search orders" onkeydown="if(event.key==='Enter'){switchView('orders'); document.getElementById('adminOrderSearch')?.focus(); document.getElementById('adminOrderSearch').value=this.value; filterAdminOrders();}"></label>
         <div class="topbar-right">
-          <button type="button" id="adminNotificationButton" class="bell-btn" aria-label="Notifications" aria-expanded="false">🔔</button>
+          <button type="button" id="adminNotificationButton" class="bell-btn" aria-label="Notifications" aria-expanded="false">♧<span id="adminNotificationUnreadCount" class="hidden"></span></button>
           <div class="profile-box">
             <button type="button" id="adminProfileToggle" style="display:flex; align-items:center; gap:10px; border:0; background:transparent; padding:0; cursor:pointer;">
               <div class="avatar">A</div>
@@ -676,37 +873,42 @@
         </div>
       </header>
 
-  <!-- ADMIN SIGN-IN OVERLAY -->
-  <div id="adminAuthLock" class="fixed inset-0 z-50 bg-[#0B132B] flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-700">
-      <div class="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center mx-auto text-xl font-black mb-3">
-        🔒
+  <div id="adminAuthLock" class="admin-login-overlay" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
+    <section class="admin-login-shell">
+      <div class="admin-login-brand">
+        <div class="admin-login-brand-head">
+          <span class="admin-login-brand-mark" aria-hidden="true">M</span>
+          <span class="admin-login-brand-name"><strong>MyShopzy</strong><small>Super Admin Portal</small></span>
+        </div>
+        <div class="admin-login-brand-copy">
+          <p class="admin-login-eyebrow">SUPER ADMIN ACCESS</p>
+          <h1>Operations,<br>in one place.</h1>
+          <p>Platform-wide tools for orders, partners and delivery operations.</p>
+        </div>
+        <p class="admin-login-footnote">Authorized MyShopzy administrators only.</p>
       </div>
-      <h3 class="text-base font-extrabold text-slate-900">Admin Sign In</h3>
-      <p class="text-xs text-slate-500 mt-1 mb-4">Use your active MyShopzy admin account</p>
-      <form onsubmit="event.preventDefault(); verifyAdminAccess()" class="space-y-3">
-        <input
-          id="adminLoginIdentifier"
-          type="text"
-          autocomplete="username"
-          required
-          placeholder="Admin email or phone"
-          class="w-full py-2.5 px-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
-        >
-        <input
-          id="adminLoginPassword"
-          type="password"
-          autocomplete="current-password"
-          required
-          placeholder="Password"
-          class="w-full py-2.5 px-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
-        >
-        <button id="adminLoginButton" type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition">
-          Sign In
-        </button>
-      </form>
-      <p id="adminLoginError" class="hidden text-[11px] font-bold text-rose-500 mt-2" role="alert"></p>
-    </div>
+      <div class="admin-login-content">
+        <form id="adminLoginForm" class="admin-login-form" onsubmit="verifyAdminAccess(event)" novalidate>
+          <p class="admin-login-eyebrow" style="color:#287965">ADMIN PORTAL</p>
+          <h2 id="adminLoginTitle">Sign in to MyShopzy</h2>
+          <p class="admin-login-description">Use your active Super Admin account to continue.</p>
+          <label for="adminLoginIdentifier">Email address</label>
+          <input id="adminLoginIdentifier" class="admin-login-input" type="email" autocomplete="username" inputmode="email" maxlength="254" required placeholder="name@myshopzy.com" aria-describedby="adminEmailMessage" oninput="clearAdminLoginFeedback('email')">
+          <p id="adminEmailMessage" class="admin-login-message" aria-live="polite"></p>
+          <label for="adminLoginPassword">Password</label>
+          <div class="admin-password-wrap">
+            <input id="adminLoginPassword" class="admin-login-input" type="password" autocomplete="current-password" required placeholder="Enter your password" aria-describedby="adminLoginError" oninput="clearAdminLoginFeedback('password')">
+            <button id="adminPasswordToggle" class="admin-password-toggle" type="button" aria-label="Show password" aria-pressed="false" onclick="showAdminPassword()">Show</button>
+          </div>
+          <button id="adminLoginButton" class="admin-login-submit" type="submit" aria-busy="false">
+            <span id="adminLoginSpinner" class="admin-login-spinner hidden" aria-hidden="true"></span>
+            <span id="adminLoginButtonText">Sign In</span>
+          </button>
+          <p id="adminLoginError" class="admin-login-message" role="alert" aria-live="assertive"></p>
+          <p class="admin-login-security"><span class="admin-login-security-mark" aria-hidden="true">●</span> Secure administrator sign-in</p>
+        </form>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -720,13 +922,15 @@
       if (!currentDateLabel || !currentTimeLabel) return;
 
       const now = new Date();
-      currentDateLabel.textContent = now.toLocaleDateString('en-US', {
+      currentDateLabel.textContent = now.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         year: 'numeric'
       });
-      currentTimeLabel.textContent = now.toLocaleTimeString('en-US', {
+      currentTimeLabel.textContent = now.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit'
       });
@@ -740,10 +944,19 @@
     const logoutAdminSession = () => {
       sessionStorage.removeItem('hub_session_unlocked');
       localStorage.removeItem('hub_session_unlocked');
+      ['admin_access_token', 'myshopzy_admin_access_token'].forEach(key => {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      });
+      if (adminOrderPollTimer) clearInterval(adminOrderPollTimer);
+      if (adminTrackingPollTimer) clearInterval(adminTrackingPollTimer);
+      adminOrderPollTimer = null;
+      adminTrackingPollTimer = null;
+      adminWorkspaceStarted = false;
       const lock = document.getElementById('adminAuthLock');
       if (lock) lock.classList.remove('hidden');
       if (adminProfileMenu) adminProfileMenu.classList.add('hidden');
-      document.getElementById('adminPinInput')?.focus();
+      document.getElementById('adminLoginIdentifier')?.focus();
     };
 
     if (sidebarToggle) {
@@ -789,132 +1002,87 @@
   <main id="homeViewSection" class="max-w-7xl mx-auto px-3 sm:px-6 py-6">
     <div class="page-content" style="padding: 0; margin: 0;">
       <section class="dashboard-header" style="padding-top:0;">
-        <div class="eyebrow">Store Hub Overview</div>
+        <div class="eyebrow">MyShopzy · Platform overview</div>
         <div class="dashboard-title-row">
-          <h1 class="dashboard-title">Operations Dashboard</h1>
-          <span class="live-pill"><span class="dot-green"></span> Live sync</span>
+          <div><h1 class="dashboard-title">Welcome back, Admin</h1><p class="dashboard-subtitle">Here's what's happening across MyShopzy.</p></div>
+          <span class="live-pill"><span class="dot-green"></span> Platform status</span>
         </div>
-        <p class="dashboard-subtitle">Monitor your store performance, manage operations and keep everything running smoothly.</p>
       </section>
 
-      <section class="welcome-panel">
-        <div class="welcome-copy">
-          <div class="welcome-icon">📦</div>
-          <div>
-            <h2 class="welcome-title">Welcome to MyShopzy Store Hub</h2>
-            <p class="welcome-subtitle">Manage your store operations efficiently and grow your business.</p>
+      <section class="dashboard-kpis" aria-label="Platform metrics">
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Gross sales · 30 days</div><div class="dashboard-kpi-value" data-dashboard-metric="sales">-</div><div class="dashboard-kpi-note">From platform reports</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Orders · 30 days</div><div class="dashboard-kpi-value" data-dashboard-metric="orders">-</div><div class="dashboard-kpi-note">All order statuses</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Active partners</div><div class="dashboard-kpi-value" data-dashboard-metric="partners">-</div><div class="dashboard-kpi-note">Status: active</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Available riders</div><div class="dashboard-kpi-value" data-dashboard-metric="riders">-</div><div class="dashboard-kpi-note">Current availability flag</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Pending orders</div><div class="dashboard-kpi-value" data-dashboard-metric="pending">-</div><div class="dashboard-kpi-note">From current active dispatch list</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Completed · 30 days</div><div class="dashboard-kpi-value" data-dashboard-metric="completed">-</div><div class="dashboard-kpi-note">Delivered orders</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Cancelled · 30 days</div><div class="dashboard-kpi-value" data-dashboard-metric="cancelled">-</div><div class="dashboard-kpi-note">Cancelled orders</div></article>
+        <article class="dashboard-kpi"><div class="dashboard-kpi-label">Active deliveries</div><div class="dashboard-kpi-value" data-dashboard-metric="deliveries">-</div><div class="dashboard-kpi-note">Assigned in active order list</div></article>
+      </section>
+
+      <div class="dashboard-columns">
+        <section class="dashboard-panel">
+          <div class="dashboard-panel-head"><div><h2 class="dashboard-panel-title">Order overview</h2><p class="dashboard-panel-subtitle">Order statuses reported over the last 30 days</p></div><button type="button" class="table-action" onclick="switchView('analytics')">Open reports</button></div>
+          <div id="dashboardStatusChart" class="chart-list"><p class="empty-state">Loading report data...</p></div>
+        </section>
+        <section class="dashboard-panel">
+          <div class="dashboard-panel-head"><div><h2 class="dashboard-panel-title">Delivery activity</h2><p class="dashboard-panel-subtitle">Current dispatch availability</p></div><button type="button" class="table-action" onclick="switchView('deliveryOps')">Open deliveries</button></div>
+          <div class="activity-lines">
+            <div class="activity-line"><span>Active orders in dispatch</span><strong id="dashboardActivityNote">-</strong></div>
+            <div class="activity-line"><span>Available riders</span><strong data-dashboard-metric="riders">-</strong></div>
+            <div class="activity-line"><span>Active rider assignments</span><strong data-dashboard-metric="deliveries">-</strong></div>
           </div>
-        </div>
-        <div class="welcome-art" aria-hidden="true"></div>
+          <p class="dashboard-panel-subtitle" style="margin-top:18px">Daily revenue trend is not available from the current reports API.</p>
+        </section>
+      </div>
+
+      <section class="dashboard-panel" style="margin-top:14px">
+        <div class="dashboard-panel-head"><div><h2 class="dashboard-panel-title">Partner performance</h2><p class="dashboard-panel-subtitle">Top partner sales over the same 30-day report window</p></div><button type="button" class="table-action" onclick="switchView('partners')">View partners</button></div>
+        <div id="dashboardPartnerPerformance" class="chart-list"><p class="empty-state">Loading partner sales...</p></div>
       </section>
 
-      <div class="dashboard-card-grid">
-        <button type="button" class="dash-card" data-tone="amber" onclick="switchView('orders')">
-          <span class="card-badge">Live</span>
-          <span class="card-icon">🔔</span>
-          <h3 class="card-title">Orders</h3>
-          <p class="card-text">Dispatch queue and delivery follow-up.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="cyan" onclick="switchView('analytics')">
-          <span class="card-badge">Reports</span>
-          <span class="card-icon">📈</span>
-          <h3 class="card-title">Sales &amp; Reports</h3>
-          <p class="card-text">Daily revenue, order totals and settlements.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="violet" onclick="switchView('inventory')">
-          <span class="card-badge">Inventory</span>
-          <span class="card-icon">📦</span>
-          <h3 class="card-title">Inventory</h3>
-          <p class="card-text">Current product and stock management.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="green" onclick="switchView('riderVerification')">
-          <span class="card-badge">Review</span>
-          <span class="card-icon">🛵</span>
-          <h3 class="card-title">Rider Verification</h3>
-          <p class="card-text">Review pending rider documents and approvals.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="rose" onclick="switchView('expenses')">
-          <span class="card-badge">Pending</span>
-          <span class="card-icon">💰</span>
-          <h3 class="card-title">Expenses</h3>
-          <p class="card-text">Track operating costs and reimbursements.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="indigo" onclick="switchView('deliveryPricing')">
-          <span class="card-badge">Rates</span>
-          <span class="card-icon">🚴</span>
-          <h3 class="card-title">Delivery Boy Pricing</h3>
-          <p class="card-text">View rider payout and fare rules.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="purple" onclick="switchView('partners')">
-          <span class="card-badge">Accounts</span>
-          <span class="card-icon">🤝</span>
-          <h3 class="card-title">Partner Accounts</h3>
-          <p class="card-text">Store and partner setup remains available.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="sand" onclick="switchView('banners')">
-          <span class="card-badge">Media</span>
-          <span class="card-icon">🖼️</span>
-          <h3 class="card-title">Banners</h3>
-          <p class="card-text">No data available yet.</p>
-        </button>
-
-        <button type="button" class="dash-card" data-tone="slate" onclick="switchView('categories')">
-          <span class="card-badge">Catalog</span>
-          <span class="card-icon">🗂️</span>
-          <h3 class="card-title">Categories</h3>
-          <p class="card-text">No data available yet.</p>
-        </button>
-      </div>
+      <section class="admin-data-section" style="margin-top:14px">
+        <div class="admin-data-section-head"><h2>Recent orders</h2><p>Latest platform orders returned by the admin order API.</p></div>
+        <div class="dashboard-table-wrap"><table class="admin-table" style="min-width:1040px"><thead><tr><th>Order ID</th><th>Date / time</th><th>Customer</th><th>Partner / shop</th><th>Items</th><th>Amount</th><th>Payment</th><th>Order status</th><th>Delivery status</th><th>Action</th></tr></thead><tbody id="dashboardRecentOrders"><tr><td colspan="10" class="empty-cell">Loading orders...</td></tr></tbody></table></div>
+      </section>
     </div>
   </main>
 
-  <!-- TAB 2: LIVE ORDERS DISPATCH QUEUE -->
-  <main id="ordersViewSection" class="hidden max-w-5xl mx-auto px-3 sm:px-6 py-6 space-y-5">
-    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Active orders in hub</h3>
-      </div>
-      <div id="metricActiveOrders" class="text-2xl font-black tracking-tight text-slate-900">0</div>
+  <!-- ORDERS: CUSTOMER ORDER LIFECYCLE -->
+  <main id="ordersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-5">
+    <header class="section-heading"><h1>Orders</h1><p>Customer order lifecycle and payment information.</p></header>
+    <section class="filter-bar" aria-label="Order filters">
+      <input id="adminOrderSearch" type="search" placeholder="Search order, customer, or shop" oninput="filterAdminOrders()">
+      <select id="adminOrderStatusFilter" aria-label="Order status" onchange="filterAdminOrders()"><option value="">All Orders</option><option value="PLACED">Pending</option><option value="ACCEPTED">Accepted</option><option value="PREPARING">Preparing</option><option value="READY_FOR_PICKUP">Ready for Pickup</option><option value="OUT_FOR_DELIVERY">Out for Delivery</option><option value="DELIVERED">Delivered</option><option value="CANCELLED">Cancelled</option><option value="PICKING_UP">Pickup in Progress</option><option value="REJECTED">Rejected</option><option value="DELIVERY_FAILED">Delivery Failed</option></select>
+      <select id="adminOrderPaymentFilter" onchange="filterAdminOrders()"><option value="">All payments</option><option>PENDING</option><option>SUCCESSFUL</option><option>FAILED</option><option>REFUNDED</option></select>
+      <select id="adminOrderBucketFilter" onchange="loadAdminOrdersView()"><option value="all">All orders · latest 200</option><option value="active">Active</option><option value="past">Past</option></select>
+      <input id="adminOrderDateFrom" type="date" aria-label="Order date from" onchange="filterAdminOrders()">
+      <input id="adminOrderDateTo" type="date" aria-label="Order date to" onchange="filterAdminOrders()">
     </section>
+    <section class="admin-data-section"><div class="dashboard-table-wrap"><table class="admin-table" style="min-width:1500px"><thead><tr><th>Order ID</th><th>Customer</th><th>Restaurant / shop</th><th>Order type</th><th>Items</th><th>Subtotal</th><th>Delivery fee</th><th>Tax</th><th>Discount</th><th>Total</th><th>Payment method</th><th>Payment status</th><th>Order date</th><th>Order time</th><th>Current status</th><th>View details</th></tr></thead><tbody id="adminOrdersTableBody"><tr><td colspan="16" class="empty-cell">Loading orders...</td></tr></tbody></table></div></section>
+  </main>
 
-    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Delivered today</h3>
-      </div>
-      <div id="metricDelivered" class="text-2xl font-black tracking-tight text-emerald-600">0</div>
+  <!-- DELIVERIES: RIDER AND DELIVERY EXECUTION -->
+  <main id="deliveryViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-5">
+    <header class="section-heading"><h1>Deliveries</h1><p>Assignment, pickup and delivery execution from the existing delivery feed.</p></header>
+    <section class="dashboard-kpis" aria-label="Delivery overview">
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Deliveries in feed</div><div id="deliveryCountTotal" class="dashboard-kpi-value">-</div><div class="dashboard-kpi-note">Latest 200 platform orders</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Pending assignment</div><div id="deliveryCountPending" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Assigned</div><div id="deliveryCountAssigned" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Pickup pending</div><div id="deliveryCountPickupPending" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Picked up / out for delivery</div><div id="deliveryCountPickedUp" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Out for delivery</div><div id="deliveryCountOut" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Delivered</div><div id="deliveryCountDelivered" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Failed / cancelled</div><div id="deliveryCountFailed" class="dashboard-kpi-value">-</div></article>
     </section>
-
-    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3 mb-3">
-        <h3 class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Active hub riders</h3>
-      </div>
-      <div id="activeHubRidersCount" class="text-2xl font-black tracking-tight text-slate-900">0</div>
+    <section class="admin-data-section">
+      <div class="admin-data-section-head"><h2>Delivery activity</h2><p>ETA, assignment and pickup timestamps, and OTP status are not provided by the current admin delivery API.</p></div>
+      <div class="dashboard-table-wrap"><table class="admin-table" style="min-width:1480px"><thead><tr><th>Delivery ID</th><th>Order ID</th><th>Customer</th><th>Restaurant / shop</th><th>Assigned rider</th><th>Rider status</th><th>Delivery status</th><th>ETA</th><th>Assigned time</th><th>Pickup time</th><th>Delivered time</th><th>OTP status</th><th>Tracking / details</th></tr></thead><tbody id="adminDeliveriesTableBody"><tr><td colspan="13" class="empty-cell">Loading deliveries...</td></tr></tbody></table></div>
     </section>
-
-    <section class="rounded-[28px] border border-amber-200 bg-amber-50/70 shadow-sm p-5 sm:p-6">
-      <div class="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h2 class="text-[20px] font-black leading-tight text-slate-900">Rider Verification Queue</h2>
-          <p class="mt-2 max-w-xl text-sm font-medium text-slate-600">Review identity documents before rider login is enabled.</p>
-        </div>
-        <button type="button" class="rounded-full bg-[#f3d26e] px-4 py-2 text-[12px] font-black text-slate-900 shadow-sm">Admin review</button>
-      </div>
-      <div id="riderVerificationQueue" class="grid gap-3">
-        <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
-      </div>
-    </section>
-
-    <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
+    <section id="adminDispatchSection" class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
       <div class="mb-4">
-        <h2 class="text-[20px] font-black leading-tight text-slate-900">Dark Store Dispatch Pipeline</h2>
-        <p class="mt-2 text-sm font-medium text-slate-600">Tap colorful buttons for instant status change</p>
+        <h2 class="text-[20px] font-black leading-tight text-slate-900">Delivery dispatch pipeline</h2>
+        <p class="mt-2 text-sm font-medium text-slate-600">Assign eligible riders and track active assignments. Order status remains controlled by partner and rider workflows.</p>
       </div>
       <div id="adminQueueContainer" class="space-y-3">
         <p class="text-sm font-bold text-slate-500">Loading dispatch queue...</p>
@@ -939,14 +1107,17 @@
             <input id="salesFilterTo" type="date" class="border-0 bg-transparent text-sm font-black text-slate-900 outline-none" />
           </label>
         </div>
-        <div class="flex items-center gap-3">
-          <button type="button" onclick="resetSalesToToday()" class="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-sm">Today</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="resetSalesToToday()" class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Today</button>
+          <button type="button" onclick="setSalesReportRange(7)" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">7 days</button>
+          <button type="button" onclick="setSalesReportRange(30)" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">30 days</button>
           <button type="button" onclick="exportDailyOrdersCSV()" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm">Download CSV</button>
         </div>
       </div>
     </section>
 
     <p id="salesReportFeedback" class="hidden rounded-xl border px-4 py-3 text-sm font-bold" role="status" aria-live="polite"></p>
+    <p id="reportGeneratedAt" class="text-right text-[10px] text-slate-500">Generated at: -</p>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <section class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
@@ -1028,6 +1199,13 @@
 
   <!-- TAB 2: RIDER VERIFICATION -->
   <main id="riderVerificationViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <header class="section-heading"><h1>Riders</h1><p>Verification and availability data from the admin rider and delivery APIs.</p></header>
+    <div id="adminRiderSummary" class="dashboard-kpis" style="margin-top:0">
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">All riders</div><div id="adminRiderCountAll" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Pending verification</div><div id="adminRiderCountPending" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Available</div><div id="adminRiderCountAvailable" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">On delivery</div><div id="adminRiderCountOnDelivery" class="dashboard-kpi-value">-</div></article>
+    </div>
     <div class="mb-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 shadow-sm">
       <div class="flex items-center justify-between gap-3 mb-3">
         <div>
@@ -1036,8 +1214,12 @@
         </div>
         <span class="rounded-full bg-amber-200 px-2.5 py-1 text-[10px] font-black text-amber-900">Admin review</span>
       </div>
-      <div id="riderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div id="adminRiderVerificationQueue" class="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <p class="text-xs font-bold text-slate-500">Loading rider verification requests...</p>
+      </div>
+      <div class="admin-data-section" style="margin-top:16px">
+        <div class="admin-data-section-head"><h2>Rider directory</h2><p>Verification and availability fields provided by the admin rider API.</p></div>
+        <div class="dashboard-table-wrap"><table class="admin-table" style="min-width:820px"><thead><tr><th>Rider</th><th>Contact</th><th>Verification</th><th>Availability</th><th>Current delivery</th><th>Joined</th></tr></thead><tbody id="adminRiderDirectory"><tr><td colspan="6" class="empty-cell">Loading riders...</td></tr></tbody></table></div>
       </div>
     </div>
   </main>
@@ -1062,8 +1244,8 @@
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
         <div>
-          <h2 class="text-base font-extrabold text-slate-900">Delivery Boy Pricing</h2>
-          <p class="text-xs text-slate-500">Rider earnings only. These incentives never change customer delivery charges.</p>
+          <h2 class="text-base font-extrabold text-slate-900">Delivery settings</h2>
+          <p class="text-xs text-slate-500">Existing ETA and rider earnings settings. No new settings are created here.</p>
         </div>
       </div>
       <form id="riderEarningConfigForm" onsubmit="saveAdminRiderEarningConfig(event)" class="max-w-xl space-y-4">
@@ -1085,6 +1267,17 @@
           <button id="saveRiderEarningConfigButton" type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white">Save rider earnings</button>
           <p id="riderEarningConfigStatus" role="status" class="text-xs text-slate-500"></p>
         </div>
+      </form>
+      <form id="adminEtaConfigForm" onsubmit="saveAdminEtaConfig(event)" class="mt-7 max-w-3xl border-t border-slate-100 pt-5">
+        <h3 class="text-sm font-extrabold text-slate-900">ETA configuration</h3>
+        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <label class="text-xs font-bold text-slate-700">Customer promise (min)<input id="adminEtaPromise" type="number" min="5" max="180" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+          <label class="text-xs font-bold text-slate-700">Average speed (km/h)<input id="adminEtaSpeed" type="number" min="1" max="80" step="0.1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+          <label class="text-xs font-bold text-slate-700">Preparation buffer (min)<input id="adminEtaPrep" type="number" min="0" max="180" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+          <label class="text-xs font-bold text-slate-700">Minimum ETA (min)<input id="adminEtaMinimum" type="number" min="0" max="180" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+          <label class="text-xs font-bold text-slate-700">Maximum ETA buffer (min)<input id="adminEtaMaximumBuffer" type="number" min="0" max="120" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3"><button id="saveAdminEtaConfigButton" type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white">Save ETA settings</button><p id="adminEtaConfigStatus" role="status" class="text-xs text-slate-500"></p></div>
       </form>
     </div>
   </main>
@@ -1324,6 +1517,13 @@
 
   <!-- PARTNER MANAGEMENT -->
   <main id="partnersViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+    <header class="section-heading"><h1>Partners &amp; Shops</h1><p>Manage partner accounts and shop access; partner teams continue to own their own menus.</p></header>
+    <div id="adminPartnerSummary" class="dashboard-kpis" style="margin-top:0">
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Total partners</div><div id="adminPartnerCountAll" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Active</div><div id="adminPartnerCountActive" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Pending</div><div id="adminPartnerCountPending" class="dashboard-kpi-value">-</div></article>
+      <article class="dashboard-kpi"><div class="dashboard-kpi-label">Suspended</div><div id="adminPartnerCountSuspended" class="dashboard-kpi-value">-</div></article>
+    </div>
     <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6">
       <div class="pb-3 border-b border-slate-100 mb-4">
         <h2 class="text-base font-extrabold text-slate-900">Create Partner</h2>
@@ -1364,6 +1564,24 @@
       </div>
     </section>
   </main>
+
+  <main id="notificationsViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <header class="section-heading"><h1>Notifications</h1><p>Admin-targeted events produced by the backend. Read state is stored by the existing notification API.</p></header>
+    <section class="admin-data-section"><div id="adminNotificationList" class="notification-list"><p class="empty-state">Loading notifications...</p></div></section>
+  </main>
+
+  <main id="adminUnavailableViewSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 py-6">
+    <header class="section-heading"><h1 id="adminUnavailableTitle">Section unavailable</h1></header>
+    <section class="dashboard-panel"><p id="adminUnavailableMessage" class="empty-state" style="padding:14px 0;text-align:left">No admin API is registered for this section.</p></section>
+  </main>
+
+  <dialog id="adminOrderDetailsDialog">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 19px;border-bottom:1px solid #edf0f4">
+      <div><h2 style="margin:0;color:#17283d;font-size:15px;font-weight:800">Order details</h2><p style="margin:4px 0 0;color:#8390a0;font-size:10px">Data from the protected platform order endpoint</p></div>
+      <button type="button" class="table-action" onclick="document.getElementById('adminOrderDetailsDialog').close()" aria-label="Close order details">Close</button>
+    </div>
+    <div id="adminOrderDetailsContent" style="padding:18px;max-height:calc(100dvh - 110px);overflow:auto"></div>
+  </dialog>
 
   <!-- PRODUCT IMAGE EDIT MODAL -->
   <div id="editProductModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
