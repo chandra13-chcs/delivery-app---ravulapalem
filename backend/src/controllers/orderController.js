@@ -301,7 +301,10 @@ async function createCustomerOrder(req, res) {
   try {
     const orderType = String(req.body?.order_type || "GOODS").toUpperCase();
     if (!["GOODS", "PARCEL"].includes(orderType)) throw httpError(400, "Unsupported order type.");
-    let address = normalizeAddress(req.body?.address);
+    const rawAddressId = req.body?.address_id;
+    const addressId = rawAddressId == null || rawAddressId === "" ? null : String(rawAddressId).trim();
+    if (addressId && !UUID_PATTERN.test(addressId)) throw httpError(400, "Invalid address id.");
+    let address = addressId ? null : normalizeAddress(req.body?.address);
     const paymentMethod = normalizePaymentMethod(req.body?.payment_method);
     const note = req.body?.customer_note == null ? null : String(req.body.customer_note).trim();
     if (note && note.length > 2000) throw httpError(400, "Customer note is too long.");
@@ -328,7 +331,7 @@ async function createCustomerOrder(req, res) {
           || pickupAddress.length > 1000 || dropAddress.length > 1000 || description.length > 1000) {
         throw httpError(400, "Parcel pickup, drop-off, and description are required.");
       }
-      if (dropCoordinates) {
+      if (dropCoordinates && !addressId) {
         address = { ...address, latitude: dropCoordinates.latitude, longitude: dropCoordinates.longitude };
       }
       const pickupSnapshot = pickupCoordinates
@@ -345,6 +348,19 @@ async function createCustomerOrder(req, res) {
     client = await db.connect();
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true), set_config('app.change_source', $2, true)", [req.user.id, "CUSTOMER_API"]);
+
+    if (addressId) {
+      const savedAddress = await client.query(
+        `SELECT recipient_name, recipient_phone_e164, address_line1, address_line2,
+                landmark, locality, city, state, postal_code, country_code, latitude, longitude
+         FROM user_addresses
+         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+         FOR SHARE`,
+        [addressId, req.user.id]
+      );
+      if (!savedAddress.rows[0]) throw httpError(404, "Address not found.");
+      address = normalizeAddress(savedAddress.rows[0]);
+    }
 
     let resolvedLines = [];
     if (orderType === "GOODS") {

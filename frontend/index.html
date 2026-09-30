@@ -682,7 +682,7 @@
       </div>
 
       <form id="manualAddressForm" onsubmit="saveNewManualAddress(event)" class="space-y-3 pt-3 border-t">
-        <h4 class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
+        <h4 id="manualAddressFormTitle" class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
         
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input id="manualFullName" type="text" placeholder="Full Name *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
@@ -691,7 +691,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <input id="manualHouse" type="text" placeholder="House / Flat / Door No *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
-          <input id="manualStreet" type="text" placeholder="Street / Area / Colony *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+          <input id="manualStreet" type="text" placeholder="Street / Area / Colony" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -705,9 +705,10 @@
           <input id="manualLandmark" type="text" placeholder="Landmark (Optional)" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
         </div>
 
-        <button type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
+        <button id="manualAddressSubmitButton" type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
           Save Address & Use for Delivery
         </button>
+        <button id="cancelAddressEditButton" type="button" onclick="resetManualAddressForm()" class="hidden w-full py-2 text-xs font-bold text-slate-600">Cancel edit</button>
       </form>
     </div>
   </div>
@@ -1031,7 +1032,7 @@
     </div>
 
     <form id="manualAddressForm" onsubmit="saveNewManualAddress(event)" class="space-y-3 pt-3 border-t">
-      <h4 class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
+      <h4 id="manualAddressFormTitle" class="text-xs font-black uppercase text-slate-800">Add New Address (Family / Other Location)</h4>
       
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input id="manualFullName" type="text" placeholder="Full Name *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
@@ -1040,7 +1041,7 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input id="manualHouse" type="text" placeholder="House / Flat / Door No *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
-        <input id="manualStreet" type="text" placeholder="Street / Area / Colony *" required class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
+        <input id="manualStreet" type="text" placeholder="Street / Area / Colony" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -1054,9 +1055,10 @@
         <input id="manualLandmark" type="text" placeholder="Landmark (Optional)" class="px-3 py-2 text-xs border rounded-xl font-bold outline-none">
       </div>
 
-      <button type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
+      <button id="manualAddressSubmitButton" type="submit" class="w-full py-2.5 bg-[#0B132B] hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl transition">
         Save Address & Use for Delivery
       </button>
+      <button id="cancelAddressEditButton" type="button" onclick="resetManualAddressForm()" class="hidden w-full py-2 text-xs font-bold text-slate-600">Cancel edit</button>
     </form>
   </div>
 </div>

@@ -41,10 +41,16 @@ let riderTrackingDestination = null;
 let suppressCategoryScrollOnInit = false;
 let customerCountdownTimer = null;
 const delaySupportShownFor = new Set();
+let editingAddressIndex = null;
+const LEGACY_CUSTOMER_ADDRESS_IMPORT_LIMIT = 100;
+let customerAddressesCloudReadFor = null;
+let customerAddressSyncPhone = null;
+let customerAddressSyncPromise = null;
 
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const CUSTOMER_ORDER_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/orders`;
+const CUSTOMER_ADDRESS_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/addresses`;
 const CUSTOMER_AUTH_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/auth`;
 const CUSTOMER_NOTIFICATIONS_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/notifications`;
 
@@ -73,6 +79,155 @@ async function customerOrderApiRequest(path, options = {}) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(payload?.message || `Order request failed (${response.status}).`);
   return payload?.data;
+}
+
+async function customerAddressApiRequest(path = "", options = {}) {
+  const token = getCustomerAccessToken();
+  if (!token) throw new Error("A secure customer session is required to manage addresses.");
+  const response = await fetch(`${CUSTOMER_ADDRESS_API_BASE_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {})
+    }
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || `Address request failed (${response.status}).`);
+  return payload?.data;
+}
+
+function mapPostgresCustomerAddress(address) {
+  return {
+    id: address.id,
+    postgresAddress: true,
+    label: address.label,
+    fullName: address.recipient_name,
+    mobile: normalizePhone(address.recipient_phone_e164),
+    house: address.address_line1,
+    street: address.address_line2 || "",
+    city: address.city,
+    district: address.locality || "",
+    locality: address.locality || null,
+    state: address.state,
+    pincode: address.postal_code,
+    postal_code: address.postal_code,
+    country_code: address.country_code,
+    address_line1: address.address_line1,
+    address_line2: address.address_line2,
+    landmark: address.landmark || "",
+    latitude: address.latitude == null ? null : Number(address.latitude),
+    longitude: address.longitude == null ? null : Number(address.longitude),
+    isDefault: Boolean(address.is_default),
+    createdAt: address.created_at
+  };
+}
+
+function buildCustomerAddressPayload(address, isDefault = Boolean(address.isDefault)) {
+  return {
+    label: address.label || "Home",
+    recipient_name: address.fullName || address.recipient_name,
+    recipient_phone_e164: address.mobile || address.recipient_phone_e164,
+    address_line1: address.house || address.address_line1 || [address.house, address.street].filter(Boolean).join(", "),
+    address_line2: address.address_line2 ?? (address.street || null),
+    landmark: address.landmark || null,
+    locality: address.locality || address.district || null,
+    city: address.city,
+    state: address.state,
+    postal_code: address.postal_code || address.pincode,
+    country_code: address.country_code || "IN",
+    latitude: address.latitude ?? null,
+    longitude: address.longitude ?? null,
+    is_default: isDefault
+  };
+}
+
+function normalizeCustomerAddressValue(value) {
+  return String(value ?? "").normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function customerAddressIdentity(address, accountPhone) {
+  const payload = buildCustomerAddressPayload(address);
+  const addressLines = [
+    address.address_line1,
+    address.house,
+    payload.address_line1,
+    [address.house, address.street].filter(Boolean).join(", "),
+    [payload.address_line1, payload.address_line2].filter(Boolean).join(", ")
+  ].map(normalizeCustomerAddressValue).filter(Boolean);
+  const latitude = address.latitude == null || address.latitude === "" ? null : Number(address.latitude);
+  const longitude = address.longitude == null || address.longitude === "" ? null : Number(address.longitude);
+  return {
+    recipient: normalizeCustomerAddressValue(address.recipient_name || address.fullName),
+    phone: normalizePhone(address.recipient_phone_e164 || address.mobile || accountPhone),
+    city: normalizeCustomerAddressValue(address.city),
+    state: normalizeCustomerAddressValue(address.state),
+    postalCode: normalizeCustomerAddressValue(address.postal_code || address.pincode),
+    addressLines: new Set(addressLines),
+    latitude: Number.isFinite(latitude) ? latitude.toFixed(6) : null,
+    longitude: Number.isFinite(longitude) ? longitude.toFixed(6) : null
+  };
+}
+
+function customerAddressesMatch(left, right, accountPhone) {
+  const first = customerAddressIdentity(left, accountPhone);
+  const second = customerAddressIdentity(right, accountPhone);
+  if (!first.recipient || first.recipient !== second.recipient
+      || !first.phone || first.phone !== second.phone
+      || !first.city || first.city !== second.city
+      || first.state !== second.state
+      || !first.postalCode || first.postalCode !== second.postalCode
+      || ![...first.addressLines].some(line => second.addressLines.has(line))) {
+    return false;
+  }
+  return first.latitude == null || second.latitude == null
+    || (first.latitude === second.latitude && first.longitude === second.longitude);
+}
+
+function uniqueLegacyCustomerAddresses(...sources) {
+  const unique = [];
+  for (const address of sources.flat()) {
+    if (!address || typeof address !== "object" || address.postgresAddress) continue;
+    if (!unique.some(existing => customerAddressesMatch(existing, address, getCurrentCustomerPhone()))) {
+      unique.push(address);
+    }
+  }
+  return unique;
+}
+
+function mergeCustomerAddressCopies(...sources) {
+  const postgresCopies = [];
+  const postgresIds = new Set();
+  for (const address of sources.flat()) {
+    if (address?.postgresAddress && address.id && !postgresIds.has(address.id)) {
+      postgresIds.add(address.id);
+      postgresCopies.push(address);
+    }
+  }
+  return [...postgresCopies, ...uniqueLegacyCustomerAddresses(...sources)];
+}
+
+function buildCustomerOrderAddress(address) {
+  if (!address) return null;
+  const mapPin = address.isMapPin === true;
+  return {
+    recipient_name: address.fullName || getCustomerDisplayName(),
+    recipient_phone_e164: address.mobile || getCurrentCustomerPhone(),
+    address_line1: mapPin
+      ? address.street
+      : address.address_line1 || [address.house, address.street].filter(Boolean).join(", "),
+    address_line2: mapPin ? null : address.address_line2 ?? (address.address_line1 ? null : address.street || null),
+    landmark: address.landmark || null,
+    locality: address.locality || address.district || null,
+    city: address.city || "Mandapeta",
+    state: address.state || "Andhra Pradesh",
+    postal_code: address.postal_code || address.pincode || "533238",
+    country_code: address.country_code || "IN",
+    latitude: address.latitude ?? null,
+    longitude: address.longitude ?? null
+  };
 }
 
 async function customerAuthApiRequest(path, options = {}) {
@@ -176,25 +331,6 @@ async function markAllCustomerNotificationsRead() {
     const list = document.getElementById("customerNotificationsList");
     if (list) list.textContent = error.message;
   }
-}
-
-function buildCustomerOrderAddress(address) {
-  if (!address) return null;
-  const mapPin = address.isMapPin === true;
-  return {
-    recipient_name: address.fullName || getCustomerDisplayName(),
-    recipient_phone_e164: address.mobile || getCurrentCustomerPhone(),
-    address_line1: mapPin ? address.street : [address.house, address.street].filter(Boolean).join(", "),
-    address_line2: mapPin ? null : address.street || null,
-    landmark: address.landmark || null,
-    locality: address.district || null,
-    city: address.city || "Mandapeta",
-    state: address.state || "Andhra Pradesh",
-    postal_code: address.pincode || "533238",
-    country_code: "IN",
-    latitude: address.latitude ?? null,
-    longitude: address.longitude ?? null
-  };
 }
 
 function getOrderDeadlineMs(order) {
@@ -523,33 +659,94 @@ function persistCustomerAddresses() {
     JSON.stringify(savedAddresses)
   );
 
-  db.collection("customer_profiles").doc(phone).set({
-    phone,
-    addresses: savedAddresses,
-    updated_at_ms: Date.now()
-  }, { merge: true }).catch(error => {
+  if (customerAddressesCloudReadFor !== phone) return;
+  try {
+    db.collection("customer_profiles").doc(phone).set({
+      phone,
+      addresses: savedAddresses,
+      updated_at_ms: Date.now()
+    }, { merge: true }).catch(error => {
+      console.warn("Cloud address sync failed:", error);
+    });
+  } catch (error) {
     console.warn("Cloud address sync failed:", error);
-  });
+  }
 }
 
 async function syncCustomerAddressesFromCloud() {
   const phone = getCurrentCustomerPhone();
   if (!phone) return;
 
+  if (customerAddressSyncPromise && customerAddressSyncPhone === phone) {
+    return customerAddressSyncPromise;
+  }
+  customerAddressSyncPhone = phone;
+  const syncPromise = syncCustomerAddressesForPhone(phone);
+  customerAddressSyncPromise = syncPromise;
+  try {
+    await syncPromise;
+  } finally {
+    if (customerAddressSyncPromise === syncPromise) {
+      customerAddressSyncPhone = null;
+      customerAddressSyncPromise = null;
+    }
+  }
+}
+
+async function syncCustomerAddressesForPhone(phone) {
+  const localAddresses = savedAddresses.slice();
+  customerAddressesCloudReadFor = null;
+  let cloudAddresses = [];
+
   try {
     const profileDoc = await db.collection("customer_profiles").doc(phone).get();
-    const cloudAddresses = profileDoc.exists ? profileDoc.data()?.addresses : null;
-    if (Array.isArray(cloudAddresses)) {
-      savedAddresses = cloudAddresses;
-      localStorage.setItem(getCustomerStorageKey(phone), JSON.stringify(savedAddresses));
-      renderSavedAddressesList();
-      populateCheckoutAddressDropdown();
-      return;
+    const storedAddresses = profileDoc.exists ? profileDoc.data()?.addresses : null;
+    cloudAddresses = Array.isArray(storedAddresses) ? storedAddresses : [];
+    if (getCurrentCustomerPhone() === phone) customerAddressesCloudReadFor = phone;
+  } catch (error) {
+    console.warn("Legacy cloud address load failed; preserving local copies:", error);
+  }
+
+  try {
+    const postgresRows = await customerAddressApiRequest("");
+    if (!Array.isArray(postgresRows)) throw new Error("Address list response is invalid.");
+
+    const legacyAddresses = uniqueLegacyCustomerAddresses(localAddresses, cloudAddresses);
+    const unresolvedAddresses = [];
+    let importCount = 0;
+    for (const legacyAddress of legacyAddresses) {
+      if (getCurrentCustomerPhone() !== phone) return;
+      if (postgresRows.some(row => customerAddressesMatch(legacyAddress, row, phone))) continue;
+      if (importCount >= LEGACY_CUSTOMER_ADDRESS_IMPORT_LIMIT) {
+        unresolvedAddresses.push(legacyAddress);
+        continue;
+      }
+
+      importCount += 1;
+      try {
+        const keepCurrentDefault = postgresRows.some(row => row.is_default);
+        const saved = await customerAddressApiRequest("", {
+          method: "POST",
+          body: JSON.stringify(buildCustomerAddressPayload(legacyAddress, Boolean(legacyAddress.isDefault) && !keepCurrentDefault))
+        });
+        if (!saved?.id) throw new Error("The saved address response is invalid.");
+        postgresRows.push(saved);
+      } catch (error) {
+        console.warn("Legacy address import failed; preserving its compatibility copy:", error.message);
+        unresolvedAddresses.push(legacyAddress);
+      }
     }
 
-    if (savedAddresses.length) persistCustomerAddresses();
+    if (getCurrentCustomerPhone() !== phone) return;
+    savedAddresses = [...postgresRows.map(mapPostgresCustomerAddress), ...unresolvedAddresses];
+    renderSavedAddressesList();
+    populateCheckoutAddressDropdown();
   } catch (error) {
-    console.warn("Cloud address load failed; using local addresses:", error);
+    console.warn("PostgreSQL address load failed; preserving legacy addresses:", error.message);
+    if (getCurrentCustomerPhone() !== phone) return;
+    savedAddresses = mergeCustomerAddressCopies(localAddresses, cloudAddresses);
+    renderSavedAddressesList();
+    populateCheckoutAddressDropdown();
   }
 }
 
@@ -1561,6 +1758,40 @@ function openAddressManager() {
   renderSavedAddressesList();
 }
 
+function resetManualAddressForm() {
+  const form = document.getElementById("manualAddressForm");
+  form?.reset();
+  editingAddressIndex = null;
+  const title = document.getElementById("manualAddressFormTitle");
+  const submit = document.getElementById("manualAddressSubmitButton");
+  const cancel = document.getElementById("cancelAddressEditButton");
+  if (title) title.textContent = "Add New Address (Family / Other Location)";
+  if (submit) submit.textContent = "Save Address & Use for Delivery";
+  cancel?.classList.add("hidden");
+}
+
+function startEditAddress(idx) {
+  const address = savedAddresses[idx];
+  if (!address) return;
+  editingAddressIndex = idx;
+  document.getElementById("manualFullName").value = address.fullName || "";
+  document.getElementById("manualMobile").value = address.mobile || "";
+  document.getElementById("manualHouse").value = address.house || address.address_line1 || "";
+  document.getElementById("manualStreet").value = address.street || "";
+  document.getElementById("manualCity").value = address.city || "";
+  document.getElementById("manualDistrict").value = address.locality || address.district || "";
+  document.getElementById("manualState").value = address.state || "";
+  document.getElementById("manualPincode").value = address.postal_code || address.pincode || "";
+  document.getElementById("manualLandmark").value = address.landmark || "";
+  const title = document.getElementById("manualAddressFormTitle");
+  const submit = document.getElementById("manualAddressSubmitButton");
+  const cancel = document.getElementById("cancelAddressEditButton");
+  if (title) title.textContent = "Edit Saved Address";
+  if (submit) submit.textContent = "Save Address Changes";
+  cancel?.classList.remove("hidden");
+  document.getElementById("manualAddressForm")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 
 function closeAddressManager() {
 
@@ -1672,6 +1903,13 @@ function renderSavedAddressesList() {
               }
 
               <button
+                onclick="startEditAddress(${idx})"
+                class="text-[9px] text-blue-600 underline mr-2"
+              >
+                Edit
+              </button>
+
+              <button
                 onclick="deleteAddress(${idx})"
                 class="text-[9px] text-rose-600 ml-2"
               >
@@ -1723,7 +1961,7 @@ function renderSavedAddressesList() {
 // 19. SAVE MANUAL ADDRESS
 // ==========================================
 
-function saveNewManualAddress(e) {
+async function saveNewManualAddress(e) {
 
   e.preventDefault();
 
@@ -1831,7 +2069,6 @@ function saveNewManualAddress(e) {
     !fullName ||
     cleanMobile.length !== 10 ||
     !house ||
-    !street ||
     !city ||
     !state ||
     !pincode
@@ -1845,11 +2082,12 @@ function saveNewManualAddress(e) {
   }
 
 
+  const addressIndex = editingAddressIndex;
+  const currentAddress = addressIndex == null ? null : savedAddresses[addressIndex];
   const newAddr = {
-
-    id:
-      "addr_" +
-      Date.now(),
+    label: currentAddress?.label || "Home",
+    latitude: currentAddress?.latitude ?? null,
+    longitude: currentAddress?.longitude ?? null,
 
     fullName:
       fullName,
@@ -1904,22 +2142,24 @@ function saveNewManualAddress(e) {
   }
 
 
-  savedAddresses.push(
-    newAddr
-  );
-
-
-  persistCustomerAddresses();
-
-
-  const form =
-    document.getElementById(
-      "manualAddressForm"
-    );
-
-  if (form) {
-
-    form.reset();
+  try {
+    const saved = currentAddress?.postgresAddress
+      ? await customerAddressApiRequest(`/${encodeURIComponent(currentAddress.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(buildCustomerAddressPayload(newAddr, currentAddress.isDefault))
+      })
+      : await customerAddressApiRequest("", {
+        method: "POST",
+        body: JSON.stringify(buildCustomerAddressPayload(newAddr, currentAddress?.isDefault ?? newAddr.isDefault))
+      });
+    const mappedAddress = mapPostgresCustomerAddress(saved);
+    if (addressIndex == null) savedAddresses.push(mappedAddress);
+    else savedAddresses[addressIndex] = mappedAddress;
+    resetManualAddressForm();
+    persistCustomerAddresses();
+  } catch (error) {
+    alert(`Unable to save address: ${error.message}`);
+    return;
   }
 
 
@@ -1942,7 +2182,7 @@ function saveNewManualAddress(e) {
 // 20. SAVE CURRENT GPS AS ADDRESS
 // ==========================================
 
-function saveCurrentGpsAddress() {
+async function saveCurrentGpsAddress() {
 
   const phone =
     getCurrentCustomerPhone();
@@ -1960,8 +2200,8 @@ function saveCurrentGpsAddress() {
 
   if (
     !currentCustomerCoords ||
-    !currentCustomerCoords.lat ||
-    !currentCustomerCoords.lng
+    currentCustomerCoords.lat == null ||
+    currentCustomerCoords.lng == null
   ) {
 
     alert(
@@ -1987,10 +2227,6 @@ function saveCurrentGpsAddress() {
 
 
   const gpsAddress = {
-
-    id:
-      "gps_" +
-      Date.now(),
 
     fullName:
       "Current Location",
@@ -2038,12 +2274,17 @@ function saveCurrentGpsAddress() {
   };
 
 
-  savedAddresses.push(
-    gpsAddress
-  );
-
-
-  persistCustomerAddresses();
+  try {
+    const saved = await customerAddressApiRequest("", {
+      method: "POST",
+      body: JSON.stringify(buildCustomerAddressPayload(gpsAddress, savedAddresses.length === 0))
+    });
+    savedAddresses.push(mapPostgresCustomerAddress(saved));
+    persistCustomerAddresses();
+  } catch (error) {
+    alert(`Unable to save GPS address: ${error.message}`);
+    return;
+  }
 
   renderSavedAddressesList();
 
@@ -2062,23 +2303,30 @@ function saveCurrentGpsAddress() {
 // 21. DEFAULT ADDRESS
 // ==========================================
 
-function setDefaultAddress(idx) {
+async function setDefaultAddress(idx) {
 
   if (
     !savedAddresses[idx]
   ) return;
 
 
-  savedAddresses.forEach(
-    (address, index) => {
-
-      address.isDefault =
-        index === idx;
-    }
-  );
-
-
-  persistCustomerAddresses();
+  try {
+    const currentAddress = savedAddresses[idx];
+    const saved = currentAddress.postgresAddress
+      ? await customerAddressApiRequest(`/${encodeURIComponent(currentAddress.id)}/default`, { method: "PATCH" })
+      : await customerAddressApiRequest("", {
+        method: "POST",
+        body: JSON.stringify(buildCustomerAddressPayload(currentAddress, true))
+      });
+    const mappedAddress = mapPostgresCustomerAddress(saved);
+    savedAddresses = savedAddresses.map((address, index) => index === idx
+      ? mappedAddress
+      : { ...address, isDefault: false });
+    persistCustomerAddresses();
+  } catch (error) {
+    alert(`Unable to set default address: ${error.message}`);
+    return;
+  }
 
   renderSavedAddressesList();
 
@@ -2090,7 +2338,7 @@ function setDefaultAddress(idx) {
 // 22. DELETE ADDRESS
 // ==========================================
 
-function deleteAddress(idx) {
+async function deleteAddress(idx) {
 
   if (
     !savedAddresses[idx]
@@ -2110,20 +2358,18 @@ function deleteAddress(idx) {
   const deletingDefault =
     savedAddresses[idx].isDefault;
 
-
-  savedAddresses.splice(
-    idx,
-    1
-  );
-
-
-  if (
-    deletingDefault &&
-    savedAddresses.length > 0
-  ) {
-
-    savedAddresses[0].isDefault =
-      true;
+  try {
+    const address = savedAddresses[idx];
+    if (address.postgresAddress) {
+      await customerAddressApiRequest(`/${encodeURIComponent(address.id)}`, { method: "DELETE" });
+    }
+    savedAddresses.splice(idx, 1);
+    if (deletingDefault && savedAddresses.length > 0) {
+      await setDefaultAddress(0);
+    }
+  } catch (error) {
+    alert(`Unable to delete address: ${error.message}`);
+    return;
   }
 
 
@@ -4346,6 +4592,7 @@ async function finalizeOrderAndLaunch(
             selected_weight: product && supportsWeightOptions(product) ? getSelectedProductWeight(product) : null
           };
         }),
+        ...(chosenAddr.postgresAddress ? { address_id: chosenAddr.id } : {}),
         address: buildCustomerOrderAddress(chosenAddr),
         payment_method: submittedPaymentMethod,
         rider_tip: riderTip
