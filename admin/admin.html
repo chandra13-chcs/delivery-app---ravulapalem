@@ -1063,12 +1063,29 @@
       <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
         <div>
           <h2 class="text-base font-extrabold text-slate-900">Delivery Boy Pricing</h2>
-          <p class="text-xs text-slate-500">Base fares, per-km charges, and rider payout rules.</p>
+          <p class="text-xs text-slate-500">Rider earnings only. These incentives never change customer delivery charges.</p>
         </div>
       </div>
-      <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-        <p class="text-sm font-bold text-slate-500">No pricing rules configured yet.</p>
-      </div>
+      <form id="riderEarningConfigForm" onsubmit="saveAdminRiderEarningConfig(event)" class="max-w-xl space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="space-y-1 text-xs font-bold text-slate-700">
+            <span>Base earning per completed delivery (INR)</span>
+            <input id="riderBaseEarningInput" type="number" min="0" max="10000" step="0.01" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          </label>
+          <label class="space-y-1 text-xs font-bold text-slate-700">
+            <span>Flat rain incentive per completed delivery (INR)</span>
+            <input id="riderRainSurgeInput" type="number" min="0" max="10000" step="0.01" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          </label>
+        </div>
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <input id="riderRainSurgeActiveInput" type="checkbox" class="h-4 w-4 rounded border-slate-300">
+          Apply the rain incentive to new completed deliveries
+        </label>
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="saveRiderEarningConfigButton" type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white">Save rider earnings</button>
+          <p id="riderEarningConfigStatus" role="status" class="text-xs text-slate-500"></p>
+        </div>
+      </form>
     </div>
   </main>
 

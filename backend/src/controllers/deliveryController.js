@@ -12,6 +12,7 @@ const {
   sendOtp
 } = require("../services/otpService");
 const { ORDER_PROJECTION, ACTIVE_STATUSES, PAST_STATUSES, presentOrder } = require("./orderController");
+const { loadRiderEarningConfig, calculateRiderEarningSnapshot } = require("../services/riderEarningsService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_ASSIGNMENT_STATUSES = ["OFFERED", "ACCEPTED", "PICKING_UP", "OUT_FOR_DELIVERY"];
@@ -938,6 +939,8 @@ async function completeDelivery(req, res) {
       await client.query("COMMIT");
       return respondError(res, 400, "Delivery code is invalid.");
     }
+    const earningConfig = await loadRiderEarningConfig(client);
+    const earningSnapshot = calculateRiderEarningSnapshot(earningConfig);
     await client.query("UPDATE otp_verifications SET consumed_at = now() WHERE id = $1", [challenge.id]);
     await client.query("UPDATE orders SET delivery_otp_verified_at = now() WHERE id = $1", [assignment.order_id]);
     await writeOrderStatus(client, req, assignment.order_id, "DELIVERED", "Delivery code verified by assigned rider");
@@ -947,7 +950,7 @@ async function completeDelivery(req, res) {
        WHERE id = $1`,
       [assignment.id]
     );
-    await recordDeliveryEvent(client, assignment, req, "DELIVERED");
+    await recordDeliveryEvent(client, assignment, req, "DELIVERED", { rider_earning: earningSnapshot });
     await insertNotification(client, assignment.customer_user_id, "Order delivered", `Order ${assignment.order_number} was delivered.`, {
       event: "delivery.delivered", order_id: assignment.order_id, assignment_id: assignment.id, recipient_type: "CUSTOMER"
     });

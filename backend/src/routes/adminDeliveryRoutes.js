@@ -6,11 +6,17 @@ const {
 	createDeliveryAssignment,
 	getAdminAssignmentTracking
 } = require("../controllers/deliveryController");
+const {
+	getAdminRiderEarningConfig,
+	updateAdminRiderEarningConfig
+} = require("../controllers/riderEarningsController");
 
 const router = express.Router();
 router.use(requireAdmin, requirePermission("deliveries:manage"));
 router.get("/orders", listAdminDeliveryOrders);
 router.get("/riders", listEligibleRiders);
+router.get("/rider-earnings/config", getAdminRiderEarningConfig);
+router.put("/rider-earnings/config", updateAdminRiderEarningConfig);
 router.post("/assignments", createDeliveryAssignment);
 router.get("/assignments/:assignmentId/tracking", getAdminAssignmentTracking);
 

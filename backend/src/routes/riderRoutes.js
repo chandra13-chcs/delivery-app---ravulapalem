@@ -26,6 +26,7 @@ const {
   completeDelivery,
   updateRiderLocation
 } = require("../controllers/deliveryController");
+const { getRiderEarnings } = require("../controllers/riderEarningsController");
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.post("/documents", createRiderDocument);
 router.get("/availability", getRiderAvailability);
 router.put("/availability", setRiderAvailability);
 router.get("/dashboard", getRiderDashboard);
+router.get("/earnings", getRiderEarnings);
 router.get("/deliveries", listRiderDeliveries);
 router.post("/deliveries/:assignmentId/accept", acceptDelivery);
 router.post("/deliveries/:assignmentId/reject", rejectDelivery);

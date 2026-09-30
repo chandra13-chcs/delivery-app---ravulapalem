@@ -50,6 +50,54 @@ async function adminRiderApiRequest(path, options = {}) {
   return payload;
 }
 
+async function loadAdminRiderEarningConfig() {
+  const status = document.getElementById('riderEarningConfigStatus');
+  if (status) status.textContent = 'Loading rider earnings configuration...';
+  try {
+    const result = await adminRiderApiRequest('/api/admin/deliveries/rider-earnings/config', { cache: 'no-store' });
+    const config = result.data;
+    const base = document.getElementById('riderBaseEarningInput');
+    const rain = document.getElementById('riderRainSurgeInput');
+    const active = document.getElementById('riderRainSurgeActiveInput');
+    if (base) base.value = String(config.base_earning_inr);
+    if (rain) rain.value = String(config.rain_surge_inr);
+    if (active) active.checked = Boolean(config.rain_surge_active);
+    if (status) status.textContent = config.configured ? 'Saved configuration loaded.' : 'Default configuration loaded.';
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Unable to load rider earnings configuration.';
+  }
+}
+
+async function saveAdminRiderEarningConfig(event) {
+  event.preventDefault();
+  const button = document.getElementById('saveRiderEarningConfigButton');
+  const status = document.getElementById('riderEarningConfigStatus');
+  const payload = {
+    base_earning_inr: Number(document.getElementById('riderBaseEarningInput')?.value),
+    rain_surge_inr: Number(document.getElementById('riderRainSurgeInput')?.value),
+    rain_surge_active: Boolean(document.getElementById('riderRainSurgeActiveInput')?.checked)
+  };
+  if (button) button.disabled = true;
+  if (status) status.textContent = 'Saving rider earnings configuration...';
+  try {
+    const result = await adminRiderApiRequest('/api/admin/deliveries/rider-earnings/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+    if (status) status.textContent = 'Rider earnings configuration saved.';
+    if (result.data) {
+      const base = document.getElementById('riderBaseEarningInput');
+      const rain = document.getElementById('riderRainSurgeInput');
+      if (base) base.value = String(result.data.base_earning_inr);
+      if (rain) rain.value = String(result.data.rain_surge_inr);
+    }
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Unable to save rider earnings configuration.';
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function stopAdminOrderSound() {
   ADMIN_ORDER_SOUND.pause();
   ADMIN_ORDER_SOUND.currentTime = 0;
@@ -433,6 +481,7 @@ function switchView(tab) {
     if (expensesSec) expensesSec.classList.remove('hidden');
   } else if (selectedTab === 'deliveryPricing') {
     if (pricingSec) pricingSec.classList.remove('hidden');
+    loadAdminRiderEarningConfig();
   } else if (selectedTab === 'inventory') {
     if (invSec) invSec.classList.remove('hidden');
     loadAdminInventory();
