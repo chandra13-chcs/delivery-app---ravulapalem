@@ -27,7 +27,8 @@ const { issuePickupOtp } = require("../controllers/deliveryController");
 const { requirePartner } = require("../middleware/requirePartner");
 const {
   listPartnerNotifications,
-  markPartnerNotificationRead
+  markPartnerNotificationRead,
+  markAllPartnerNotificationsRead
 } = require("../controllers/notificationController");
 
 const router = express.Router();
@@ -35,6 +36,7 @@ const router = express.Router();
 router.use(requirePartner);
 router.get("/me", getPartnerProfile);
 router.get("/notifications", listPartnerNotifications);
+router.patch("/notifications/read-all", markAllPartnerNotificationsRead);
 router.patch("/notifications/:notificationId/read", markPartnerNotificationRead);
 router.get("/orders", listPartnerOrders);
 router.get("/orders/:orderId", getPartnerOrder);

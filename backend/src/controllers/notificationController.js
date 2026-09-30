@@ -105,6 +105,25 @@ async function markPartnerNotificationRead(req, res) {
   }
 }
 
+async function markAllPartnerNotificationsRead(req, res) {
+  try {
+    const result = await db.query(
+      `UPDATE notifications
+       SET status = 'READ', read_at = COALESCE(read_at, now()), updated_at = now()
+       WHERE user_id = $1
+         AND payload->>'recipient_type' = 'PARTNER'
+         AND payload->>'partner_id' = ANY($2::text[])
+         AND read_at IS NULL
+       RETURNING id`,
+      [req.user.id, req.partnerIds]
+    );
+    return res.json({ success: true, data: { updated_count: result.rowCount } });
+  } catch (error) {
+    console.error("Partner bulk notification read update failed:", error.message);
+    return res.status(500).json({ success: false, message: "Unable to update partner notifications.", data: null });
+  }
+}
+
 async function listRiderNotifications(req, res) {
   const rider = await resolveApprovedRider(req.user.id).catch(error => {
     console.error("Rider notification authorization failed:", error.message);
@@ -214,6 +233,7 @@ module.exports = {
   markAllUserNotificationsRead,
   listPartnerNotifications,
   markPartnerNotificationRead,
+  markAllPartnerNotificationsRead,
   listRiderNotifications,
   markRiderNotificationRead,
   markAllRiderNotificationsRead,
