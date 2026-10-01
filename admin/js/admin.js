@@ -988,14 +988,15 @@ function renderAdminPartnerCard(partner) {
   const typeOptions = ['RESTAURANT', 'GROCERY', 'MEAT', 'OTHER'].map(type =>
     `<option value="${type}" ${partner.business_type === type ? 'selected' : ''}>${type}</option>`
   ).join('');
-  return `<article class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+  return `<article id="adminPartnerCard_${id}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
     <form onsubmit="saveAdminPartner(event,'${id}')" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
       <input name="legal_name" aria-label="Legal name" value="${escapeAdminHtml(partner.legal_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
       <input name="display_name" aria-label="Display name" value="${escapeAdminHtml(partner.display_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
       <select name="business_type" aria-label="Business type" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">${typeOptions}</select>
       <input name="tax_identifier" aria-label="Tax identifier" value="${escapeAdminHtml(partner.tax_identifier || '')}" maxlength="100" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Tax identifier">
-      <div class="flex flex-wrap items-center gap-2 sm:col-span-2"><strong class="text-sm text-slate-900">${escapeAdminHtml(partner.display_name)}</strong><span class="rounded-full px-2 py-1 text-[10px] font-black ${partner.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${escapeAdminHtml(partner.status)}</span><span class="text-[10px] text-slate-500">${shops.length} shops · ${partner.product_count} products · ${partner.active_product_count} active · ${partner.member_count} members</span></div>
+      <div class="flex flex-wrap items-center gap-2 sm:col-span-2"><strong data-admin-partner-display-name class="text-sm text-slate-900">${escapeAdminHtml(partner.display_name)}</strong><span class="rounded-full px-2 py-1 text-[10px] font-black ${partner.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${escapeAdminHtml(partner.status)}</span><span class="text-[10px] text-slate-500">${shops.length} shops · ${partner.product_count} products · ${partner.active_product_count} active · ${partner.member_count} members</span></div>
       <button type="submit" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black">Save partner</button>
+      <span id="adminPartnerSaveStatus_${id}" class="text-[10px] text-emerald-700" role="status" aria-live="polite"></span>
       <button type="button" onclick="setAdminPartnerStatus('${id}','${partner.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-[10px] font-black">${partner.status === 'ACTIVE' ? 'Suspend' : 'Activate'}</button>
     </form>
     <div class="flex items-center justify-between border-t border-slate-200 pt-2"><strong class="text-xs text-slate-800">Shops</strong><button type="button" onclick="toggleAdminPartnerShopForm('${id}')" class="px-2.5 py-1.5 rounded-lg bg-cyan-50 text-cyan-900 text-[10px] font-black">Add shop</button></div>
@@ -1066,14 +1067,43 @@ async function loadAdminPartnerAccounts() {
 
 async function saveAdminPartner(event, partnerId) {
   event.preventDefault();
-  const data = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const button = form.querySelector('button[type="submit"]');
+  const status = document.getElementById(`adminPartnerSaveStatus_${partnerId}`);
+  if (button) button.disabled = true;
+  if (status) status.textContent = 'Saving...';
   try {
     await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ legal_name: data.get('legal_name'), display_name: data.get('display_name'), business_type: data.get('business_type'), tax_identifier: data.get('tax_identifier') || null })
     });
-    await loadAdminPartnerAccounts();
-  } catch (error) { alert(`Unable to save partner: ${error.message}`); }
+    const partner = adminPartnerRecords.find(record => String(record.id) === String(partnerId));
+    if (partner) {
+      partner.legal_name = data.get('legal_name');
+      partner.display_name = data.get('display_name');
+      partner.business_type = data.get('business_type');
+      partner.tax_identifier = data.get('tax_identifier') || null;
+      adminPartnerAccounts = adminPartnerRecords.flatMap(record => record.shops.map(shop => ({
+        id: shop.id,
+        partner_id: record.id,
+        name: `${record.display_name} · ${shop.name}`,
+        type: record.business_type === 'MEAT' ? 'meat' : record.business_type === 'RESTAURANT' ? 'restaurant' : 'store',
+        enabled: record.status === 'ACTIVE' && shop.status !== 'CLOSED'
+      })));
+      refreshAdminPartnerProductOptions();
+      populateAdminCatalogFilters();
+    }
+    const card = document.getElementById(`adminPartnerCard_${partnerId}`);
+    const displayName = card?.querySelector('[data-admin-partner-display-name]');
+    if (displayName) displayName.textContent = data.get('display_name');
+    if (status) status.textContent = 'Partner saved.';
+  } catch (error) {
+    if (status) status.textContent = '';
+    alert(`Unable to save partner: ${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function setAdminPartnerStatus(partnerId, status) {

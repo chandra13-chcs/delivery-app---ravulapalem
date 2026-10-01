@@ -14,6 +14,10 @@ let serviceProducts = [];
 let restaurantCart = {};
 let restaurantMenuProducts = [];
 let restaurantSearchTerm = "";
+let restaurantListSearchTerm = "";
+let expandedRestaurantCategories = new Set();
+let collapsedSearchCategories = new Set();
+let bookmarkedRestaurantProducts = new Set();
 let restaurantRequestToken = 0;
 let activeRestaurant = null;
 
@@ -22,17 +26,19 @@ function serviceEscape(value) {
 }
 
 function resolveRestaurantAvailability(restaurant) {
+  const openValue = restaurant?.is_open ?? restaurant?.is_open_now;
+  if (typeof openValue === "boolean") {
+    return { label: openValue ? "Open" : "Closed", tone: openValue ? "open" : "closed" };
+  }
+  const closedValue = restaurant?.is_closed ?? restaurant?.closed;
+  if (typeof closedValue === "boolean") {
+    return { label: closedValue ? "Closed" : "Open", tone: closedValue ? "closed" : "open" };
+  }
   const candidates = [
     restaurant?.status,
     restaurant?.shop_status,
     restaurant?.availability_status,
     restaurant?.current_status,
-    restaurant?.is_open,
-    restaurant?.is_open_now,
-    restaurant?.is_active,
-    restaurant?.is_enabled,
-    restaurant?.is_closed,
-    restaurant?.closed,
     restaurant?.availability?.status,
     restaurant?.hours?.status
   ];
@@ -44,7 +50,7 @@ function resolveRestaurantAvailability(restaurant) {
 
     if (typeof candidate === "string") {
       const normalized = candidate.trim().toUpperCase();
-      if (["OPEN", "AVAILABLE", "ACTIVE", "ONLINE", "ENABLED", "READY"].includes(normalized)) {
+      if (["OPEN", "AVAILABLE", "ONLINE", "READY"].includes(normalized)) {
         return { label: "Open", tone: "open" };
       }
       if (["CLOSED", "UNAVAILABLE", "INACTIVE", "OFFLINE", "PAUSED", "SUSPENDED", "DISABLED"].includes(normalized)) {
@@ -84,7 +90,8 @@ function normalizeServiceProduct(product) {
     price: Number(product.price ?? variant.price ?? 0),
     image_url: product.image_url || image.public_url || "",
     qty_unit: product.unit_label || variant.unit_label || product.qty_unit || product.unit || "",
-    restaurant_id: product.shop_id || product.restaurant_id || ""
+    restaurant_id: product.shop_id || product.restaurant_id || "",
+    category_name: product.category_name || (typeof product.category === "object" ? product.category?.name : product.category) || ""
   };
 }
 
@@ -173,15 +180,48 @@ async function loadRestaurants() {
 function renderRestaurants() {
   const container = document.getElementById("serviceRestaurantList");
   if (!container) return;
-  container.innerHTML = serviceRestaurants.length ? serviceRestaurants.map(restaurant => `
-    <button type="button" onclick="openRestaurantMenu('${serviceEscape(restaurant.id)}')" class="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-amber-400 hover:shadow-md sm:p-4">
-      <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=300&q=80" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20">
-      <span class="min-w-0 flex-1"><strong class="block truncate text-sm font-black text-slate-900">${serviceEscape(restaurant.name || "Restaurant")}</strong>
-        ${restaurant.cuisine ? `<span class="mt-1 block truncate text-[11px] text-slate-600">${serviceEscape(restaurant.cuisine)}</span>` : ""}
-        ${restaurant.description ? `<span class="mt-1 line-clamp-2 block text-[11px] text-slate-500">${serviceEscape(restaurant.description)}</span>` : ""}
-        ${renderRestaurantAvailabilityBadge(restaurant)}</span>
-      <span class="shrink-0 rounded-xl bg-[#0B132B] px-3 py-2 text-[10px] font-black text-white">View menu ↗</span>
-    </button>`).join("") : '<p class="col-span-full rounded-xl border border-slate-200 bg-white p-4 text-center text-xs text-slate-500">No restaurants available yet.</p>';
+  const searchTerm = normalizeServiceSearch(restaurantListSearchTerm);
+  const restaurants = serviceRestaurants.filter(restaurant => {
+    const haystack = normalizeServiceSearch([restaurant.name, restaurant.cuisine, restaurant.description,
+      restaurant.location, restaurant.locality, restaurant.address].filter(Boolean).join(" "));
+    return haystack.includes(searchTerm);
+  });
+  container.innerHTML = restaurants.length ? restaurants.map(restaurant => {
+    const imageUrl = restaurant.image_url || restaurant.cover_image_url || restaurant.logo_url || restaurant.images?.[0]?.public_url || "";
+    const location = restaurant.location || restaurant.locality || restaurant.address || "";
+    const distance = restaurant.distance_km ?? restaurant.shop_distance_km;
+    const rating = Number(restaurant.rating ?? restaurant.average_rating);
+    const delivery = resolveRestaurantDelivery(restaurant);
+    return `<button type="button" onclick="openRestaurantMenu('${serviceEscape(restaurant.id)}')" class="restaurant-card">
+      <span class="restaurant-card-image">${imageUrl ? `<img src="${serviceEscape(imageUrl)}" alt="${serviceEscape(restaurant.name || "Restaurant")}" onerror="this.remove()">` : `<span class="restaurant-image-placeholder"><span>MyShopzy</span></span>`}</span>
+      <span class="restaurant-card-content"><span class="restaurant-card-title-row"><strong>${serviceEscape(restaurant.name || "Restaurant")}</strong>${Number.isFinite(rating) && rating > 0 ? `<span class="restaurant-rating">★ ${rating.toFixed(1)}</span>` : ""}</span>
+        ${restaurant.cuisine ? `<span class="restaurant-card-cuisine">${serviceEscape(restaurant.cuisine)}</span>` : ""}
+        ${location || Number.isFinite(Number(distance)) ? `<span class="restaurant-card-meta">${location ? serviceEscape(location) : ""}${location && Number.isFinite(Number(distance)) ? " · " : ""}${Number.isFinite(Number(distance)) ? `${Number(distance).toFixed(1)} km` : ""}</span>` : ""}
+        ${restaurant.description ? `<span class="restaurant-card-description">${serviceEscape(restaurant.description)}</span>` : ""}
+        <span class="restaurant-card-footer">${renderRestaurantAvailabilityBadge(restaurant)}${delivery ? `<span class="restaurant-delivery-status">${serviceEscape(delivery)}</span>` : ""}<span class="restaurant-view-menu">View menu <span aria-hidden="true">↗</span></span></span>
+      </span>
+    </button>`;
+  }).join("") : `<p class="restaurant-empty-state">${serviceRestaurants.length && searchTerm ? "No restaurants match your search." : "No restaurants available yet."}</p>`;
+}
+
+function normalizeServiceSearch(value) {
+  return String(value || "").trim().toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function searchRestaurants(value) {
+  restaurantListSearchTerm = value;
+  renderRestaurants();
+}
+
+function resolveRestaurantDelivery(restaurant) {
+  const value = restaurant?.delivery_status ?? restaurant?.delivery_availability ?? restaurant?.is_delivering;
+  if (typeof value === "boolean") return value ? "Delivery available" : "Delivery unavailable";
+  if (typeof value === "string") {
+    const normalized = value.trim().toUpperCase();
+    if (["AVAILABLE", "DELIVERING", "ACTIVE", "OPEN"].includes(normalized)) return "Delivery available";
+    if (["UNAVAILABLE", "NOT_DELIVERING", "CLOSED", "PAUSED"].includes(normalized)) return "Delivery unavailable";
+  }
+  return "";
 }
 
 function openRestaurantMenu(id) {
@@ -196,6 +236,14 @@ async function loadRestaurantMenu() {
   serviceProducts = [];
   restaurantCart = {};
   restaurantSearchTerm = "";
+  expandedRestaurantCategories = new Set();
+  collapsedSearchCategories = new Set();
+  try {
+    const savedProductIds = JSON.parse(localStorage.getItem("myshopzy_saved_restaurant_products") || "[]");
+    bookmarkedRestaurantProducts = new Set(Array.isArray(savedProductIds) ? savedProductIds.map(String) : []);
+  } catch {
+    bookmarkedRestaurantProducts = new Set();
+  }
   activeRestaurant = null;
   const search = document.getElementById("restaurantMenuSearch");
   if (search) search.value = "";
@@ -209,7 +257,9 @@ async function loadRestaurantMenu() {
     const products = await getServiceApiData(`/shops/${encodeURIComponent(selectedShopId)}/products`);
     if (requestToken !== restaurantRequestToken) return;
     activeRestaurant = restaurant;
-    restaurantMenuProducts = products.map(normalizeServiceProduct);
+    restaurantMenuProducts = products
+      .map(normalizeServiceProduct)
+      .filter(product => !product.restaurant_id || String(product.restaurant_id) === String(selectedShopId));
     renderRestaurantMenu(restaurant);
   } catch (error) {
     if (requestToken !== restaurantRequestToken) return;
@@ -231,32 +281,163 @@ function renderRestaurantMenu(restaurant) {
   document.getElementById("restaurantMenuMeta").innerText = [restaurant.cuisine, availability.label].filter(Boolean).join(" · ");
   const description = document.getElementById("restaurantMenuDescription");
   if (description) description.innerText = restaurant.description || "";
+  const facts = document.getElementById("restaurantMenuFacts");
+  const location = restaurant.location || restaurant.locality || restaurant.address || "";
+  const distance = restaurant.distance_km ?? restaurant.shop_distance_km;
+  const rating = Number(restaurant.rating ?? restaurant.average_rating);
+  const factItems = [
+    location ? `<span>${serviceEscape(location)}</span>` : "",
+    Number.isFinite(Number(distance)) ? `<span>${Number(distance).toFixed(1)} km away</span>` : "",
+    Number.isFinite(rating) && rating > 0 ? `<span class="restaurant-rating">★ ${rating.toFixed(1)}</span>` : ""
+  ].filter(Boolean);
+  if (facts) facts.innerHTML = factItems.join("");
   renderRestaurantMenuProducts();
 }
 
 function searchRestaurantProducts(value) {
   restaurantSearchTerm = String(value || "").trim().toLocaleLowerCase();
+  collapsedSearchCategories = new Set();
   renderRestaurantMenuProducts();
+}
+
+function restaurantCategoryFor(product) {
+  const category = product.category;
+  if (category && typeof category === "object") return category.name || category.slug || "Uncategorized";
+  return product.category_name || category || "Uncategorized";
+}
+
+function restaurantFoodType(product, categoryName) {
+  const value = product.food_type ?? product.dietary_type ?? product.food_preference ?? product.is_vegetarian ?? product.is_veg;
+  if (typeof value === "boolean") return value ? "veg" : "non-veg";
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["veg", "vegetarian", "true"].includes(normalized)) return "veg";
+  if (["non-veg", "non veg", "nonvegetarian", "non-vegetarian", "false"].includes(normalized)) return "non-veg";
+  if (/\bnon[ -]?veg\b/i.test(categoryName)) return "non-veg";
+  if (/\bveg\b/i.test(categoryName)) return "veg";
+  return "";
+}
+
+function restaurantProductCard(product) {
+  const quantity = restaurantCart[product.id] || 0;
+  const imageUrl = product.image_url || "../assets/audio/categories/logo.png";
+  const foodType = restaurantFoodType(product, restaurantCategoryFor(product));
+  const indicator = foodType ? `<span class="food-type-indicator ${foodType === "veg" ? "is-veg" : "is-non-veg"}" aria-label="${foodType === "veg" ? "Vegetarian" : "Non-vegetarian"}"><i></i></span>` : "";
+  const productId = String(product.id || "");
+  const isBookmarked = bookmarkedRestaurantProducts.has(productId);
+  return `<article class="restaurant-product" id="product-${encodeURIComponent(productId)}">
+    <div class="restaurant-product-copy">${indicator}<h3>${serviceEscape(product.name || "Product")}</h3>
+      ${product.description ? `<p class="restaurant-product-description">${serviceEscape(product.description)}</p>` : ""}
+      <strong class="restaurant-product-price">₹${Number(product.price || 0).toLocaleString("en-IN")}</strong>
+      <div class="restaurant-product-actions">
+        <button type="button" class="restaurant-item-action ${isBookmarked ? "is-bookmarked" : ""}" data-product-id="${serviceEscape(productId)}" onclick="toggleRestaurantBookmark(this)" aria-label="${isBookmarked ? "Remove bookmark" : "Bookmark"} ${serviceEscape(product.name || "product")}" aria-pressed="${isBookmarked}" title="${isBookmarked ? "Remove bookmark" : "Bookmark product"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.75A1.75 1.75 0 0 1 8.25 3h7.5a1.75 1.75 0 0 1 1.75 1.75V21l-6-3.7-6 3.7z"></path></svg></button>
+        <button type="button" class="restaurant-item-action" data-product-id="${serviceEscape(productId)}" onclick="shareRestaurantProduct(this)" aria-label="Share ${serviceEscape(product.name || "product")}" title="Share product"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg></button>
+      </div>
+    </div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
+      <div class="restaurant-product-action">${quantity
+        ? `<div class="restaurant-quantity-control"><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></div>`
+        : `<button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" class="restaurant-add-button">ADD <span>+</span></button>`}</div>
+    </div>
+  </article>`;
+}
+
+function toggleRestaurantBookmark(button) {
+  const productId = button?.dataset.productId;
+  if (!productId) return;
+  if (bookmarkedRestaurantProducts.has(productId)) bookmarkedRestaurantProducts.delete(productId);
+  else bookmarkedRestaurantProducts.add(productId);
+  try {
+    localStorage.setItem("myshopzy_saved_restaurant_products", JSON.stringify([...bookmarkedRestaurantProducts]));
+  } catch {
+    announceRestaurantAction("Bookmark changed for this visit, but could not be saved.");
+  }
+  const isBookmarked = bookmarkedRestaurantProducts.has(productId);
+  button.classList.toggle("is-bookmarked", isBookmarked);
+  button.setAttribute("aria-pressed", String(isBookmarked));
+  button.setAttribute("aria-label", `${isBookmarked ? "Remove bookmark" : "Bookmark"} ${button.closest(".restaurant-product")?.querySelector("h3")?.textContent || "product"}`);
+  button.title = isBookmarked ? "Remove bookmark" : "Bookmark product";
+}
+
+async function shareRestaurantProduct(button) {
+  const product = restaurantMenuProducts.find(item => String(item.id) === button?.dataset.productId);
+  if (!product) return;
+  const shareUrl = new URL(window.location.href);
+  shareUrl.hash = `product-${encodeURIComponent(product.id)}`;
+  const shareData = {
+    title: product.name || "MyShopzy menu item",
+    text: `View ${product.name || "this item"} on MyShopzy`,
+    url: shareUrl.href
+  };
+  try {
+    if (navigator.share) await navigator.share(shareData);
+    else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl.href);
+      announceRestaurantAction("Product link copied.");
+    } else announceRestaurantAction("Sharing is unavailable in this browser.");
+  } catch (error) {
+    if (error.name !== "AbortError") announceRestaurantAction("Unable to share this product right now.");
+  }
+}
+
+function announceRestaurantAction(message) {
+  let status = document.getElementById("restaurantActionStatus");
+  if (!status) {
+    status = document.createElement("span");
+    status.id = "restaurantActionStatus";
+    status.className = "sr-only";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    document.getElementById("restaurantMenuView")?.append(status);
+  }
+  status.textContent = message;
 }
 
 function renderRestaurantMenuProducts() {
   const container = document.getElementById("restaurantMenuProducts");
   if (!container) return;
-  const searchTerm = restaurantSearchTerm.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const searchTerm = normalizeServiceSearch(restaurantSearchTerm);
   const products = restaurantMenuProducts.filter(product => {
-    const categoryName = typeof product.category === "object" ? product.category?.name : product.category;
-    const haystack = `${product.name || ""} ${product.description || ""} ${product.brand || ""} ${categoryName || ""}`
-      .toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const haystack = normalizeServiceSearch(`${product.name || ""} ${product.description || ""} ${product.brand || ""} ${restaurantCategoryFor(product)}`);
     return haystack.includes(searchTerm);
   });
+  const groupedProducts = new Map();
+  products.forEach(product => {
+    const categoryName = restaurantCategoryFor(product);
+    if (!groupedProducts.has(categoryName)) groupedProducts.set(categoryName, []);
+    groupedProducts.get(categoryName).push(product);
+  });
+  const groups = [...groupedProducts.entries()].sort(([left], [right]) => left.localeCompare(right));
+  if (!searchTerm && expandedRestaurantCategories.size === 0 && groups.length) expandedRestaurantCategories.add(groups[0][0]);
   container.removeAttribute("aria-busy");
   container.removeAttribute("role");
   container.removeAttribute("aria-label");
-  container.innerHTML = products.length
-    ? products.map(serviceProductCard).join("")
+  container.innerHTML = groups.length
+    ? groups.map(([categoryName, categoryProducts]) => {
+      const categoryExpanded = searchTerm ? !collapsedSearchCategories.has(categoryName) : expandedRestaurantCategories.has(categoryName);
+      return `<section class="restaurant-category ${categoryExpanded ? "is-expanded" : ""}">
+        <button type="button" class="restaurant-category-toggle" data-category-key="${serviceEscape(categoryName)}" onclick="toggleRestaurantCategory(this)" aria-expanded="${Boolean(categoryExpanded)}"><span>${serviceEscape(categoryName)}</span><span class="restaurant-category-count">${categoryProducts.length}</span><span class="restaurant-category-chevron" aria-hidden="true"></span></button>
+        <div class="restaurant-category-panel" ${categoryExpanded ? "" : "inert"}><div class="restaurant-category-items">${categoryProducts.map(restaurantProductCard).join("")}</div></div>
+      </section>`;
+    }).join("")
     : restaurantMenuProducts.length && searchTerm
-      ? '<p class="col-span-full py-8 text-center text-xs text-slate-500">No products match your search.</p>'
-      : '<p class="col-span-full py-8 text-center text-xs text-slate-500">No products available.</p>';
+      ? '<p class="restaurant-empty-state">No products match your search.</p>'
+      : '<p class="restaurant-empty-state">No products available.</p>';
+}
+
+function toggleRestaurantCategory(button) {
+  const categoryName = button?.dataset.categoryKey;
+  if (!categoryName) return;
+  const category = button.closest(".restaurant-category");
+  const panel = category?.querySelector(".restaurant-category-panel");
+  if (!category || !panel) return;
+  const isExpanded = !category.classList.contains("is-expanded");
+  if (restaurantSearchTerm && collapsedSearchCategories.has(categoryName)) collapsedSearchCategories.delete(categoryName);
+  else if (restaurantSearchTerm) collapsedSearchCategories.add(categoryName);
+  else if (expandedRestaurantCategories.has(categoryName)) expandedRestaurantCategories.delete(categoryName);
+  else expandedRestaurantCategories.add(categoryName);
+  category.classList.toggle("is-expanded", isExpanded);
+  button.setAttribute("aria-expanded", String(isExpanded));
+  panel.toggleAttribute("inert", !isExpanded);
 }
 
 function modifyRestaurantCart(productId, delta) {
@@ -264,9 +445,12 @@ function modifyRestaurantCart(productId, delta) {
   if (!restaurantCart[productId]) delete restaurantCart[productId];
   const totalItems = Object.values(restaurantCart).reduce((sum, quantity) => sum + quantity, 0);
   const total = Object.entries(restaurantCart).reduce((sum, [id, quantity]) => sum + (Number(restaurantMenuProducts.find(item => item.id === id)?.price || 0) * quantity), 0);
+  renderRestaurantMenuProducts();
   document.getElementById("serviceCartBar")?.classList.toggle("hidden", totalItems === 0);
-  document.getElementById("serviceCartCount").innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
-  document.getElementById("serviceCartTotal").innerText = `₹${total}`;
+  const count = document.getElementById("serviceCartCount");
+  const totalLabel = document.getElementById("serviceCartTotal");
+  if (count) count.innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
+  if (totalLabel) totalLabel.innerText = `₹${total.toLocaleString("en-IN")}`;
 }
 
 function continueServiceCart() {
