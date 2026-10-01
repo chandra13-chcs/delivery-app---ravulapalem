@@ -155,12 +155,12 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .myshopzy-location-picker strong { max-width: 7rem; overflow: hidden; color: #f8fafc; font-size: 0.72rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .myshopzy-location-picker .myshopzy-chevron { width: 0.75rem; color: #94a3b8; }
 .myshopzy-search-wrap { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
-.myshopzy-search-wrap input { width: 100%; min-width: 0; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 0.8rem; background: #f8fafc; padding: 0.65rem 4rem 0.65rem 2.15rem; color: #0f172a; font-size: 0.68rem; outline: 0; }
+.myshopzy-search-wrap input { width: 100%; min-width: 0; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 0.8rem; background: #f8fafc; padding: 0.65rem 4.9rem 0.65rem 2.15rem; color: #0f172a; font-size: 0.68rem; outline: 0; }
 .myshopzy-search-wrap input::placeholder { color: #64748b; }
 .myshopzy-search-wrap input:focus { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2); }
 .myshopzy-search-icon { position: absolute; left: 0.72rem; color: #64748b; pointer-events: none; }
-.myshopzy-search-control, .myshopzy-search-submit { position: absolute; width: 1.65rem; height: 1.65rem; border-radius: 0.55rem; }
-.myshopzy-search-control { right: 2.3rem; background: transparent; color: #64748b; }
+.myshopzy-search-control, .myshopzy-search-submit { position: absolute; width: 1.75rem; height: 1.75rem; border-radius: 0.55rem; display: grid; place-items: center; }
+.myshopzy-search-control { right: 2.25rem; background: transparent; color: #64748b; }
 .myshopzy-search-submit { right: 0.28rem; background: #fbbf24; color: #0f172a; }
 .myshopzy-search-control svg, .myshopzy-search-submit svg { width: 0.9rem; height: 0.9rem; }
 
@@ -281,9 +281,9 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
   .myshopzy-location-picker strong { max-width: 8rem; font-size: 0.76rem; }
   .myshopzy-location-picker .myshopzy-chevron { width: 0.65rem; }
   .myshopzy-search-wrap { grid-column: 1 / -1; grid-row: 3; width: 100%; }
-  .myshopzy-search-wrap input { padding-right: 2.6rem; }
-  .myshopzy-search-control { right: 0.45rem; }
-  .myshopzy-search-submit { display: none; }
+  .myshopzy-search-wrap input { padding-right: 3.4rem; }
+  .myshopzy-search-control { right: 2.05rem; }
+  .myshopzy-search-submit { right: 0.35rem; display: grid; }
 }
 
 @media (max-width: 380px) {
@@ -398,15 +398,15 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
   }
 
   .myshopzy-search-wrap input {
-    padding-right: 2.6rem;
+    padding-right: 3.65rem;
   }
 
   .myshopzy-search-control {
-    right: 0.45rem;
+    right: 2rem;
   }
 
   .myshopzy-search-submit {
-    display: none;
+    display: grid;
   }
 
   #heroBannerContainer {

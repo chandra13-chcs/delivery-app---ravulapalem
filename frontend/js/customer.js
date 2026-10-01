@@ -53,6 +53,7 @@ const CUSTOMER_ORDER_API_BASE_URL = `http://${window.location.hostname || "local
 const CUSTOMER_ADDRESS_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/addresses`;
 const CUSTOMER_AUTH_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/auth`;
 const CUSTOMER_NOTIFICATIONS_API_BASE_URL = `http://${window.location.hostname || "localhost"}:5000/api/notifications`;
+const legacyCustomerDb = globalThis.db || null;
 
 function getCustomerAccessToken() {
   return sessionStorage.getItem("user_access_token")
@@ -502,9 +503,25 @@ function closeCustomerRiderTracker() {
 // 2. CUSTOMER SESSION
 // ==========================================
 
-let activeCustomerSession = JSON.parse(
-  sessionStorage.getItem("quickdash_customer") || localStorage.getItem("quickdash_customer") || "null"
-);
+const storedCustomerSession = sessionStorage.getItem("quickdash_customer") || localStorage.getItem("quickdash_customer");
+let activeCustomerSession = null;
+
+if (storedCustomerSession) {
+  try {
+    const parsedSession = JSON.parse(storedCustomerSession);
+    if (parsedSession && parsedSession.phone && getCustomerAccessToken()) {
+      activeCustomerSession = parsedSession;
+    } else {
+      sessionStorage.removeItem("quickdash_customer");
+      localStorage.removeItem("quickdash_customer");
+    }
+  } catch (error) {
+    console.warn("Customer session restore failed:", error);
+    sessionStorage.removeItem("quickdash_customer");
+    localStorage.removeItem("quickdash_customer");
+  }
+}
+
 let customerAuthState = "LOGIN";
 let pendingCustomerPhone = "";
 let pendingCustomerProfile = null;
@@ -686,8 +703,9 @@ function persistCustomerAddresses() {
   );
 
   if (customerAddressesCloudReadFor !== phone) return;
+  if (!legacyCustomerDb?.collection) return;
   try {
-    db.collection("customer_profiles").doc(phone).set({
+    legacyCustomerDb.collection("customer_profiles").doc(phone).set({
       phone,
       addresses: savedAddresses,
       updated_at_ms: Date.now()
@@ -725,7 +743,10 @@ async function syncCustomerAddressesForPhone(phone) {
   let cloudAddresses = [];
 
   try {
-    const profileDoc = await db.collection("customer_profiles").doc(phone).get();
+    if (!legacyCustomerDb?.collection) {
+      throw new Error("Legacy customer profile storage is not available.");
+    }
+    const profileDoc = await legacyCustomerDb.collection("customer_profiles").doc(phone).get();
     const storedAddresses = profileDoc.exists ? profileDoc.data()?.addresses : null;
     cloudAddresses = Array.isArray(storedAddresses) ? storedAddresses : [];
     if (getCurrentCustomerPhone() === phone) customerAddressesCloudReadFor = phone;
@@ -2882,13 +2903,17 @@ function renderHomepageBannerIndicators() {
 }
 
 function loadLegacyCustomerHomepageBanners() {
-  db.collection('settings').doc('hero_banner').onSnapshot(snapshot => {
+  if (!legacyCustomerDb?.collection) {
+    return;
+  }
+
+  legacyCustomerDb.collection('settings').doc('hero_banner').onSnapshot(snapshot => {
     customerLegacyHomepageBanner = snapshot.exists ? snapshot.data() : null;
     if (!customerHomepageBanners.length && customerLegacyHomepageBanner) renderHomepageBanner(customerLegacyHomepageBanner);
     renderHeroFeatureCarousel();
   }, error => console.error('Legacy homepage banner listener error:', error));
 
-  db.collection('homepage_banners').onSnapshot(snapshot => {
+  legacyCustomerDb.collection('homepage_banners').onSnapshot(snapshot => {
     customerHomepageBanners = [];
     snapshot.forEach(doc => {
       const banner = { id: doc.id, ...doc.data() };
@@ -2967,7 +2992,11 @@ function renderCustomerDailyOffer(offer) {
 }
 
 function loadLegacyCustomerDailyOffer() {
-  const offerRef = db.collection('settings').doc('daily_offer');
+  if (!legacyCustomerDb?.collection) {
+    return;
+  }
+
+  const offerRef = legacyCustomerDb.collection('settings').doc('daily_offer');
   offerRef.get().then(snapshot => {
     customerDailyOffer = snapshot.exists ? snapshot.data() : null;
     renderCustomerDailyOffer(customerDailyOffer);
@@ -3300,8 +3329,12 @@ async function geocodeParcelAddress(address) {
 // ==========================================
 
 async function fetchProducts() {
+  if (!legacyCustomerDb?.collection) {
+    console.warn("Legacy product store is unavailable; waiting for backend catalog to load.");
+    return;
+  }
 
-  db.collection(
+  legacyCustomerDb.collection(
     "products"
   )
     .orderBy(
@@ -4817,69 +4850,55 @@ function getCustomerDisplayName() {
 }
 
 
-function syncAccountDashboard() {
+async function syncAccountDashboard() {
 
-  const phone =
-    getCurrentCustomerPhone();
+  const phone = getCurrentCustomerPhone();
+  const token = getCustomerAccessToken();
 
+  const phoneDisp = document.getElementById("accPhoneDisplay");
+  const nameDisp = document.getElementById("accNameDisplay");
+  const emailDisp = document.getElementById("accEmailDisplay");
 
-  const phoneDisp =
-    document.getElementById(
-      "accPhoneDisplay"
-    );
-
+  if (!phone || !token) {
+    if (phoneDisp) phoneDisp.innerText = "Not logged in";
+    if (nameDisp) nameDisp.innerText = "Not logged in";
+    if (emailDisp) emailDisp.innerText = "Not logged in";
+    return;
+  }
 
   if (phoneDisp) {
-
-    phoneDisp.innerText =
-      phone || "Not logged in";
+    phoneDisp.innerText = phone;
   }
 
+  let name = "Not logged in";
+  let email = "Not logged in";
 
-  let savedCustomer = null;
-  if (phone) {
-    try {
-      savedCustomer = JSON.parse(
-        localStorage.getItem(`myshopzy_customer_${phone}`)
-          || sessionStorage.getItem(`myshopzy_customer_${phone}`)
-          || "null"
-      );
-    } catch (error) {
-      console.warn("Customer account profile unavailable:", error);
+  try {
+    const result = await customerAuthApiRequest("/me");
+    const authenticatedPhone = normalizePhone(result.user?.phone_e164);
+    if (authenticatedPhone === phone) {
+      const actualName = getSafeCustomerName(result.user?.display_name);
+      const actualEmail = typeof result.user?.email === "string" ? result.user.email.trim() : "";
+      name = actualName || "Not logged in";
+      email = actualEmail || "Not logged in";
+
+      const storage = localStorage.getItem("myshopzy_user_access_token") ? localStorage : sessionStorage;
+      storage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
+        name,
+        email: actualEmail
+      }));
+    } else {
+      name = "Not logged in";
+      email = "Not logged in";
     }
+  } catch (error) {
+    console.warn("Customer account profile refresh failed:", error.message || error);
+    name = "Not logged in";
+    email = "Not logged in";
   }
 
-  const name = getSafeCustomerName(savedCustomer?.name) || "MyShopzy Customer";
-
-  const email = phone
-    ? (savedCustomer?.email || "Not provided")
-    : "Not logged in";
-
-
-  const nameDisp =
-    document.getElementById(
-      "accNameDisplay"
-    );
-
-
-  if (nameDisp) {
-
-    nameDisp.innerText =
-      name;
-  }
-
-
-  const emailDisp =
-    document.getElementById(
-      "accEmailDisplay"
-    );
-
-
-  if (emailDisp) {
-
-    emailDisp.innerText =
-      email;
-  }
+  if (nameDisp) nameDisp.innerText = name;
+  if (emailDisp) emailDisp.innerText = email;
 }
 
 
@@ -4958,20 +4977,21 @@ function syncCustomerAuthUI() {
   }
 }
 
-function syncCustomerGreetingUI() {
+async function syncCustomerGreetingUI() {
   const greetingName = document.getElementById("customerGreetingName");
   if (!greetingName) return;
 
   const phone = getCurrentCustomerPhone();
   let displayName = "there";
-  if (phone) {
+  if (phone && getCustomerAccessToken()) {
     try {
-      const customerData = JSON.parse(
-        localStorage.getItem(`myshopzy_customer_${phone}`)
-          || sessionStorage.getItem(`myshopzy_customer_${phone}`)
-          || "null"
-      );
-      displayName = getSafeCustomerName(customerData?.name) || "there";
+      const result = await customerAuthApiRequest("/me");
+      if (normalizePhone(result.user?.phone_e164) === phone) {
+        const authName = getSafeCustomerName(result.user?.display_name);
+        if (authName) {
+          displayName = authName;
+        }
+      }
     } catch {}
   }
   greetingName.innerText = displayName;
@@ -4992,14 +5012,11 @@ async function refreshAuthenticatedCustomerProfile() {
     const result = await customerAuthApiRequest("/me");
     if (normalizePhone(result.user?.phone_e164) !== phone) return;
     const storage = localStorage.getItem("myshopzy_user_access_token") ? localStorage : sessionStorage;
-    let cachedProfile = {};
-    try {
-      cachedProfile = JSON.parse(storage.getItem(`myshopzy_customer_${phone}`) || "{}") || {};
-    } catch {}
+    const nextName = getSafeCustomerName(result.user?.display_name) || "MyShopzy Customer";
+    const nextEmail = typeof result.user?.email === "string" ? result.user.email.trim() : "";
     storage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
-      ...cachedProfile,
-      name: getSafeCustomerName(result.user?.display_name) || getSafeCustomerName(cachedProfile.name),
-      email: result.user?.email || cachedProfile.email || ""
+      name: nextName,
+      email: nextEmail
     }));
     syncCustomerGreetingUI();
     syncAccountDashboard();
@@ -5458,7 +5475,25 @@ async function logoutCustomer() {
   if (customerLogoutPending) return;
   const token = getCustomerAccessToken();
   if (!token) {
-    setCustomerLogoutError("Your session is no longer active. Please sign in again.");
+    const phone = getCurrentCustomerPhone();
+    localStorage.removeItem("myshopzy_user_access_token");
+    sessionStorage.removeItem("myshopzy_user_access_token");
+    localStorage.removeItem("quickdash_customer");
+    sessionStorage.removeItem("quickdash_customer");
+    sessionStorage.removeItem("user_access_token");
+    localStorage.removeItem("user_access_token");
+    if (phone) {
+      localStorage.removeItem(`myshopzy_customer_${phone}`);
+      sessionStorage.removeItem(`myshopzy_customer_${phone}`);
+    }
+    activeCustomerSession = null;
+    savedAddresses = [];
+    syncCustomerAuthUI();
+    syncAccountDashboard();
+    closeOrdersView();
+    closeAccountModal();
+    populateCheckoutAddressDropdown();
+    window.location.replace("index.html");
     return;
   }
 
@@ -5468,61 +5503,55 @@ async function logoutCustomer() {
     confirmButton.disabled = true;
     confirmButton.textContent = "Logging out...";
   }
+
   try {
     await customerAuthApiRequest("/logout", { method: "POST" });
-  } catch {
-    setCustomerLogoutError("Unable to securely log out right now. Please try again.");
+  } catch (error) {
+    console.warn("Customer logout request failed; clearing local session anyway.", error?.message || error);
+  } finally {
     customerLogoutPending = false;
     if (confirmButton) {
       confirmButton.disabled = false;
       confirmButton.textContent = "Logout";
     }
-    return;
   }
 
   const phone = getCurrentCustomerPhone();
   localStorage.removeItem("myshopzy_user_access_token");
   sessionStorage.removeItem("myshopzy_user_access_token");
+  localStorage.removeItem("quickdash_customer");
   sessionStorage.removeItem("quickdash_customer");
   sessionStorage.removeItem("user_access_token");
   localStorage.removeItem("user_access_token");
-
-  localStorage.removeItem(
-    "quickdash_customer"
-  );
   if (phone) {
     localStorage.removeItem(`myshopzy_customer_${phone}`);
     sessionStorage.removeItem(`myshopzy_customer_${phone}`);
   }
 
-  customerLogoutPending = false;
+  activeCustomerSession = null;
+  savedAddresses = [];
 
-  activeCustomerSession =
-    null;
-
-
-  savedAddresses =
-    [];
-
-
+  setCustomerLogoutError("");
   syncCustomerAuthUI();
-
   syncAccountDashboard();
-
   closeOrdersView();
   closeAccountModal();
   populateCheckoutAddressDropdown();
-  window.location.href = "index.html";
+  window.location.replace("index.html");
 }
 
-function showCustomerLogoutConfirmation() {
+function showCustomerLogoutConfirmation(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
   setCustomerLogoutError("");
   document.getElementById("customerLogoutStartButton")?.classList.add("hidden");
   document.getElementById("customerLogoutConfirmation")?.classList.remove("hidden");
   document.getElementById("customerLogoutConfirmButton")?.focus();
 }
 
-function cancelCustomerLogout() {
+function cancelCustomerLogout(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
   const confirmation = document.getElementById("customerLogoutConfirmation");
   const startButton = document.getElementById("customerLogoutStartButton");
   if (!confirmation || !startButton) return;

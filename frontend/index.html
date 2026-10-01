@@ -144,6 +144,7 @@
           <input 
             id="searchInputMobile" 
             oninput="handleSearch(this.value)" 
+            onkeydown="if (event.key === 'Enter') { submitProductSearch(event); }"
             type="text" 
             placeholder="Search groceries, restaurants & more" 
             data-i18n-placeholder="searchPlaceholder"
@@ -729,7 +730,7 @@
       </div>
 
       <div class="p-3 bg-slate-50 rounded-2xl border space-y-1 text-xs">
-        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">MyShopzy Customer</h4>
+        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">Not logged in</h4>
         <p class="text-slate-500">+91 <span id="accPhoneDisplay">Not logged in</span></p>
         <p id="accEmailDisplay" class="text-slate-400 text-[11px]">Not logged in</p>
       </div>
@@ -1090,7 +1091,6 @@
     </div>
   </div>
 
-  <script src="../backend/firebase-config.js"></script>
   <script src="js/customer.js"></script>
   <!-- 🌟 ADDRESS MANAGER MODAL -->
 <div id="addressManagerModal" class="hidden fixed inset-0 z-[75] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
