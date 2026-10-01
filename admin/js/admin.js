@@ -189,7 +189,7 @@ function getAdminOrderDeadlineMs(order) {
 function formatAdminCountdown(order) {
   if (String(order?.status || "").toUpperCase() === "DELIVERED") return "Delivered";
   const deadline = getAdminOrderDeadlineMs(order);
-  if (!Number.isFinite(deadline)) return "25 min delivery";
+  if (!Number.isFinite(deadline)) return "30 min delivery";
   const remaining = Math.max(0, deadline - Date.now());
   return remaining > 0
     ? `${Math.floor(remaining / 60000)}:${Math.floor((remaining % 60000) / 1000).toString().padStart(2, "0")} left`

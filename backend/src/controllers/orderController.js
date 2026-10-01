@@ -8,6 +8,7 @@ const {
   createAdminNotifications
 } = require("../services/notificationService");
 const { evaluateDeliveryServiceability } = require("../services/serviceabilityService");
+const { haversineDistanceKm } = require("../utils/location");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIVE_STATUSES = ["DRAFT", "PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"];
@@ -25,6 +26,8 @@ const ORDER_PROJECTION = `
          COALESCE(payment.method, 'COD') AS payment_method,
          payment.status AS payment_status,
          parcel.parcel_pickup_address, parcel.parcel_drop_address, parcel.parcel_description,
+         parcel.parcel_pickup_latitude, parcel.parcel_pickup_longitude,
+         parcel.parcel_drop_latitude, parcel.parcel_drop_longitude,
          COALESCE(item_data.items, '[]'::jsonb) AS items,
          COALESCE(fulfillment_data.items, '[]'::jsonb) AS fulfillments,
          rider.assignment_id, rider.assignment_status,
@@ -56,12 +59,15 @@ const ORDER_PROJECTION = `
         'tax_amount', oi.tax_amount,
         'line_total', oi.line_total,
         'shop_id', f.shop_id,
+        'shop_business_type', partner.business_type,
         'pickup_source_name', f.shop_name_snapshot,
         'pickup_source_address', f.pickup_address_snapshot
       ) ORDER BY oi.created_at ASC, oi.id ASC
     ) AS items
     FROM order_items oi
     LEFT JOIN order_fulfillments f ON f.id = oi.fulfillment_id
+    LEFT JOIN shops s ON s.id = f.shop_id
+    LEFT JOIN partners partner ON partner.id = s.partner_id
     WHERE oi.order_id = o.id
   ) item_data ON true
   LEFT JOIN LATERAL (
@@ -192,12 +198,54 @@ function normalizePaymentMethod(value) {
   throw httpError(400, "Payment method must be COD or UPI.");
 }
 
+function buildDeliveryPromise({ orderType, items = [], placedAt, pickupLatitude, pickupLongitude, dropLatitude, dropLongitude }) {
+  const createdAtMs = placedAt ? new Date(placedAt).getTime() : null;
+  let minimumMinutes = 30;
+  let maximumMinutes = 30;
+  let distanceKm = null;
+
+  if (orderType === "PARCEL") {
+    const coordinate = value => value == null || value === "" ? NaN : Number(value);
+    const pickup = { latitude: coordinate(pickupLatitude), longitude: coordinate(pickupLongitude) };
+    const drop = { latitude: coordinate(dropLatitude), longitude: coordinate(dropLongitude) };
+    if ([pickup.latitude, pickup.longitude, drop.latitude, drop.longitude].every(Number.isFinite)) {
+      distanceKm = Number(haversineDistanceKm(pickup.latitude, pickup.longitude, drop.latitude, drop.longitude).toFixed(2));
+      minimumMinutes = Math.max(15, Math.ceil((distanceKm * 1.25 / 20) * 60) + 10);
+      maximumMinutes = minimumMinutes + 10;
+    } else {
+      minimumMinutes = null;
+      maximumMinutes = null;
+    }
+  } else if (items.some(item => String(item.shop_business_type || item.business_type || "").toUpperCase() === "RESTAURANT")) {
+    minimumMinutes = 30;
+    maximumMinutes = 45;
+  }
+
+  return {
+    delivery_promise_min_minutes: minimumMinutes,
+    delivery_promise_max_minutes: maximumMinutes,
+    delivery_distance_km: distanceKm,
+    delivery_deadline_ms: Number.isFinite(createdAtMs) && maximumMinutes
+      ? createdAtMs + maximumMinutes * 60 * 1000
+      : null
+  };
+}
+
 function presentOrder(row) {
   const placedAt = row.placed_at ? new Date(row.placed_at) : null;
   const createdAtMs = placedAt && Number.isFinite(placedAt.getTime()) ? placedAt.getTime() : null;
   const addressParts = [row.address_line1, row.address_line2, row.landmark, row.locality, row.city, row.state, row.postal_code]
     .filter(Boolean);
   const items = Array.isArray(row.items) ? row.items : [];
+  const deliveryPromise = buildDeliveryPromise({
+    orderType: row.order_type,
+    items,
+    placedAt: row.placed_at,
+    pickupLatitude: row.parcel_pickup_latitude,
+    pickupLongitude: row.parcel_pickup_longitude,
+    dropLatitude: row.parcel_drop_latitude ?? row.delivery_latitude,
+    dropLongitude: row.parcel_drop_longitude ?? row.delivery_longitude
+  });
   if (row.order_type === "PARCEL" && items.length === 0 && row.parcel_description) {
     items.push({
       name: `Parcel: ${row.parcel_description}`,
@@ -234,10 +282,10 @@ function presentOrder(row) {
     parcel_pickup_address: row.parcel_pickup_address,
     parcel_drop_address: row.parcel_drop_address,
     parcel_description: row.parcel_description,
+    ...deliveryPromise,
     delivery_otp: "----",
     placed_at: row.placed_at,
     created_at_ms: createdAtMs,
-    delivery_deadline_ms: createdAtMs == null ? null : createdAtMs + 25 * 60 * 1000,
     accepted_at: row.accepted_at,
     dispatched_at: row.dispatched_at,
     delivered_at: row.delivered_at,
@@ -335,10 +383,7 @@ async function createCustomerOrder(req, res) {
       if (dropCoordinates && !addressId) {
         address = { ...address, latitude: dropCoordinates.latitude, longitude: dropCoordinates.longitude };
       }
-      const pickupSnapshot = pickupCoordinates
-        ? `${pickupAddress} (GPS: ${pickupCoordinates.latitude.toFixed(6)}, ${pickupCoordinates.longitude.toFixed(6)})`
-        : pickupAddress;
-      parcel = { pickupAddress: pickupSnapshot, dropAddress, description };
+      parcel = { pickupAddress, dropAddress, description, pickupCoordinates, dropCoordinates };
       subtotal = 50;
       deliveryFee = 0;
       taxAmount = 0;
@@ -405,7 +450,7 @@ async function createCustomerOrder(req, res) {
 
       for (const line of lines) {
         const result = await client.query(
-          `SELECT p.id AS product_id, p.name AS product_name,
+          `SELECT p.id AS product_id, p.name AS product_name, partner.business_type,
                   pv.id AS variant_id, pv.name AS variant_name, pv.sku,
                   pv.unit_label, pv.unit_quantity, pv.price,
                   s.id AS shop_id, s.name AS shop_name,
@@ -475,9 +520,13 @@ async function createCustomerOrder(req, res) {
 
     if (orderType === "PARCEL") {
       await client.query(
-        `INSERT INTO parcel_details (order_id, parcel_pickup_address, parcel_drop_address, parcel_description)
-         VALUES ($1, $2, $3, $4)`,
-        [order.id, parcel.pickupAddress, parcel.dropAddress, parcel.description]
+        `INSERT INTO parcel_details
+           (order_id, parcel_pickup_address, parcel_drop_address, parcel_description,
+            parcel_pickup_latitude, parcel_pickup_longitude, parcel_drop_latitude, parcel_drop_longitude)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order.id, parcel.pickupAddress, parcel.dropAddress, parcel.description,
+          parcel.pickupCoordinates?.latitude ?? null, parcel.pickupCoordinates?.longitude ?? null,
+          parcel.dropCoordinates?.latitude ?? address.latitude, parcel.dropCoordinates?.longitude ?? address.longitude]
       );
     } else {
       const fulfillmentIds = new Map();
@@ -534,6 +583,15 @@ async function createCustomerOrder(req, res) {
     await createAdminNotifications(client, "New order placed", `Order ${order.order_number} was placed.`, {
       event: "order.placed", order_id: order.id, order_number: order.order_number
     });
+    const deliveryPromise = buildDeliveryPromise({
+      orderType,
+      items: resolvedLines,
+      placedAt: order.placed_at,
+      pickupLatitude: parcel?.pickupCoordinates?.latitude,
+      pickupLongitude: parcel?.pickupCoordinates?.longitude,
+      dropLatitude: parcel?.dropCoordinates?.latitude ?? address.latitude,
+      dropLongitude: parcel?.dropCoordinates?.longitude ?? address.longitude
+    });
     await client.query("COMMIT");
     return res.status(201).json({
       success: true,
@@ -549,6 +607,9 @@ async function createCustomerOrder(req, res) {
         rider_tip: Number(order.rider_tip),
         total_amount: Number(order.total_amount),
         payment_mode: paymentMethod,
+        placed_at: order.placed_at,
+        created_at_ms: order.placed_at ? new Date(order.placed_at).getTime() : null,
+        ...deliveryPromise,
         items: resolvedLines.map(line => ({
           product_id: line.product_id,
           variant_id: line.variant_id,

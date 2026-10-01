@@ -532,7 +532,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 .restaurant-category-panel { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 280ms ease, opacity 200ms ease; }
 .restaurant-category.is-expanded .restaurant-category-panel { grid-template-rows: 1fr; opacity: 1; }
 .restaurant-category-items { min-height: 0; overflow: hidden; }
-.restaurant-product { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 43%); gap: 0.8rem; border-top: 1px dashed #e3e5e8; padding: 1.15rem 0 1.35rem; }
+.restaurant-product { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(8rem, 24%); gap: 0.8rem; border-top: 1px dashed #e3e5e8; padding: 1.15rem 0 1.35rem; }
 .restaurant-product-copy { min-width: 0; padding-top: 0.1rem; }
 .food-type-indicator { display: grid; width: 1rem; height: 1rem; place-items: center; border: 1.5px solid currentColor; border-radius: 0.2rem; }
 .food-type-indicator i { width: 0.48rem; height: 0.48rem; border-radius: 50%; background: currentColor; }
@@ -549,7 +549,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 .restaurant-item-action.is-bookmarked { border-color: #d64c65; background: #fff2f4; color: #d64c65; }
 .restaurant-item-action.is-bookmarked svg { fill: rgba(214, 76, 101, 0.16); }
 .restaurant-product-visual { position: relative; min-width: 0; padding-bottom: 1.2rem; }
-.restaurant-product-image { display: grid; width: 100%; aspect-ratio: 1 / 0.92; place-items: center; overflow: hidden; border-radius: 1.1rem; background: linear-gradient(145deg, #f1f4f2, #f8f0e8); }
+.restaurant-product-image { display: grid; width: 100%; aspect-ratio: 1.45; place-items: center; overflow: hidden; border-radius: 1.1rem; background: linear-gradient(145deg, #f1f4f2, #f8f0e8); }
 .restaurant-product-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .restaurant-product-image img.is-fallback { width: 42%; height: 42%; object-fit: contain; }
 .restaurant-product-action { position: absolute; right: 0.35rem; bottom: 0; left: 0.35rem; display: flex; justify-content: center; }
@@ -563,8 +563,7 @@ html[data-service-type="restaurant"] .service-cart-bar { bottom: max(1rem, env(s
 @media (min-width: 640px) {
   .restaurant-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
   .restaurant-card-image { aspect-ratio: 1.75; }
-  .restaurant-product { grid-template-columns: minmax(0, 1fr) minmax(11rem, 34%); gap: 1.2rem; padding: 1.35rem 0 1.5rem; }
-  .restaurant-product-image { aspect-ratio: 1.28; }
+  .restaurant-product { grid-template-columns: minmax(0, 1fr) minmax(9rem, 24%); gap: 1.2rem; padding: 1.35rem 0 1.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -696,6 +695,8 @@ body.theme-dark #accountModal select {
   from { opacity: 0; transform: translateY(18px) scale(0.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+.storefront-content-paused { display: none !important; }
 
 .category-motion-viewport {
   overflow: hidden;

@@ -258,7 +258,7 @@ async function loadRestaurantMenu() {
     if (requestToken !== restaurantRequestToken) return;
     activeRestaurant = restaurant;
     restaurantMenuProducts = products
-      .map(normalizeServiceProduct)
+      .map(product => ({ ...normalizeServiceProduct(product), is_restaurant_product: true }))
       .filter(product => !product.restaurant_id || String(product.restaurant_id) === String(selectedShopId));
     renderRestaurantMenu(restaurant);
   } catch (error) {
@@ -333,7 +333,7 @@ function restaurantProductCard(product) {
         <button type="button" class="restaurant-item-action" data-product-id="${serviceEscape(productId)}" onclick="shareRestaurantProduct(this)" aria-label="Share ${serviceEscape(product.name || "product")}" title="Share product"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg></button>
       </div>
     </div>
-    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
       <div class="restaurant-product-action">${quantity
         ? `<div class="restaurant-quantity-control"><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></div>`
         : `<button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" class="restaurant-add-button">ADD <span>+</span></button>`}</div>
@@ -454,8 +454,9 @@ function modifyRestaurantCart(productId, delta) {
 }
 
 function continueServiceCart() {
-  localStorage.setItem("myshopzy_pending_cart", JSON.stringify(restaurantCart));
-  window.location.href = "index.html?checkout=1";
+  const selectedProducts = restaurantMenuProducts.filter(product => restaurantCart[product.id]);
+  localStorage.setItem("myshopzy_pending_cart", JSON.stringify({ items: restaurantCart, products: selectedProducts }));
+  window.location.href = "index.html?cart=1";
 }
 
 function loadMeatProducts() {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MyShopzy | 25-Min Fast Delivery Mandapeta</title>
+  <title>MyShopzy | 30-Min Delivery Mandapeta</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,7 +71,7 @@
         <a href="index.html" class="myshopzy-brand" aria-label="MyShopzy home">
           <img class="myshopzy-brand-mark" src="../assets/audio/categories/logo.png" alt="MyShopzy logo">
           <span class="myshopzy-brand-copy">
-            <span class="myshopzy-brand-name">MyShopzy<span>.</span></span>
+            <span class="myshopzy-brand-name">MyShopzy</span>
             <span class="myshopzy-brand-hub">Mandapeta Hub</span>
           </span>
         </a>
@@ -159,7 +159,7 @@
   </header>
 
   <!-- SIGNATURE NAVY BLUE HERO BANNER -->
-  <section id="customerHomeHero" class="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
+  <section id="customerHomeHero" class="storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
     <div id="heroBannerContainer" class="rounded-3xl bg-gradient-to-r from-[#0B132B] via-[#1C2541] to-[#0D1B2A] text-white p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between shadow-xl border border-slate-800/80 relative overflow-hidden">
       
       <div class="z-10 space-y-3 max-w-lg text-left">
@@ -249,7 +249,7 @@
     </div>
   </section>
 
-  <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+  <section id="homepageCategories" class="storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
       <div>
         <h4 class="text-xs sm:text-sm font-black text-slate-900">Child care essentials at your door</h4>
@@ -546,7 +546,7 @@
         </div>
 
         <div id="serviceStatusBox" class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between font-bold">
-          <span>⚡ 25-Min Fast Delivery</span>
+          <span>⚡ 30-Min Fast Delivery</span>
           <span id="distanceBadge" class="font-black">0.5 KM</span>
         </div>
 
@@ -557,13 +557,37 @@
     </div>
   </div>
 
+  <div id="cartScreenModal" class="hidden fixed inset-0 z-[69] bg-slate-950/50 backdrop-blur-sm p-0 sm:p-4">
+    <section class="mx-auto flex h-full max-h-[900px] w-full max-w-xl flex-col overflow-hidden bg-[#fffdf8] shadow-2xl sm:my-auto sm:h-[min(92vh,900px)] sm:rounded-2xl sm:border sm:border-slate-200">
+      <header class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <button type="button" onclick="closeCartScreen()" class="grid h-10 w-10 place-items-center rounded-full text-xl text-slate-700 hover:bg-slate-100" aria-label="Back to shopping">←</button>
+        <div class="text-center"><h2 class="text-base font-black text-slate-900">My Cart</h2><p id="cartScreenCount" class="text-[11px] font-semibold text-slate-500">0 items</p></div>
+        <button type="button" onclick="clearCartScreen()" class="px-2 py-2 text-xs font-bold text-emerald-700">Clear</button>
+      </header>
+      <div id="cartScreenItems" class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3 sm:px-4"></div>
+      <footer class="shrink-0 border-t border-slate-200 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <p id="cartScreenDeliveryPromise" class="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">Delivery within 30 minutes</p>
+        <div class="mb-3 space-y-1.5 text-xs">
+          <div class="flex justify-between text-slate-600"><span>Subtotal</span><strong id="cartScreenSubtotal" class="text-slate-900">₹0</strong></div>
+          <div class="flex justify-between text-slate-600"><span>Delivery fee</span><strong id="cartScreenDelivery" class="text-slate-900">₹0</strong></div>
+          <div class="flex justify-between text-slate-600"><span>Handling & packing</span><strong class="text-slate-900">₹4</strong></div>
+          <div id="cartScreenOfferRow" class="hidden justify-between text-emerald-700"><span>Today's offer</span><strong id="cartScreenOfferDiscount">-₹0</strong></div>
+          <div class="flex justify-between border-t border-slate-100 pt-2 text-sm font-black text-slate-900"><span>Total</span><strong id="cartScreenTotal" class="text-emerald-700">₹0</strong></div>
+        </div>
+        <button id="cartScreenProceedButton" type="button" onclick="openCheckout()" class="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+          <span>Proceed to checkout</span><span aria-hidden="true">→</span>
+        </button>
+      </footer>
+    </section>
+  </div>
+
   <!-- CHECKOUT MODAL -->
   <div id="checkoutModal" class="hidden fixed inset-0 z-[70] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200">
       <div class="p-4 bg-[#0B132B] text-white flex items-center justify-between shrink-0">
         <div>
           <h3 class="text-sm font-black text-white">Review & Place Order</h3>
-          <p class="text-[10px] text-cyan-400 font-bold">Mandapeta 25-Min Express Dispatch</p>
+          <p class="text-[10px] text-cyan-400 font-bold">30-Min Delivery · Restaurants 30–45 Min</p>
         </div>
         <button onclick="closeCheckout()" class="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold">✕</button>
       </div>
@@ -641,7 +665,7 @@
 
         <div class="p-3 bg-white rounded-2xl border border-slate-200 space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-600"><span>Items Subtotal</span><span id="billSubtotal" class="font-bold text-slate-900">₹0</span></div>
-          <div class="flex justify-between text-slate-600"><span>25-Min Fast Delivery</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
+          <div class="flex justify-between text-slate-600"><span>Delivery fee</span><span id="billDeliveryFee" class="font-bold text-emerald-600">₹25</span></div>
           <div class="flex justify-between text-slate-600"><span>Handling & Bag Fee</span><span class="font-bold text-slate-900">₹4</span></div>
           <div class="flex justify-between text-slate-600"><span>Rider Tip</span><span id="billRiderTip" class="font-bold text-slate-900">₹0</span></div>
           <div class="flex justify-between text-emerald-700"><span>Today's Offer</span><span id="billOfferDiscount" class="font-bold">-₹0</span></div>
@@ -924,7 +948,7 @@
 
   <!-- FLOATING BOTTOM CART BAR -->
   <div id="bottomCartBar" class="hidden fixed bottom-16 sm:bottom-4 left-0 right-0 max-w-lg mx-auto px-3 z-[60]">
-    <div onclick="openCheckout()" class="cart-bar-content bg-[#0B132B] hover:bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between cursor-pointer border-2 border-amber-400/60 backdrop-blur-md">
+    <div onclick="openCart()" class="cart-bar-content bg-[#0B132B] hover:bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between cursor-pointer border-2 border-amber-400/60 backdrop-blur-md">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg shadow-lg">
           🛒

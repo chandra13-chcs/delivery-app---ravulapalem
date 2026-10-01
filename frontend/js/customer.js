@@ -368,17 +368,28 @@ function formatDynamicEtaText(eta) {
 }
 
 function updateCustomerCountdowns() {
-  document.querySelectorAll("[data-delivery-eta]").forEach(element => {
-    if (element.dataset.orderStatus === "DELIVERED") {
+  document.querySelectorAll("[data-order-countdown]").forEach(element => {
+    const status = String(element.dataset.orderStatus || "").toUpperCase();
+    if (status === "DELIVERED") {
       element.innerText = "Delivered";
       return;
     }
-    const etaPayload = readSafeEtaPayload(element.dataset.deliveryEta);
-    if (etaPayload?.available) {
-      element.innerText = formatDynamicEtaText(etaPayload);
+    if (["CANCELLED", "REJECTED"].includes(status)) {
+      element.innerText = status === "CANCELLED" ? "Order cancelled" : "Order rejected";
       return;
     }
-    element.innerText = getCustomerDeliveryPromiseText();
+    const deadline = Number(element.dataset.deliveryDeadlineMs);
+    const minimum = Number(element.dataset.promiseMinMinutes);
+    const maximum = Number(element.dataset.promiseMaxMinutes);
+    if (!Number.isFinite(deadline) || !Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum <= 0) {
+      element.innerText = "ETA updates after pickup location is confirmed";
+      return;
+    }
+    const remainingSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    const minutes = Math.floor(remainingSeconds / 60);
+    const seconds = String(remainingSeconds % 60).padStart(2, "0");
+    const promise = minimum === maximum ? `${maximum} min` : `${minimum}-${maximum} min`;
+    element.innerText = remainingSeconds ? `${promise} · ${minutes}:${seconds} left` : "Delivery is taking longer than expected";
   });
 }
 
@@ -398,6 +409,7 @@ function closeCustomerSupport() {
 
 function startCustomerCountdowns() {
   updateCustomerCountdowns();
+  if (!customerCountdownTimer) customerCountdownTimer = setInterval(updateCustomerCountdowns, 1000);
 }
 
 function formatOrderDateTime(order) {
@@ -2796,8 +2808,17 @@ function isParcelPromotion(item) {
       || /\b(?:discount|offer|deal|promo|save|off)\b/i.test(content));
 }
 
+function isParcelPanelOpen() {
+  const panel = document.getElementById("serviceParcelPanel");
+  return Boolean(panel && !panel.classList.contains("hidden"));
+}
+
 function renderHomepageBanner(banner) {
   const homeHero = document.getElementById("customerHomeHero");
+  if (isParcelPanelOpen()) {
+    homeHero?.classList.add("hidden");
+    return;
+  }
   if (isParcelPromotion(banner)) {
     homeHero?.classList.add("hidden");
     return;
@@ -2942,7 +2963,7 @@ async function loadCustomerHomepageBanners() {
       const banners = Array.isArray(result.data) ? result.data : [];
       customerHomepageBanners = banners.filter(banner => !isParcelPromotion(banner));
       customerLegacyHomepageBanner = null;
-      if (banners.length && !customerHomepageBanners.length) {
+      if (isParcelPanelOpen() || (banners.length && !customerHomepageBanners.length)) {
         document.getElementById("customerHomeHero")?.classList.add("hidden");
       } else if (customerHomepageBanners.length) {
         document.getElementById("customerHomeHero")?.classList.remove("hidden");
@@ -3027,6 +3048,7 @@ async function loadCustomerDailyOffer() {
 
 
 let liveCatalog = [];
+let serviceCheckoutProducts = [];
 
 const shopServiceCategories = [
   { id: "staples", name: "Groceries", icon: "🌾" },
@@ -3181,13 +3203,20 @@ async function loadCustomerRestaurants() {
 }
 
 function showServiceSection(section) {
-  if (["restaurant", "meat", "parcel"].includes(section)) {
+  if (["restaurant", "meat"].includes(section)) {
     window.location.href = `service.html?type=${encodeURIComponent(section)}`;
     return;
   }
   hideServiceSections();
   const panel = document.getElementById(`service${section.charAt(0).toUpperCase()}${section.slice(1)}Panel`);
   if (!panel) return;
+  if (section === "parcel") {
+    const hero = document.getElementById("customerHomeHero");
+    if (hero) {
+      hero.dataset.visibleBeforeParcelPanel = String(!hero.classList.contains("hidden"));
+      hero.classList.add("hidden");
+    }
+  }
   panel.classList.remove("hidden");
   if (section === "shop") renderServiceShopCategories();
   if (section === "restaurant") renderServiceRestaurantList();
@@ -3196,6 +3225,12 @@ function showServiceSection(section) {
 
 function hideServiceSections() {
   document.querySelectorAll("#serviceDirectory > div[id$='Panel']").forEach(panel => panel.classList.add("hidden"));
+  const hero = document.getElementById("customerHomeHero");
+  const shouldRestoreHero = hero?.dataset.visibleBeforeParcelPanel === "true";
+  if (hero) delete hero.dataset.visibleBeforeParcelPanel;
+  if (shouldRestoreHero) {
+    renderHomepageBanner(customerHomepageBanners[customerHomepageBannerIndex] || customerLegacyHomepageBanner);
+  }
 }
 
 function renderServiceShopCategories() {
@@ -3302,7 +3337,13 @@ async function submitParcelRequest(event) {
   const status = document.getElementById("parcelRequestStatus");
   if (status) {
     status.innerText = `Parcel ${order.order_number || order.id} created. A rider will be assigned shortly.`;
+    status.dataset.orderCountdown = "true";
+    status.dataset.orderStatus = order.status || "PLACED";
+    status.dataset.deliveryDeadlineMs = String(order.delivery_deadline_ms || "");
+    status.dataset.promiseMinMinutes = String(order.delivery_promise_min_minutes || "");
+    status.dataset.promiseMaxMinutes = String(order.delivery_promise_max_minutes || "");
     status.classList.remove("hidden");
+    startCustomerCountdowns();
   }
   event.target.reset();
 }
@@ -3362,7 +3403,7 @@ async function fetchProducts() {
 
 
         liveCatalog =
-          cloudProducts;
+          [...cloudProducts, ...serviceCheckoutProducts.filter(serviceProduct => !cloudProducts.some(product => String(product.id) === String(serviceProduct.id)))];
 
         restorePendingServiceCart();
         renderCustomerCategoryPreviews();
@@ -3386,12 +3427,21 @@ function restorePendingServiceCart() {
   try {
     const parsedCart = JSON.parse(pendingCart);
     if (!parsedCart || typeof parsedCart !== "object") return;
-    Object.entries(parsedCart).forEach(([productId, quantity]) => {
-      if (liveCatalog.some(product => product.id === productId)) cartState[productId] = Number(quantity) || 0;
+    const pendingItems = parsedCart.items && typeof parsedCart.items === "object" ? parsedCart.items : parsedCart;
+    const pendingProducts = Array.isArray(parsedCart.products) ? parsedCart.products : [];
+    serviceCheckoutProducts = pendingProducts.filter(product => Object.hasOwn(pendingItems, product.id));
+    serviceCheckoutProducts.forEach(product => {
+      if (!liveCatalog.some(item => String(item.id) === String(product.id))) liveCatalog.push(product);
+    });
+    Object.entries(pendingItems).forEach(([productId, quantity]) => {
+      if (liveCatalog.some(product => String(product.id) === String(productId))) cartState[productId] = Number(quantity) || 0;
     });
     localStorage.removeItem("myshopzy_pending_cart");
     syncCartBar();
-    if (new URLSearchParams(window.location.search).get("checkout") === "1" && Object.keys(cartState).length) {
+    const pageAction = new URLSearchParams(window.location.search);
+    if (Object.keys(cartState).length && pageAction.get("cart") === "1") {
+      setTimeout(openCart, 250);
+    } else if (Object.keys(cartState).length && pageAction.get("checkout") === "1") {
       setTimeout(openCheckout, 250);
     }
   } catch (error) {
@@ -3671,7 +3721,7 @@ const CUSTOMER_SERVICE_ROUTES = {
   "fruits-vegetables": { category: "veggies", name: "Fruits & Vegetables" },
   "food-delivery": { destination: "service.html?type=restaurant" },
   "meat-chicken": { destination: "service.html?type=meat" },
-  "parcel-delivery": { destination: "service.html?type=parcel" },
+  "parcel-delivery": { panel: "parcel" },
   "local-stores": { category: "home", name: "Local Stores" }
 };
 
@@ -3681,6 +3731,11 @@ function openServiceCategory(serviceKey, targetEl = null) {
 
   if (route.destination) {
     window.location.href = route.destination;
+    return;
+  }
+
+  if (route.panel) {
+    showServiceSection(route.panel);
     return;
   }
 
@@ -3744,6 +3799,7 @@ function modifyCart(
   refreshCategoryPreviewProduct(prodId);
 
   syncCartBar();
+  if (!document.getElementById("cartScreenModal")?.classList.contains("hidden")) renderCartScreen();
 
   if (delta > 0) showCartAddToast();
 }
@@ -4054,6 +4110,75 @@ function updateRiderTipButtons() {
 // 30. OPEN CHECKOUT
 // ==========================================
 
+function openCart() {
+  if (!Object.keys(cartState).some(id => liveCatalog.some(product => String(product.id) === String(id)))) return;
+  renderCartScreen();
+  document.getElementById("bottomCartBar")?.classList.add("hidden");
+  document.getElementById("cartScreenModal")?.classList.remove("hidden");
+}
+
+function closeCartScreen() {
+  document.getElementById("cartScreenModal")?.classList.add("hidden");
+  syncCartBar();
+}
+
+function clearCartScreen() {
+  cartState = {};
+  filterAndRender();
+  syncCartBar();
+  renderCartScreen();
+}
+
+function renderCartScreen() {
+  const container = document.getElementById("cartScreenItems");
+  if (!container) return;
+  const entries = Object.entries(cartState).filter(([id, quantity]) => quantity > 0
+    && liveCatalog.some(product => String(product.id) === String(id)));
+  const itemCount = entries.reduce((sum, [, quantity]) => sum + quantity, 0);
+  const count = document.getElementById("cartScreenCount");
+  if (count) count.textContent = `${itemCount} item${itemCount === 1 ? "" : "s"}`;
+  const hasRestaurantItems = entries.some(([id]) => {
+    const product = liveCatalog.find(item => String(item.id) === String(id));
+    return product?.is_restaurant_product || String(product?.category || "").toLowerCase() === "restaurants";
+  });
+  const deliveryPromise = document.getElementById("cartScreenDeliveryPromise");
+  if (deliveryPromise) deliveryPromise.textContent = hasRestaurantItems
+    ? "Estimated delivery: 30–45 minutes"
+    : "Delivery within 30 minutes";
+  container.innerHTML = entries.length ? entries.map(([id, quantity]) => {
+    const product = liveCatalog.find(item => String(item.id) === String(id));
+    const unit = product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit_label || product.unit || "1 pc";
+    const image = product.image_url || product.image || "../assets/audio/categories/logo.png";
+    const lineTotal = getProductPrice(product) * quantity;
+    return `<article class="flex min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+      <img src="${escapeAttribute(image)}" alt="${escapeAttribute(product.name || "Product")}" class="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-contain p-1" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('p-3')">
+      <div class="min-w-0 flex-1"><h3 class="truncate text-sm font-extrabold text-slate-900">${escapeHtml(product.name || "Product")}</h3>
+        <p class="mt-1 text-[11px] text-slate-500">${escapeHtml(unit)}</p><strong class="mt-1 block text-sm font-black text-slate-900">₹${lineTotal.toLocaleString("en-IN")}</strong>
+      </div>
+      <div class="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-1.5 text-sm font-black text-emerald-800">
+        <button type="button" onclick="modifyCart('${escapeAttribute(id)}', -1)" class="grid h-7 w-7 place-items-center rounded-md hover:bg-white" aria-label="Remove one ${escapeAttribute(product.name || "product")}">−</button>
+        <span class="min-w-3 text-center">${quantity}</span>
+        <button type="button" onclick="modifyCart('${escapeAttribute(id)}', 1)" class="grid h-7 w-7 place-items-center rounded-md hover:bg-white" aria-label="Add one ${escapeAttribute(product.name || "product")}">+</button>
+      </div>
+    </article>`;
+  }).join("") : '<p class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm font-semibold text-slate-500">Your cart is empty.</p>';
+
+  const totals = calculateCartTotals();
+  const subtotal = document.getElementById("cartScreenSubtotal");
+  const delivery = document.getElementById("cartScreenDelivery");
+  const total = document.getElementById("cartScreenTotal");
+  const offerRow = document.getElementById("cartScreenOfferRow");
+  const offerDiscount = document.getElementById("cartScreenOfferDiscount");
+  if (subtotal) subtotal.textContent = `₹${totals.sub.toLocaleString("en-IN")}`;
+  if (delivery) delivery.textContent = totals.deliveryFee ? `₹${totals.deliveryFee}` : "FREE";
+  if (total) total.textContent = `₹${totals.grandTotal.toLocaleString("en-IN")}`;
+  if (offerRow) offerRow.classList.toggle("hidden", totals.offerDiscount === 0);
+  if (offerRow) offerRow.classList.toggle("flex", totals.offerDiscount > 0);
+  if (offerDiscount) offerDiscount.textContent = `-₹${totals.offerDiscount}`;
+  const proceed = document.getElementById("cartScreenProceedButton");
+  if (proceed) proceed.disabled = entries.length === 0;
+}
+
 function openCheckout() {
 
   if (
@@ -4084,6 +4209,7 @@ function openCheckout() {
 
 
   closeAllModals();
+  document.getElementById("cartScreenModal")?.classList.add("hidden");
 
 
   const bottomBar =
@@ -5721,7 +5847,7 @@ async function toggleOrdersView() {
 
             <div class="flex items-center justify-between text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-2 py-1">
               <span>Delivery promise</span>
-              <span data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}" data-delivery-eta="${JSON.stringify({ available: false }).replace(/"/g, '&quot;')}">${getCustomerDeliveryPromiseText()}</span>
+              <span data-order-countdown data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}" data-delivery-deadline-ms="${Number(order.delivery_deadline_ms) || ""}" data-promise-min-minutes="${Number(order.delivery_promise_min_minutes) || ""}" data-promise-max-minutes="${Number(order.delivery_promise_max_minutes) || ""}">${getCustomerDeliveryPromiseText()}</span>
             </div>
 
             <p class="text-[11px] text-slate-500">
@@ -6221,6 +6347,7 @@ document.addEventListener(
     syncCustomerAddressesFromCloud();
 
 
+    restorePendingServiceCart();
     fetchProducts();
     loadCustomerRestaurants();
 
