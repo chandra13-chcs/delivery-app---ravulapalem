@@ -34,7 +34,7 @@ function matchesOtp(storedDigest, destination, purpose, code) {
 }
 
 function isDevelopmentOtpExposureEnabled() {
-  return process.env.NODE_ENV !== "production" && process.env.DEV_OTP_EXPOSE === "true";
+  return process.env.NODE_ENV === "development" && process.env.DEV_OTP_EXPOSE === "true";
 }
 
 function assertOtpDeliveryAvailable() {

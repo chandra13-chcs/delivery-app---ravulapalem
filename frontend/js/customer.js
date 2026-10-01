@@ -503,10 +503,15 @@ function closeCustomerRiderTracker() {
 // ==========================================
 
 let activeCustomerSession = JSON.parse(
-  localStorage.getItem("quickdash_customer") || "null"
+  sessionStorage.getItem("quickdash_customer") || localStorage.getItem("quickdash_customer") || "null"
 );
-let customerAuthPurpose = "LOGIN";
+let customerAuthState = "LOGIN";
+let pendingCustomerPhone = "";
 let pendingCustomerProfile = null;
+let customerAuthRequestPending = false;
+let customerLogoutPending = false;
+let customerOtpCountdownTimer = null;
+let customerOtpSecondsRemaining = 0;
 
 
 // ==========================================
@@ -1722,7 +1727,8 @@ function closeOrdersView() {
 
 
 function openCustomerAccountAccess() {
-  openLoginModal();
+  if (getCustomerAccessToken()) openAccountModal();
+  else openLoginModal();
 }
 
 
@@ -1730,6 +1736,7 @@ function openAccountModal() {
 
   closeAllModals();
 
+  cancelCustomerLogout();
   syncAccountDashboard();
 
   const modal =
@@ -2758,7 +2765,23 @@ async function loadCustomerCategorySettings() {
   renderCustomerCategoryTiles();
 }
 
+function isParcelPromotion(item) {
+  const content = [item?.title, item?.subtitle, item?.description, item?.body, item?.eyebrow]
+    .filter(value => typeof value === "string")
+    .join(" ");
+  return /\bparcels?\b/i.test(content)
+    && (/\d+(?:\.\d+)?\s*%/.test(content)
+      || /\b\d+(?:\.\d+)?\s*percent\b/i.test(content)
+      || /\b(?:discount|offer|deal|promo|save|off)\b/i.test(content));
+}
+
 function renderHomepageBanner(banner) {
+  const homeHero = document.getElementById("customerHomeHero");
+  if (isParcelPromotion(banner)) {
+    homeHero?.classList.add("hidden");
+    return;
+  }
+  homeHero?.classList.remove("hidden");
   if (!banner) return;
   const title = document.getElementById('bannerTitleDisplay');
   const subtitle = document.getElementById('bannerSubDisplay');
@@ -2770,7 +2793,7 @@ function renderHeroFeatureCarousel() {
   const carousel = document.getElementById('heroFeatureCarousel');
   if (!carousel) return;
   const managedSlides = customerHomepageBanners
-    .filter(banner => banner.image_url)
+    .filter(banner => banner.image_url && !isParcelPromotion(banner))
     .map(banner => ({
       eyebrow: 'Store highlight',
       title: banner.title || 'Shop the latest',
@@ -2778,7 +2801,8 @@ function renderHeroFeatureCarousel() {
       image_url: banner.image_url,
       href: '#productsGrid'
     }));
-  if (!customerHomepageBanners.length && customerLegacyHomepageBanner?.image_url) {
+  if (!customerHomepageBanners.length && customerLegacyHomepageBanner?.image_url
+      && !isParcelPromotion(customerLegacyHomepageBanner)) {
     managedSlides.push({
       eyebrow: 'Store highlight',
       title: customerLegacyHomepageBanner.title || 'Shop today',
@@ -2868,7 +2892,7 @@ function loadLegacyCustomerHomepageBanners() {
     customerHomepageBanners = [];
     snapshot.forEach(doc => {
       const banner = { id: doc.id, ...doc.data() };
-      if (banner.is_active !== false) customerHomepageBanners.push(banner);
+      if (banner.is_active !== false && !isParcelPromotion(banner)) customerHomepageBanners.push(banner);
     });
     customerHomepageBanners.sort((left, right) => Number(right.created_at_ms || 0) - Number(left.created_at_ms || 0));
     customerHomepageBannerIndex = Math.min(customerHomepageBannerIndex, Math.max(0, customerHomepageBanners.length - 1));
@@ -2890,8 +2914,14 @@ async function loadCustomerHomepageBanners() {
   try {
     const result = await fetchCustomerContent('/banners');
     if (result.configured) {
-      customerHomepageBanners = Array.isArray(result.data) ? result.data : [];
+      const banners = Array.isArray(result.data) ? result.data : [];
+      customerHomepageBanners = banners.filter(banner => !isParcelPromotion(banner));
       customerLegacyHomepageBanner = null;
+      if (banners.length && !customerHomepageBanners.length) {
+        document.getElementById("customerHomeHero")?.classList.add("hidden");
+      } else if (customerHomepageBanners.length) {
+        document.getElementById("customerHomeHero")?.classList.remove("hidden");
+      }
       customerHomepageBanners.sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0));
       customerHomepageBannerIndex = Math.min(customerHomepageBannerIndex, Math.max(0, customerHomepageBanners.length - 1));
       renderHomepageBannerIndicators();
@@ -2919,7 +2949,7 @@ function renderCustomerDailyOffer(offer) {
   const codeWrap = document.getElementById('dailyOfferCodeWrap');
   const image = document.getElementById('dailyOfferImage');
   const eyebrow = document.getElementById('dailyOfferEyebrow');
-  if (!offer || offer.is_active !== true) {
+  if (!offer || offer.is_active !== true || isParcelPromotion(offer)) {
     closeDailyOffer();
     return;
   }
@@ -3881,21 +3911,6 @@ function setUserLanguage(value) {
   if (select) select.value = language;
 }
 
-function setAuthMode(mode) {
-  const signupFields = document.getElementById("signupExtraFields");
-  const loginBtn = document.getElementById("authModeLoginBtn");
-  const signupBtn = document.getElementById("authModeSignupBtn");
-
-  const isSignup = mode === "signup";
-  if (signupFields) signupFields.classList.toggle("hidden", !isSignup);
-  if (loginBtn) {
-    loginBtn.className = `flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${isSignup ? "text-slate-600" : "bg-[#0B132B] text-white"}`;
-  }
-  if (signupBtn) {
-    signupBtn.className = `flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${isSignup ? "bg-[#0B132B] text-white" : "text-slate-600"}`;
-  }
-}
-
 function openProductDetailModal(product) {
   const modal = document.getElementById("productDetailModal");
   if (!modal || !product) return;
@@ -4825,16 +4840,16 @@ function syncAccountDashboard() {
   if (phone) {
     try {
       savedCustomer = JSON.parse(
-        localStorage.getItem(`myshopzy_customer_${phone}`) || "null"
+        localStorage.getItem(`myshopzy_customer_${phone}`)
+          || sessionStorage.getItem(`myshopzy_customer_${phone}`)
+          || "null"
       );
     } catch (error) {
       console.warn("Customer account profile unavailable:", error);
     }
   }
 
-  const name =
-    savedCustomer?.name ||
-    (phone ? getCustomerDisplayName() : "MyShopzy Customer");
+  const name = getSafeCustomerName(savedCustomer?.name) || "MyShopzy Customer";
 
   const email = phone
     ? (savedCustomer?.email || "Not provided")
@@ -4884,6 +4899,7 @@ function syncCustomerAuthUI() {
     document.getElementById(
       "userChip"
     );
+  const logoutSection = document.getElementById("customerLogoutSection");
 
 
   const phoneDisplay =
@@ -4894,6 +4910,9 @@ function syncCustomerAuthUI() {
 
   const phone =
     getCurrentCustomerPhone();
+  const authenticated = Boolean(phone && getCustomerAccessToken());
+
+  if (logoutSection) logoutSection.classList.toggle("hidden", !authenticated);
 
 
   if (phone) {
@@ -4944,16 +4963,47 @@ function syncCustomerGreetingUI() {
   if (!greetingName) return;
 
   const phone = getCurrentCustomerPhone();
-  let displayName = "User";
+  let displayName = "there";
   if (phone) {
     try {
-      const customerData = JSON.parse(localStorage.getItem(`myshopzy_customer_${phone}`) || "null");
-      if (customerData?.name) displayName = customerData.name;
-    } catch (error) {
-      console.warn("Customer greeting data unavailable:", error);
-    }
+      const customerData = JSON.parse(
+        localStorage.getItem(`myshopzy_customer_${phone}`)
+          || sessionStorage.getItem(`myshopzy_customer_${phone}`)
+          || "null"
+      );
+      displayName = getSafeCustomerName(customerData?.name) || "there";
+    } catch {}
   }
   greetingName.innerText = displayName;
+}
+
+function getSafeCustomerName(value) {
+  if (typeof value !== "string") return "";
+  const name = value.trim().replace(/\s+/g, " ");
+  if (!name || /^(?:user|customer|guest|myshopzy customer|unknown)$/i.test(name)) return "";
+  if (/\b(?:restaurant|restro|hotel|cafe|shop|store|partner|mart|supermarket)\b/i.test(name)) return "";
+  return name;
+}
+
+async function refreshAuthenticatedCustomerProfile() {
+  const phone = getCurrentCustomerPhone();
+  if (!phone || !getCustomerAccessToken()) return;
+  try {
+    const result = await customerAuthApiRequest("/me");
+    if (normalizePhone(result.user?.phone_e164) !== phone) return;
+    const storage = localStorage.getItem("myshopzy_user_access_token") ? localStorage : sessionStorage;
+    let cachedProfile = {};
+    try {
+      cachedProfile = JSON.parse(storage.getItem(`myshopzy_customer_${phone}`) || "{}") || {};
+    } catch {}
+    storage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
+      ...cachedProfile,
+      name: getSafeCustomerName(result.user?.display_name) || getSafeCustomerName(cachedProfile.name),
+      email: result.user?.email || cachedProfile.email || ""
+    }));
+    syncCustomerGreetingUI();
+    syncAccountDashboard();
+  } catch {}
 }
 
 
@@ -4962,95 +5012,402 @@ function syncCustomerGreetingUI() {
 // ==========================================
 
 function openLoginModal() {
-
   closeAllModals();
-
-
-  const modal =
-    document.getElementById(
-      "customerLoginModal"
-    );
-
-
-  if (modal) {
-
-    modal.classList.remove(
-      "hidden"
-    );
-  }
+  const modal = document.getElementById("customerLoginModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  document.body.classList.add("customer-auth-active");
+  setCustomerAuthState("LOGIN");
+  setCustomerAuthError("customerLoginError", "");
+  setCustomerAuthError("customerSignupError", "");
+  document.getElementById("loginMobileInput")?.focus();
 }
-
 
 function closeLoginModal() {
+  document.getElementById("customerLoginModal")?.classList.add("hidden");
+  document.body.classList.remove("customer-auth-active");
+  setCustomerDevelopmentOtp(null);
+  clearInterval(customerOtpCountdownTimer);
+  customerOtpCountdownTimer = null;
+  pendingCustomerPhone = "";
+  customerAuthState = "AUTHENTICATED";
+}
 
-  const modal =
-    document.getElementById(
-      "customerLoginModal"
-    );
+function updateCustomerPhoneValidation() {
+  ["loginMobileInput", "signupMobileInput"].forEach(inputId => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const phone = normalizePhone(input.value);
+    if (input.value !== phone) input.value = phone;
+    const valid = /^[6-9]\d{9}$/.test(phone);
+    if (inputId === "loginMobileInput") {
+      const button = document.getElementById("customerLoginOtpButton");
+      if (button) button.disabled = !valid || customerAuthRequestPending;
+      const error = document.getElementById("customerPhoneError");
+      if (error) error.textContent = phone.length === 10 && !valid
+        ? "Enter a valid 10-digit Indian mobile number."
+        : "";
+    } else {
+      const button = document.getElementById("customerSignupSubmitButton");
+      if (button) button.disabled = !valid || customerAuthRequestPending;
+      if (phone.length === 10 && !valid) {
+        setCustomerAuthError("customerSignupError", "Enter a valid 10-digit Indian mobile number.");
+      }
+    }
+  });
+}
 
+function setCustomerAuthState(state) {
+  const visibleScreen = {
+    LOGIN: "loginStepPhone",
+    SIGNUP: "signupStep",
+    OTP_LOGIN: "loginStepOtp",
+    OTP_SIGNUP: "loginStepOtp"
+  };
+  customerAuthState = state;
+  ["loginStepPhone", "signupStep", "loginStepOtp"].forEach(screenId => {
+    const screen = document.getElementById(screenId);
+    if (screen) screen.classList.toggle("hidden", screenId !== visibleScreen[state]);
+  });
+  if (state === "AUTHENTICATED") closeLoginModal();
+}
 
-  if (modal) {
+function openCustomerSignup() {
+  setCustomerAuthError("customerLoginError", "");
+  setCustomerAuthError("customerSignupError", "");
+  pendingCustomerProfile = null;
+  pendingCustomerPhone = "";
+  document.getElementById("customerSignupForm")?.reset();
+  setCustomerAuthState("SIGNUP");
+  document.getElementById("signupNameInput")?.focus();
+}
 
-    modal.classList.add(
-      "hidden"
-    );
+function toggleCustomerPasswordVisibility() {
+  const password = document.getElementById("customerLoginPassword");
+  const toggle = document.getElementById("customerPasswordVisibility");
+  if (!password || !toggle) return;
+  const shouldShow = password.type === "password";
+  password.type = shouldShow ? "text" : "password";
+  toggle.textContent = shouldShow ? "Hide" : "Show";
+  toggle.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+  toggle.setAttribute("aria-pressed", String(shouldShow));
+}
+
+function setCustomerAuthError(elementId, message) {
+  const error = document.getElementById(elementId);
+  if (error) error.textContent = message || "";
+}
+
+function setCustomerDevelopmentOtp(response) {
+  const container = document.getElementById("customerDevelopmentOtp");
+  const code = typeof response?.development_otp === "string" && /^\d{6}$/.test(response.development_otp)
+    ? response.development_otp
+    : "";
+  if (!container) return;
+  container.textContent = code ? `Development OTP: ${code}` : "";
+  container.classList.toggle("hidden", !code);
+}
+
+function customerAuthErrorMessage(error, fallback) {
+  if (error instanceof TypeError || error?.message === "Failed to fetch") {
+    return "Unable to reach MyShopzy authentication. Check your connection and try again.";
+  }
+  return error?.message || fallback;
+}
+
+function completeCustomerAuthentication(result, phone, profile = {}) {
+  if (typeof result.access_token !== "string" || !result.access_token || !result.user?.id) {
+    throw new Error("The authentication service did not return a customer session.");
+  }
+
+  const rememberLogin = document.getElementById("rememberCustomerLogin")?.checked !== false;
+  const tokenStorage = rememberLogin ? localStorage : sessionStorage;
+  const otherStorage = rememberLogin ? sessionStorage : localStorage;
+  localStorage.removeItem("user_access_token");
+  sessionStorage.removeItem("user_access_token");
+  tokenStorage.setItem("myshopzy_user_access_token", result.access_token);
+  otherStorage.removeItem("myshopzy_user_access_token");
+  activeCustomerSession = { phone, userId: result.user.id };
+  tokenStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
+  otherStorage.removeItem("quickdash_customer");
+  tokenStorage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
+    name: getSafeCustomerName(result.user.display_name) || getSafeCustomerName(profile.name),
+    email: result.user.email || profile.email || "",
+    defaultLocation: profile.location || ""
+  }));
+  pendingCustomerProfile = null;
+  document.getElementById("signupPasswordInput").value = "";
+  document.getElementById("signupConfirmPasswordInput").value = "";
+
+  savedAddresses = loadCustomerAddresses();
+  syncCustomerAddressesFromCloud();
+  closeLoginModal();
+  syncCustomerAuthUI();
+  syncCustomerGreetingUI();
+  syncAccountDashboard();
+  populateCheckoutAddressDropdown();
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  clearInterval(customerOtpCountdownTimer);
+  customerOtpCountdownTimer = null;
+}
+
+async function loginCustomerWithPassword() {
+  if (customerAuthState !== "LOGIN") return;
+  if (customerAuthRequestPending) return;
+  const phone = normalizePhone(document.getElementById("loginMobileInput")?.value);
+  const passwordInput = document.getElementById("customerLoginPassword");
+  const password = passwordInput?.value || "";
+  if (!/^[6-9]\d{9}$/.test(phone)) {
+    setCustomerAuthError("customerLoginError", "Enter a valid 10-digit Indian mobile number.");
+    return;
+  }
+  if (!password) {
+    setCustomerAuthError("customerLoginError", "Enter your password.");
+    return;
+  }
+
+  customerAuthRequestPending = true;
+  const loginButton = document.getElementById("customerPasswordLoginButton");
+  if (loginButton) {
+    loginButton.disabled = true;
+    loginButton.textContent = "Signing in...";
+  }
+  updateCustomerPhoneValidation();
+  setCustomerAuthError("customerLoginError", "");
+  try {
+    const result = await customerAuthApiRequest("/password/login", {
+      method: "POST",
+      body: JSON.stringify({ phone: `+91${phone}`, password })
+    });
+    completeCustomerAuthentication(result, phone);
+  } catch (error) {
+    setCustomerAuthError("customerLoginError", customerAuthErrorMessage(error, "Unable to sign in. Please try again."));
+  } finally {
+    if (passwordInput) passwordInput.value = "";
+    customerAuthRequestPending = false;
+    if (loginButton) {
+      loginButton.disabled = false;
+      loginButton.textContent = "Login";
+    }
+    updateCustomerPhoneValidation();
   }
 }
 
+function getCustomerOtpValue() {
+  return Array.from(document.querySelectorAll(".customer-otp-input"))
+    .map(input => input.value)
+    .join("");
+}
+
+function clearCustomerOtpFields() {
+  document.querySelectorAll(".customer-otp-input").forEach(input => { input.value = ""; });
+  const verifyButton = document.getElementById("customerVerifyButton");
+  if (verifyButton) verifyButton.disabled = true;
+}
+
+function startCustomerOtpCountdown() {
+  clearInterval(customerOtpCountdownTimer);
+  customerOtpSecondsRemaining = 30;
+  const resendButton = document.getElementById("customerResendButton");
+  if (resendButton) resendButton.disabled = true;
+  const updateCountdown = () => {
+    const countdown = document.getElementById("customerResendCountdown");
+    if (countdown) countdown.textContent = `${customerOtpSecondsRemaining}s`;
+    if (customerOtpSecondsRemaining <= 0) {
+      clearInterval(customerOtpCountdownTimer);
+      customerOtpCountdownTimer = null;
+      if (resendButton) {
+        resendButton.disabled = false;
+        resendButton.innerHTML = "Resend SMS";
+      }
+      return;
+    }
+    customerOtpSecondsRemaining -= 1;
+  };
+  if (resendButton) resendButton.innerHTML = 'Resend SMS in <span id="customerResendCountdown">30s</span>';
+  updateCountdown();
+  customerOtpCountdownTimer = setInterval(updateCountdown, 1000);
+}
+
+function backToCustomerLogin() {
+  clearInterval(customerOtpCountdownTimer);
+  customerOtpCountdownTimer = null;
+  setCustomerAuthError("customerOtpError", "");
+  setCustomerDevelopmentOtp(null);
+  if (customerAuthState === "OTP_SIGNUP") {
+    setCustomerAuthState("SIGNUP");
+    document.getElementById("signupMobileInput").value = pendingCustomerPhone.slice(-10);
+    document.getElementById("signupNameInput")?.focus();
+    return;
+  }
+  if (customerAuthState === "SIGNUP") {
+    pendingCustomerProfile = null;
+    document.getElementById("signupPasswordInput").value = "";
+    document.getElementById("signupConfirmPasswordInput").value = "";
+  }
+  setCustomerAuthState("LOGIN");
+  document.getElementById("loginMobileInput").value = pendingCustomerPhone.slice(-10);
+  document.getElementById("loginMobileInput")?.focus();
+}
+
+function setupCustomerOtpInputs() {
+  const inputs = Array.from(document.querySelectorAll(".customer-otp-input"));
+  inputs.forEach((input, index) => {
+    input.addEventListener("input", () => {
+      const digits = input.value.replace(/\D/g, "");
+      if (digits.length > 1) {
+        Array.from(digits.slice(0, inputs.length - index)).forEach((digit, offset) => {
+          inputs[index + offset].value = digit;
+        });
+        inputs[Math.min(index + digits.length, inputs.length - 1)].focus();
+      } else {
+        input.value = digits.slice(-1);
+        if (input.value && index < inputs.length - 1) inputs[index + 1].focus();
+      }
+      const verifyButton = document.getElementById("customerVerifyButton");
+      if (verifyButton) verifyButton.disabled = getCustomerOtpValue().length !== 6;
+      setCustomerAuthError("customerOtpError", "");
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Backspace" && !input.value && index > 0) {
+        inputs[index - 1].value = "";
+        inputs[index - 1].focus();
+        const verifyButton = document.getElementById("customerVerifyButton");
+        if (verifyButton) verifyButton.disabled = true;
+      }
+      if (event.key === "ArrowLeft" && index > 0) inputs[index - 1].focus();
+      if (event.key === "ArrowRight" && index < inputs.length - 1) inputs[index + 1].focus();
+    });
+    input.addEventListener("paste", event => {
+      const pastedDigits = event.clipboardData?.getData("text").replace(/\D/g, "").slice(0, 6);
+      if (!pastedDigits) return;
+      event.preventDefault();
+      inputs.forEach((field, fieldIndex) => { field.value = pastedDigits[fieldIndex] || ""; });
+      const focusIndex = Math.min(pastedDigits.length, inputs.length - 1);
+      inputs[focusIndex].focus();
+      const verifyButton = document.getElementById("customerVerifyButton");
+      if (verifyButton) verifyButton.disabled = pastedDigits.length !== 6;
+      setCustomerAuthError("customerOtpError", "");
+    });
+  });
+}
+
+async function requestCustomerOtp(phoneValue, purpose, registration = null) {
+  if (customerAuthRequestPending) return false;
+  const phone = normalizePhone(phoneValue);
+  const errorId = purpose === "REGISTER" ? "customerSignupError" : "customerLoginError";
+  if (!/^[6-9]\d{9}$/.test(phone)) {
+    updateCustomerPhoneValidation();
+    setCustomerAuthError(errorId, "Enter a valid 10-digit Indian mobile number.");
+    return false;
+  }
+  if (purpose === "REGISTER" && (!registration?.display_name || !registration.email || !registration.password)) {
+    setCustomerAuthError(errorId, "Complete all sign-up fields before continuing.");
+    return false;
+  }
+  if (purpose !== "REGISTER") {
+    pendingCustomerProfile = null;
+  }
+  const requestPath = purpose === "REGISTER" ? "/register" : "/otp/request";
+  const requestBody = purpose === "REGISTER"
+    ? { phone_e164: `+91${phone}`, ...registration }
+    : { phone_e164: `+91${phone}` };
+  const requestButton = document.getElementById(
+    purpose === "REGISTER" ? "customerSignupSubmitButton" : "customerLoginOtpButton"
+  );
+  customerAuthRequestPending = true;
+  pendingCustomerPhone = phone;
+  if (requestButton) {
+    requestButton.disabled = true;
+    requestButton.textContent = "Requesting code...";
+  }
+  setCustomerAuthError(errorId, "");
+  try {
+    const result = await customerAuthApiRequest(requestPath, { method: "POST", body: JSON.stringify(requestBody) });
+    if (purpose === "REGISTER") pendingCustomerProfile = { ...registration, location: "" };
+    setCustomerAuthState(purpose === "REGISTER" ? "OTP_SIGNUP" : "OTP_LOGIN");
+    setCustomerDevelopmentOtp(result);
+    document.getElementById("customerOtpPhone").textContent = `+91 ${"•".repeat(6)}${phone.slice(-4)}`;
+    setCustomerAuthError("customerOtpError", "");
+    clearCustomerOtpFields();
+    startCustomerOtpCountdown();
+    document.querySelector(".customer-otp-input")?.focus();
+    return true;
+  } catch (error) {
+    setCustomerAuthError(errorId, customerAuthErrorMessage(error, "Unable to request a verification code. Try again."));
+    return false;
+  } finally {
+    customerAuthRequestPending = false;
+    if (requestButton) {
+      requestButton.textContent = purpose === "REGISTER" ? "Create Account" : "Login with OTP";
+    }
+    updateCustomerPhoneValidation();
+  }
+}
 
 // ==========================================
 // 41. SEND OTP
 // ==========================================
 
 async function sendCustomerLoginOtp() {
-  const input = document.getElementById("loginMobileInput");
-  const phone = normalizePhone(input ? input.value : "");
-  if (phone.length !== 10) {
-    alert("Please enter a valid 10-digit mobile number.");
+  if (customerAuthState !== "LOGIN" || customerAuthRequestPending) return;
+  await requestCustomerOtp(document.getElementById("loginMobileInput")?.value, "LOGIN");
+}
+
+async function createCustomerAccount(event) {
+  event?.preventDefault();
+  if (customerAuthState !== "SIGNUP" || customerAuthRequestPending) return;
+  const phone = normalizePhone(document.getElementById("signupMobileInput")?.value);
+  const name = document.getElementById("signupNameInput")?.value.trim();
+  const email = document.getElementById("signupEmailInput")?.value.trim();
+  const password = document.getElementById("signupPasswordInput")?.value || "";
+  const confirmPassword = document.getElementById("signupConfirmPasswordInput")?.value || "";
+  if (!name || !email || !password || !confirmPassword) {
+    setCustomerAuthError("customerSignupError", "Complete all sign-up fields before continuing.");
     return;
   }
-
-  const signupMode = document.getElementById("signupExtraFields")
-    && !document.getElementById("signupExtraFields").classList.contains("hidden");
-  let requestPath = "/otp/request";
-  let requestBody = { phone_e164: `+91${phone}` };
-  if (signupMode) {
-    const name = document.getElementById("signupNameInput")?.value.trim();
-    const email = document.getElementById("signupEmailInput")?.value.trim();
-    const location = document.getElementById("signupLocationInput")?.value.trim();
-    const password = document.getElementById("signupPasswordInput")?.value;
-    const confirm = document.getElementById("signupConfirmPasswordInput")?.value;
-    if (!name || !email || !location || !password || !confirm) {
-      alert("Please complete all sign-up fields before continuing.");
-      return;
-    }
-    if (password.length < 6 || password !== confirm) {
-      alert("Password must be at least 6 characters and match the confirmation field.");
-      return;
-    }
-    customerAuthPurpose = "REGISTER";
-    pendingCustomerProfile = { name, email, location };
-    requestPath = "/register";
-    requestBody = { phone_e164: `+91${phone}`, display_name: name, email, password };
-  } else {
-    customerAuthPurpose = "LOGIN";
-    pendingCustomerProfile = null;
+  if (password.length < 6 || password !== confirmPassword) {
+    setCustomerAuthError("customerSignupError", "Passwords must be at least 6 characters and match.");
+    return;
   }
+  await requestCustomerOtp(phone, "REGISTER", { display_name: name, email, password });
+}
 
+async function resendCustomerLoginOtp() {
+  if (!new Set(["OTP_LOGIN", "OTP_SIGNUP"]).has(customerAuthState)
+      || customerAuthRequestPending || customerOtpSecondsRemaining > 0) return;
+  setCustomerAuthError("customerOtpError", "");
+  customerAuthRequestPending = true;
+  const resendButton = document.getElementById("customerResendButton");
+  if (resendButton) {
+    resendButton.disabled = true;
+    resendButton.textContent = "Requesting...";
+  }
   try {
-    const result = await customerAuthApiRequest(requestPath, {
-      method: "POST",
-      body: JSON.stringify(requestBody)
-    });
-    const phoneStep = document.getElementById("loginStepPhone");
-    const otpStep = document.getElementById("loginStepOtp");
-    if (phoneStep) phoneStep.classList.add("hidden");
-    if (otpStep) otpStep.classList.remove("hidden");
-    const otpInput = document.getElementById("loginOtpInput");
-    if (otpInput) otpInput.value = result.development_otp || "";
+    const phone = pendingCustomerPhone;
+    const registrationFlow = customerAuthState === "OTP_SIGNUP";
+    const path = registrationFlow ? "/register" : "/otp/request";
+    let body = { phone_e164: `+91${phone}` };
+    if (registrationFlow) {
+      body = {
+        ...body,
+        display_name: pendingCustomerProfile?.name,
+        email: pendingCustomerProfile?.email,
+        password: pendingCustomerProfile?.password
+      };
+    }
+    const result = await customerAuthApiRequest(path, { method: "POST", body: JSON.stringify(body) });
+    setCustomerDevelopmentOtp(result);
+    clearCustomerOtpFields();
+    startCustomerOtpCountdown();
   } catch (error) {
-    console.error("Customer verification request failed:", error);
-    alert(error.message);
+    setCustomerAuthError("customerOtpError", customerAuthErrorMessage(error, "Unable to resend the verification code."));
+    if (resendButton) {
+      resendButton.disabled = false;
+      resendButton.textContent = "Resend SMS";
+    }
+  } finally {
+    customerAuthRequestPending = false;
   }
 }
 
@@ -5060,51 +5417,35 @@ async function sendCustomerLoginOtp() {
 // ==========================================
 
 async function verifyCustomerLoginOtp() {
-  const phoneInput = document.getElementById("loginMobileInput");
-  const otpInput = document.getElementById("loginOtpInput");
-  const phone = normalizePhone(phoneInput ? phoneInput.value : "");
-  const otp = otpInput ? otpInput.value.trim() : "";
-  if (phone.length !== 10) {
-    alert("Please enter a valid 10-digit mobile number.");
+  if (customerAuthRequestPending) return;
+  if (!new Set(["OTP_LOGIN", "OTP_SIGNUP"]).has(customerAuthState)) return;
+  const phone = pendingCustomerPhone;
+  const purpose = customerAuthState === "OTP_SIGNUP" ? "REGISTER" : "LOGIN";
+  const otp = getCustomerOtpValue();
+  if (!/^[6-9]\d{9}$/.test(phone) || !/^\d{6}$/.test(otp)) {
+    setCustomerAuthError("customerOtpError", "Enter the complete 6-digit verification code.");
     return;
   }
-  if (!/^\d{6}$/.test(otp)) {
-    alert("Enter the 6-digit verification code.");
-    return;
+  customerAuthRequestPending = true;
+  const verifyButton = document.getElementById("customerVerifyButton");
+  if (verifyButton) {
+    verifyButton.disabled = true;
+    verifyButton.textContent = "Verifying...";
   }
-
+  setCustomerAuthError("customerOtpError", "");
   try {
     const result = await customerAuthApiRequest("/otp/verify", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: `+91${phone}`, purpose: customerAuthPurpose, otp })
+      body: JSON.stringify({ phone_e164: `+91${phone}`, purpose, otp })
     });
-    if (typeof result.access_token !== "string" || !result.access_token) {
-      throw new Error("The authentication service did not return a customer session.");
-    }
-
-    localStorage.setItem("myshopzy_user_access_token", result.access_token);
-    activeCustomerSession = { phone, userId: result.user.id };
-    localStorage.setItem("quickdash_customer", JSON.stringify(activeCustomerSession));
-    const profile = pendingCustomerProfile || {};
-    localStorage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
-      name: result.user.display_name || profile.name || "MyShopzy Customer",
-      email: result.user.email || profile.email || "",
-      defaultLocation: profile.location || ""
-    }));
-    pendingCustomerProfile = null;
-
-    savedAddresses = loadCustomerAddresses();
-    syncCustomerAddressesFromCloud();
-    closeLoginModal();
-    syncCustomerAuthUI();
-    syncCustomerGreetingUI();
-    syncAccountDashboard();
-    populateCheckoutAddressDropdown();
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    alert(`Logged in successfully as ${phone}!`);
+    completeCustomerAuthentication(result, phone, pendingCustomerProfile || {});
   } catch (error) {
-    console.error("Customer verification failed:", error);
-    alert(error.message);
+    setCustomerAuthError("customerOtpError", customerAuthErrorMessage(error, "Unable to verify the code. Try again."));
+    clearCustomerOtpFields();
+    document.querySelector(".customer-otp-input")?.focus();
+  } finally {
+    customerAuthRequestPending = false;
+    if (verifyButton) verifyButton.textContent = "Verify";
   }
 }
 
@@ -5114,21 +5455,47 @@ async function verifyCustomerLoginOtp() {
 // ==========================================
 
 async function logoutCustomer() {
-
-  try {
-    if (getCustomerAccessToken()) await customerAuthApiRequest("/logout", { method: "POST" });
-  } catch (error) {
-    console.warn("Customer logout request failed:", error.message);
+  if (customerLogoutPending) return;
+  const token = getCustomerAccessToken();
+  if (!token) {
+    setCustomerLogoutError("Your session is no longer active. Please sign in again.");
+    return;
   }
 
+  customerLogoutPending = true;
+  const confirmButton = document.getElementById("customerLogoutConfirmButton");
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = "Logging out...";
+  }
+  try {
+    await customerAuthApiRequest("/logout", { method: "POST" });
+  } catch {
+    setCustomerLogoutError("Unable to securely log out right now. Please try again.");
+    customerLogoutPending = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = "Logout";
+    }
+    return;
+  }
+
+  const phone = getCurrentCustomerPhone();
   localStorage.removeItem("myshopzy_user_access_token");
+  sessionStorage.removeItem("myshopzy_user_access_token");
+  sessionStorage.removeItem("quickdash_customer");
   sessionStorage.removeItem("user_access_token");
   localStorage.removeItem("user_access_token");
 
   localStorage.removeItem(
     "quickdash_customer"
   );
+  if (phone) {
+    localStorage.removeItem(`myshopzy_customer_${phone}`);
+    sessionStorage.removeItem(`myshopzy_customer_${phone}`);
+  }
 
+  customerLogoutPending = false;
 
   activeCustomerSession =
     null;
@@ -5145,12 +5512,35 @@ async function logoutCustomer() {
   closeOrdersView();
   closeAccountModal();
   populateCheckoutAddressDropdown();
-
   window.location.href = "index.html";
+}
 
-  alert(
-    "Logged out successfully."
-  );
+function showCustomerLogoutConfirmation() {
+  setCustomerLogoutError("");
+  document.getElementById("customerLogoutStartButton")?.classList.add("hidden");
+  document.getElementById("customerLogoutConfirmation")?.classList.remove("hidden");
+  document.getElementById("customerLogoutConfirmButton")?.focus();
+}
+
+function cancelCustomerLogout() {
+  const confirmation = document.getElementById("customerLogoutConfirmation");
+  const startButton = document.getElementById("customerLogoutStartButton");
+  if (!confirmation || !startButton) return;
+  confirmation.classList.add("hidden");
+  startButton.classList.remove("hidden");
+  setCustomerLogoutError("");
+  const confirmButton = document.getElementById("customerLogoutConfirmButton");
+  if (confirmButton) {
+    confirmButton.disabled = false;
+    confirmButton.textContent = "Logout";
+  }
+}
+
+function setCustomerLogoutError(message) {
+  const error = document.getElementById("customerLogoutError");
+  if (!error) return;
+  error.textContent = message;
+  error.classList.toggle("hidden", !message);
 }
 
 
@@ -5786,6 +6176,8 @@ document.addEventListener(
 
     renderCustomerCategoryTiles();
     renderCustomerCategoryPreviews();
+    setupCustomerOtpInputs();
+    updateCustomerPhoneValidation();
 
     checkStoreWorkingHours();
     loadCustomerCategorySettings();
@@ -5806,6 +6198,9 @@ document.addEventListener(
 
     syncCustomerAuthUI();
     syncCustomerGreetingUI();
+
+    if (!getCustomerAccessToken()) openLoginModal();
+    else refreshAuthenticatedCustomerProfile();
 
 
     syncAccountDashboard();
@@ -5837,11 +6232,7 @@ document.addEventListener(
     );
 
 
-    console.log(
-      "👤 Active customer:",
-      getCurrentCustomerPhone() ||
-      "Guest"
-    );
+    console.log("Customer session:", getCustomerAccessToken() ? "active" : "guest");
 
   }
 );

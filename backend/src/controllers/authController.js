@@ -24,6 +24,7 @@ const ACCESS_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^\+[1-9][0-9]{7,14}$/;
 const OTP_PATTERN = /^\d{6}$/;
+let dummyPasswordHashPromise = null;
 
 function getSigningSecret() {
   const secret = process.env.ADMIN_JWT_SECRET;
@@ -278,6 +279,77 @@ function publicCustomer(user) {
   };
 }
 
+async function getDummyPasswordHash() {
+  if (!dummyPasswordHashPromise) {
+    dummyPasswordHashPromise = bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+  }
+  return dummyPasswordHashPromise;
+}
+
+async function createCustomerSession(queryable, req, user, secret) {
+  const sessionSecretHash = crypto.createHash("sha256").update(crypto.randomBytes(64)).digest();
+  const expiresAt = new Date(Date.now() + ACCESS_TOKEN_LIFETIME_MS);
+  const userAgent = typeof req.get("user-agent") === "string" ? req.get("user-agent").slice(0, 512) : null;
+  const sessionResult = await queryable.query(
+    `INSERT INTO user_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [user.id, sessionSecretHash, userAgent, req.ip || null, expiresAt]
+  );
+  return {
+    access_token: createUserAccessToken(user.id, sessionResult.rows[0].id, secret),
+    token_type: "Bearer",
+    expires_in: ACCESS_TOKEN_LIFETIME_MS / 1000
+  };
+}
+
+async function loginCustomerWithPassword(req, res) {
+  const phone = normalizePhone(req.body?.phone);
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!phone) return res.status(400).json({ success: false, message: "A valid mobile number is required." });
+  if (!password) return res.status(400).json({ success: false, message: "Password is required." });
+  if (Buffer.byteLength(password, "utf8") > 1024) {
+    return res.status(400).json({ success: false, message: "Invalid phone number or password." });
+  }
+
+  const secret = getSigningSecret();
+  if (!secret) return sendAuthUnavailable(res);
+
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT id, display_name, phone_e164, email, status, password_hash,
+              phone_verified_at, email_verified_at
+       FROM users
+       WHERE phone_e164 = $1 AND deleted_at IS NULL
+       LIMIT 1
+       FOR UPDATE`,
+      [phone]
+    );
+    const user = result.rows[0];
+    const passwordHash = user?.password_hash || await getDummyPasswordHash();
+    const passwordMatches = await bcrypt.compare(password, passwordHash).catch(() => false);
+    if (!user || user.status !== "ACTIVE" || !user.password_hash || !passwordMatches) {
+      await client.query("COMMIT");
+      res.set("Cache-Control", "no-store");
+      return res.status(401).json({ success: false, message: "Invalid phone number or password." });
+    }
+
+    const session = await createCustomerSession(client, req, user, secret);
+    await client.query("COMMIT");
+    res.set("Cache-Control", "no-store");
+    return res.json({ success: true, ...session, user: publicCustomer(user) });
+  } catch {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    console.error("Customer password login failed.");
+    return res.status(500).json({ success: false, message: "Unable to authenticate customer." });
+  } finally {
+    client?.release();
+  }
+}
+
 async function verifyCustomerOtp(req, res) {
   const phone = validatePhoneBody(req.body);
   const purpose = String(req.body?.purpose || "").toUpperCase();
@@ -351,25 +423,13 @@ async function verifyCustomerOtp(req, res) {
     }
     await client.query("UPDATE otp_verifications SET consumed_at = now() WHERE id = $1", [challenge.id]);
 
-    const sessionSecretHash = crypto.createHash("sha256").update(crypto.randomBytes(64)).digest();
-    const expiresAt = new Date(Date.now() + ACCESS_TOKEN_LIFETIME_MS);
-    const userAgent = typeof req.get("user-agent") === "string" ? req.get("user-agent").slice(0, 512) : null;
-    const sessionResult = await client.query(
-      `INSERT INTO user_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [activeUser.id, sessionSecretHash, userAgent, req.ip || null, expiresAt]
-    );
-    const sessionId = sessionResult.rows[0].id;
-    const accessToken = createUserAccessToken(activeUser.id, sessionId, secret);
+    const session = await createCustomerSession(client, req, activeUser, secret);
     await client.query("COMMIT");
 
     res.set("Cache-Control", "no-store");
     return res.json({
       success: true,
-      access_token: accessToken,
-      token_type: "Bearer",
-      expires_in: ACCESS_TOKEN_LIFETIME_MS / 1000,
+      ...session,
       user: publicCustomer(activeUser)
     });
   } catch (error) {
@@ -417,6 +477,7 @@ async function logoutCustomer(req, res) {
 module.exports = {
   registerCustomer,
   requestLoginOtp,
+  loginCustomerWithPassword,
   verifyCustomerOtp,
   getCurrentCustomer,
   logoutCustomer
