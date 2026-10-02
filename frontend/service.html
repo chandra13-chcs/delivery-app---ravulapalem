@@ -12,32 +12,49 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com" defer></script>
+  <script src="https://cdn.tailwindcss.com" async></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="bg-[#FCFCFC] text-slate-900 font-sans antialiased min-h-screen pb-10">
-  <header class="bg-[#0B132B] text-white shadow-lg sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-      <a href="index.html" class="flex items-center gap-2"><img src="../assets/audio/categories/logo.png" alt="MyShopzy logo" class="h-9 w-9 rounded-xl bg-white object-contain p-1"><span class="text-sm font-black">MyShopzy</span></a>
-      <a href="index.html" class="px-3 py-1.5 rounded-xl bg-[#1C2541] border border-slate-700 text-xs font-bold">← Home</a>
+  <header class="service-page-header">
+    <div class="service-page-header-inner">
+      <a href="index.html" class="service-page-brand"><img src="../assets/audio/categories/logo.png" alt="MyShopzy logo" class="service-page-brand-logo"><span>MyShopzy</span></a>
+      <a href="index.html" class="service-page-home">← Home</a>
     </div>
   </header>
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-    <div class="flex items-end justify-between gap-3 mb-5"><div><p id="serviceEyebrow" class="text-[10px] uppercase font-black tracking-wider text-amber-600">MyShopzy Service</p><h1 id="serviceTitle" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">Loading...</h1><p id="serviceDescription" class="text-xs text-slate-500 mt-1"></p></div></div>
+  <main class="service-page-main max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <div class="service-page-title-group flex items-end justify-between gap-3 mb-5"><div><p id="serviceEyebrow" class="text-[10px] uppercase font-black tracking-wider text-amber-600">MyShopzy Service</p><h1 id="serviceTitle" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">MyShopzy Service</h1><p id="serviceDescription" class="text-xs text-slate-500 mt-1"></p></div></div>
     <section id="restaurantServiceView" class="hidden restaurant-browse-view space-y-4">
       <label class="restaurant-search"><span class="sr-only">Search restaurants</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="restaurantListSearch" type="search" oninput="searchRestaurants(this.value)" placeholder="Search restaurants or cuisine" aria-label="Search restaurants"></label>
       <div id="serviceRestaurantList" class="restaurant-list" role="status" aria-label="Loading restaurants" aria-busy="true"><div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div><div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div><div class="restaurant-loading-card" aria-hidden="true"><span></span><i></i></div></div>
     </section>
+    <section id="localStoresView" class="hidden restaurant-browse-view space-y-4">
+      <label class="restaurant-search"><span class="sr-only">Search local stores</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="localStoreSearch" type="search" oninput="searchLocalStores(this.value)" placeholder="Search local stores" aria-label="Search local stores"></label>
+      <div id="localStoresList" class="restaurant-list" aria-live="polite" aria-busy="true"><p class="restaurant-empty-state">Loading local stores...</p></div>
+    </section>
     <section id="restaurantMenuView" class="hidden restaurant-menu-view space-y-4">
-      <div class="restaurant-menu-toolbar"><a href="service.html?type=restaurant" class="restaurant-back-link" aria-label="Back to restaurants">←</a><label class="restaurant-menu-search"><span class="sr-only">Search this restaurant menu</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="restaurantMenuSearch" type="search" oninput="searchRestaurantProducts(this.value)" placeholder="Search this menu" aria-label="Search this restaurant menu"></label><span class="restaurant-brand">MyShopzy</span></div>
-      <header class="restaurant-menu-heading"><div class="min-w-0"><p id="restaurantMenuMeta" class="restaurant-menu-meta"></p><h2 id="restaurantMenuTitle">Loading restaurant...</h2><p id="restaurantMenuDescription"></p></div><div id="restaurantMenuFacts" class="restaurant-menu-facts"></div></header>
+      <header class="restaurant-menu-heading">
+        <div class="restaurant-menu-title-row"><a href="service.html?type=restaurant" class="restaurant-back-link" aria-label="Back to restaurants">←</a><h2 id="restaurantMenuTitle">Restaurant menu</h2></div>
+        <p id="restaurantMenuMeta" class="restaurant-menu-meta hidden"></p>
+        <p id="restaurantMenuDescription" class="hidden"></p>
+        <div id="restaurantMenuFacts" class="restaurant-menu-facts hidden"></div>
+        <label class="restaurant-menu-search"><span class="sr-only">Search this restaurant menu</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="restaurantMenuSearch" type="search" oninput="searchRestaurantProducts(this.value)" placeholder="Search this menu" aria-label="Search this restaurant menu"></label>
+      </header>
       <div id="restaurantMenuProducts" class="restaurant-category-list" role="status" aria-label="Loading restaurant products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div>
+    </section>
+    <section id="localStoreMenuView" class="hidden restaurant-menu-view space-y-4">
+      <header class="restaurant-menu-heading">
+        <div class="restaurant-menu-title-row"><a href="service.html?type=local-stores" class="restaurant-back-link" aria-label="Back to local stores">←</a><h2 id="localStoreMenuTitle">Local store</h2></div>
+        <label class="restaurant-menu-search"><span class="sr-only">Search this store's products</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="localStoreProductSearch" type="search" oninput="searchLocalStoreProducts(this.value)" placeholder="Search products" aria-label="Search this store's products"></label>
+      </header>
+      <div id="localStoreMenuProducts" class="restaurant-category-list" role="status" aria-label="Loading local store products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div>
     </section>
     <section id="meatServiceView" class="hidden"><div id="serviceMeatProducts" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5"></div></section>
     <section id="categoryServiceView" class="hidden"><div id="serviceCategoryProducts" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5" role="status" aria-label="Loading category products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div></section>
     <section id="parcelServiceView" class="hidden max-w-xl"><form id="serviceParcelForm" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3"><input id="serviceParcelPickup" required placeholder="Pickup location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><input id="serviceParcelDrop" required placeholder="Drop location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><textarea id="serviceParcelDescription" required placeholder="What are you sending?" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl" rows="3"></textarea><button class="w-full py-3 bg-[#0B132B] text-white rounded-xl text-xs font-black">Request parcel pickup</button><p id="serviceParcelStatus" class="hidden text-xs font-bold text-emerald-700"></p></form></section>
   </main>
   <div id="serviceCartBar" class="service-cart-bar hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-[min(90vw,500px)] z-40"><div class="bg-[#0B132B] text-white rounded-2xl p-3 shadow-2xl border-2 border-amber-400/60 flex items-center justify-between gap-3"><div class="flex items-center gap-2.5"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 text-lg text-slate-950 shadow-lg">🛒</span><div><span class="block text-[9px] font-black uppercase tracking-wider text-amber-300">Your cart is ready</span><span id="serviceCartCount" class="block text-[11px] text-slate-300">0 items</span><strong id="serviceCartTotal" class="text-sm">₹0</strong></div></div><button type="button" onclick="continueServiceCart()" class="rounded-xl bg-amber-400 px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow-lg">View cart →</button></div></div>
+  <div id="localStoreCartBar" class="service-cart-bar hidden fixed bottom-4 left-1/2 -translate-x-1/2 w-[min(90vw,500px)] z-40"><div class="bg-[#0B132B] text-white rounded-2xl p-3 shadow-2xl border-2 border-amber-400/60 flex items-center justify-between gap-3"><div class="flex items-center gap-2.5"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 text-lg text-slate-950 shadow-lg" aria-hidden="true">🛒</span><div><span class="block text-[9px] font-black uppercase tracking-wider text-amber-300">Your cart is ready</span><span id="localStoreCartCount" class="block text-[11px] text-slate-300">0 items</span><strong id="localStoreCartTotal" class="text-sm">₹0</strong></div></div><button type="button" onclick="continueLocalStoreCart()" class="rounded-xl bg-amber-400 px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow-lg">View cart →</button></div></div>
   <script src="js/service.js" defer></script>
 </body>
 </html>

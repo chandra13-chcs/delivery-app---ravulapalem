@@ -1783,6 +1783,11 @@ function openAccountModal() {
       "hidden"
     );
   }
+
+  document.body.classList.add("customer-profile-view");
+  document.getElementById("homeNavigationButton")?.classList.replace("text-emerald-600", "text-slate-500");
+  document.getElementById("profileNavigationButton")?.classList.replace("text-slate-500", "text-emerald-600");
+  window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 
@@ -1799,6 +1804,10 @@ function closeAccountModal() {
       "hidden"
     );
   }
+
+  document.body.classList.remove("customer-profile-view");
+  document.getElementById("homeNavigationButton")?.classList.replace("text-slate-500", "text-emerald-600");
+  document.getElementById("profileNavigationButton")?.classList.replace("text-emerald-600", "text-slate-500");
 }
 
 
@@ -2689,8 +2698,12 @@ let selectedCategoryPreviewId = "";
 function openCategoryPage(categoryId, categoryName = "", trigger = null) {
   const category = customerDatabaseCategories?.find(item => item.id === categoryId || item.slug === categoryId)
     || categories.find(item => item.id === categoryId);
+  if (categoryId === "food-delivery" || category?.slug === "food-delivery") {
+    openServiceCategory("food-delivery", trigger);
+    return;
+  }
   if (categoryId === "restaurants" || category?.slug === "restaurants") {
-    window.location.href = "service.html?type=restaurant";
+    window.location.href = customerServicePageUrl({ type: "restaurant" });
     return;
   }
   const categorySlug = category?.slug || categoryId;
@@ -3048,6 +3061,8 @@ async function loadCustomerDailyOffer() {
 
 
 let liveCatalog = [];
+let backendCatalogProducts = [];
+let legacyCatalogProducts = [];
 let serviceCheckoutProducts = [];
 
 const shopServiceCategories = [
@@ -3164,12 +3179,21 @@ function renderRestaurantAvailabilityPill(restaurant) {
 }
 
 function openRestaurantListing() {
-  window.location.href = "service.html?type=restaurant";
+  window.location.href = customerServicePageUrl({ type: "restaurant" });
 }
 
 function openRestaurantMenu(shopId) {
   if (!shopId) return;
-  window.location.href = `service.html?type=restaurant&shopId=${encodeURIComponent(shopId)}`;
+  window.location.href = customerServicePageUrl({ type: "restaurant", shopId });
+}
+
+function customerServicePageUrl(params = {}) {
+  const customerScript = [...document.scripts].find(script => new URL(script.src, window.location.href).pathname.endsWith("/js/customer.js"));
+  const serviceUrl = customerScript
+    ? new URL("../service.html", customerScript.src)
+    : new URL("service.html", window.location.href);
+  Object.entries(params).forEach(([key, value]) => serviceUrl.searchParams.set(key, value));
+  return serviceUrl.href;
 }
 
 function renderCustomerRestaurantCard(restaurant) {
@@ -3203,7 +3227,7 @@ async function loadCustomerRestaurants() {
 }
 
 function showServiceSection(section) {
-  if (["restaurant", "meat"].includes(section)) {
+  if (section === "meat") {
     window.location.href = `service.html?type=${encodeURIComponent(section)}`;
     return;
   }
@@ -3369,56 +3393,53 @@ async function geocodeParcelAddress(address) {
 // 25. FIREBASE PRODUCTS
 // ==========================================
 
-async function fetchProducts() {
+function publishCustomerCatalog() {
+  const productsById = new Map();
+  [...backendCatalogProducts, ...legacyCatalogProducts, ...serviceCheckoutProducts].forEach(product => {
+    if (product?.id != null) productsById.set(String(product.id), product);
+  });
+  liveCatalog = [...productsById.values()];
+  restorePendingServiceCart();
+  renderCustomerCategoryPreviews();
+  renderServiceRestaurantList();
+  filterAndRender();
+}
+
+async function fetchBackendProducts() {
+  try {
+    const result = await fetchCustomerContent("/products");
+    if (!Array.isArray(result.data)) throw new Error("Product catalog response is invalid.");
+    backendCatalogProducts = result.data.map(product => ({
+      ...product,
+      category: product.category_slug || product.category_name || "",
+      desc: product.description || "",
+      qty_unit: product.unit_label || "",
+      qty_value: Number(product.unit_quantity) || 1,
+      restaurant_name: product.category_slug === "food-delivery" ? product.shop_name : ""
+    }));
+    publishCustomerCatalog();
+  } catch (error) {
+    console.error("Backend product catalog request failed:", error.message || error);
+  }
+}
+
+function fetchProducts() {
+  fetchBackendProducts();
+
   if (!legacyCustomerDb?.collection) {
-    console.warn("Legacy product store is unavailable; waiting for backend catalog to load.");
+    console.warn("Legacy product store is unavailable; using the backend catalog when available.");
     return;
   }
 
-  legacyCustomerDb.collection(
-    "products"
-  )
-    .orderBy(
-      "created_at",
-      "desc"
-    )
-    .onSnapshot(
-
-      snapshot => {
-
-        let cloudProducts =
-          [];
-
-        snapshot.forEach(
-          doc => {
-
-            cloudProducts.push(
-              {
-                id: doc.id,
-                ...doc.data()
-              }
-            );
-          }
-        );
-
-
-        liveCatalog =
-          [...cloudProducts, ...serviceCheckoutProducts.filter(serviceProduct => !cloudProducts.some(product => String(product.id) === String(serviceProduct.id)))];
-
-        restorePendingServiceCart();
-        renderCustomerCategoryPreviews();
-        renderServiceRestaurantList();
-        filterAndRender();
-      },
-
-      error => {
-
-        console.error(
-          "Products listener error:",
-          error
-        );
-      }
-    );
+  legacyCustomerDb.collection("products")
+    .orderBy("created_at", "desc")
+    .onSnapshot(snapshot => {
+      legacyCatalogProducts = [];
+      snapshot.forEach(doc => legacyCatalogProducts.push({ id: doc.id, ...doc.data() }));
+      publishCustomerCatalog();
+    }, error => {
+      console.error("Products listener error:", error);
+    });
 }
 
 function restorePendingServiceCart() {
@@ -3473,7 +3494,7 @@ function filterAndRender() {
     const normalized = currentSearch.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     filtered = liveCatalog.filter(item => {
       const matchesRestaurant = activeCategory !== "restaurants" || !activeRestaurantId || item.restaurant_id === activeRestaurantId;
-      const haystack = `${item.name || ""} ${item.category || ""} ${item.restaurant_name || ""} ${item.desc || ""} ${item.qty_unit || ""}`
+      const haystack = `${item.name || ""} ${item.category || ""} ${item.category_name || ""} ${item.brand || ""} ${item.restaurant_name || ""} ${item.shop_name || ""} ${item.desc || ""} ${item.qty_unit || ""}`
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
@@ -3502,7 +3523,7 @@ function filterAndRender() {
       <div class="col-span-full py-10 text-center bg-white rounded-2xl border">
 
         <h4 class="text-xs font-bold text-slate-600">
-          No products in this category
+          ${currentSearch ? `No products found for “${escapeHtml(currentSearch)}”` : "No products in this category"}
         </h4>
 
       </div>
@@ -3719,10 +3740,10 @@ function selectCategory(
 const CUSTOMER_SERVICE_ROUTES = {
   groceries: { category: "staples", name: "Fresh Groceries" },
   "fruits-vegetables": { category: "veggies", name: "Fruits & Vegetables" },
-  "food-delivery": { destination: "service.html?type=restaurant" },
+  "food-delivery": { destination: customerServicePageUrl({ type: "restaurant" }) },
   "meat-chicken": { destination: "service.html?type=meat" },
-  "parcel-delivery": { panel: "parcel" },
-  "local-stores": { category: "home", name: "Local Stores" }
+  "parcel-delivery": { destination: customerServicePageUrl({ type: "parcel" }) },
+  "local-stores": { destination: customerServicePageUrl({ type: "local-stores" }) }
 };
 
 function openServiceCategory(serviceKey, targetEl = null) {
@@ -3736,6 +3757,12 @@ function openServiceCategory(serviceKey, targetEl = null) {
 
   if (route.panel) {
     showServiceSection(route.panel);
+    return;
+  }
+
+  if (route.scrollTarget) {
+    hideServiceSections();
+    document.getElementById(route.scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
@@ -4976,6 +5003,86 @@ function getCustomerDisplayName() {
 }
 
 
+function customerProfilePhotoKey(phone) {
+  return `myshopzy_profile_photo_${normalizePhone(phone)}`;
+}
+
+function renderCustomerProfilePhoto(photoUrl, displayName = "") {
+  const image = document.getElementById("accountAvatarImage");
+  const fallback = document.getElementById("accountAvatarFallback");
+  if (!image || !fallback) return;
+
+  fallback.textContent = displayName.trim().charAt(0).toUpperCase() || "👤";
+  image.onerror = () => {
+    image.classList.add("hidden");
+    image.removeAttribute("src");
+    fallback.classList.remove("hidden");
+  };
+  if (photoUrl) {
+    image.src = photoUrl;
+    image.classList.remove("hidden");
+    fallback.classList.add("hidden");
+  } else {
+    image.removeAttribute("src");
+    image.classList.add("hidden");
+    fallback.classList.remove("hidden");
+  }
+}
+
+function saveCustomerProfilePhoto(event) {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Choose an image file for your profile photo.");
+    input.value = "";
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    alert("Choose an image smaller than 10 MB.");
+    input.value = "";
+    return;
+  }
+
+  const phone = getCurrentCustomerPhone();
+  if (!phone) {
+    alert("Log in before adding a profile photo.");
+    input.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onerror = () => alert("Unable to read that image. Please choose another one.");
+  reader.onload = () => {
+    const sourceImage = new Image();
+    sourceImage.onerror = () => alert("That image format is not supported. Please choose another one.");
+    sourceImage.onload = () => {
+      const scale = Math.min(1, 512 / Math.max(sourceImage.width, sourceImage.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sourceImage.width * scale));
+      canvas.height = Math.max(1, Math.round(sourceImage.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        alert("Unable to prepare that image. Please try another one.");
+        input.value = "";
+        return;
+      }
+
+      context.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
+      const photoUrl = canvas.toDataURL("image/jpeg", 0.82);
+      try {
+        localStorage.setItem(customerProfilePhotoKey(phone), photoUrl);
+        renderCustomerProfilePhoto(photoUrl, document.getElementById("accNameDisplay")?.textContent || "");
+      } catch (error) {
+        alert("Unable to save the photo on this device. Try a smaller image.");
+      }
+      input.value = "";
+    };
+    sourceImage.src = String(reader.result || "");
+  };
+  reader.readAsDataURL(file);
+}
+
 async function syncAccountDashboard() {
 
   const phone = getCurrentCustomerPhone();
@@ -4984,16 +5091,14 @@ async function syncAccountDashboard() {
   const phoneDisp = document.getElementById("accPhoneDisplay");
   const nameDisp = document.getElementById("accNameDisplay");
   const emailDisp = document.getElementById("accEmailDisplay");
+  const photoUrl = phone ? localStorage.getItem(customerProfilePhotoKey(phone)) || "" : "";
+  if (phoneDisp) phoneDisp.innerText = "Not logged in";
+  if (nameDisp) nameDisp.innerText = "Not logged in";
+  if (emailDisp) emailDisp.innerText = "Not logged in";
+  renderCustomerProfilePhoto("");
 
   if (!phone || !token) {
-    if (phoneDisp) phoneDisp.innerText = "Not logged in";
-    if (nameDisp) nameDisp.innerText = "Not logged in";
-    if (emailDisp) emailDisp.innerText = "Not logged in";
     return;
-  }
-
-  if (phoneDisp) {
-    phoneDisp.innerText = phone;
   }
 
   let name = "Not logged in";
@@ -5007,12 +5112,14 @@ async function syncAccountDashboard() {
       const actualEmail = typeof result.user?.email === "string" ? result.user.email.trim() : "";
       name = actualName || "Not logged in";
       email = actualEmail || "Not logged in";
+      if (phoneDisp) phoneDisp.innerText = `+91 ${authenticatedPhone}`;
 
       const storage = localStorage.getItem("myshopzy_user_access_token") ? localStorage : sessionStorage;
       storage.setItem(`myshopzy_customer_${phone}`, JSON.stringify({
         name,
         email: actualEmail
       }));
+      renderCustomerProfilePhoto(photoUrl, name);
     } else {
       name = "Not logged in";
       email = "Not logged in";
@@ -5025,6 +5132,7 @@ async function syncAccountDashboard() {
 
   if (nameDisp) nameDisp.innerText = name;
   if (emailDisp) emailDisp.innerText = email;
+  if (name === "Not logged in" && phoneDisp) phoneDisp.innerText = "Not logged in";
 }
 
 
@@ -5703,9 +5811,13 @@ function setCustomerLogoutError(message) {
 // 44. CUSTOMER ORDERS
 // ==========================================
 
-async function toggleOrdersView() {
+async function toggleOrdersView(preserveProfile = false) {
+
+  const keepProfileOpen = preserveProfile && document.body.classList.contains("customer-profile-view");
 
   closeAllModals();
+
+  if (keepProfileOpen) document.getElementById("accountModal")?.classList.remove("hidden");
 
 
   const modal =

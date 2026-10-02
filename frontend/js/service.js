@@ -20,6 +20,13 @@ let collapsedSearchCategories = new Set();
 let bookmarkedRestaurantProducts = new Set();
 let restaurantRequestToken = 0;
 let activeRestaurant = null;
+let localStores = [];
+let localStoreMenuProducts = [];
+let localStoreCart = {};
+let localStoreListSearchTerm = "";
+let localStoreProductSearchTerm = "";
+let localStoreRequestToken = 0;
+let activeLocalStore = null;
 
 function serviceEscape(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -114,6 +121,7 @@ function serviceProductCard(product) {
 function setupServicePage() {
   const settings = {
     restaurant: ["Restaurants", selectedShopId ? "Loading restaurant..." : "Restaurants near Mandapeta", selectedShopId ? "Loading restaurant menu..." : "Browse available restaurant menus."],
+    "local-stores": ["Local Stores", selectedShopId ? "Loading store..." : "Local Stores near Mandapeta", selectedShopId ? "Loading store products..." : "Choose a local store to browse its products."],
     meat: ["Fresh Meat", "Chicken, meat & fish", "Fresh meat products available from partner stores."],
     category: ["Shop by Category", requestedCategoryName || categoryId || "Products", "Products in this category."],
     parcel: ["Parcel Delivery", "Send a parcel across Mandapeta", "Add pickup and drop details to request a delivery rider."]
@@ -121,6 +129,13 @@ function setupServicePage() {
   document.getElementById("serviceEyebrow").innerText = settings[0] || "MyShopzy Service";
   document.getElementById("serviceTitle").innerText = settings[1] || "Service";
   document.getElementById("serviceDescription").innerText = settings[2] || "";
+  if (serviceType === "local-stores") {
+    const view = document.getElementById(selectedShopId ? "localStoreMenuView" : "localStoresView");
+    view?.classList.remove("hidden");
+    if (selectedShopId) loadLocalStoreMenu();
+    else loadLocalStores();
+    return;
+  }
   if (serviceType === "restaurant") {
     const view = document.getElementById(selectedShopId ? "restaurantMenuView" : "restaurantServiceView");
     view?.classList.remove("hidden");
@@ -175,6 +190,188 @@ async function loadRestaurants() {
     container.removeAttribute("aria-busy");
     container.innerHTML = '<p class="col-span-full rounded-xl border border-rose-200 bg-white p-4 text-xs text-rose-600">Unable to load restaurants right now.</p>';
   }
+}
+
+async function loadLocalStores() {
+  const container = document.getElementById("localStoresList");
+  if (!container) return;
+  container.setAttribute("aria-busy", "true");
+  try {
+    const shops = await getServiceApiData("/shops");
+    localStores = shops
+      .filter(shop => String(shop.business_type || "").toUpperCase() === "OTHER")
+      .sort((left, right) => String(left.name || "").localeCompare(String(right.name || "")));
+    container.removeAttribute("aria-busy");
+    renderLocalStores();
+  } catch (error) {
+    console.error("Local stores loading failed:", error);
+    container.removeAttribute("aria-busy");
+    container.innerHTML = '<p class="restaurant-empty-state">Unable to load local stores right now.</p>';
+  }
+}
+
+function renderLocalStoreCard(shop) {
+  const imageUrl = shop.image_url || shop.cover_image_url || shop.logo_url || shop.images?.[0]?.public_url || "";
+  const location = [shop.locality, shop.city].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
+  return `<button type="button" onclick="openLocalStoreMenu('${serviceEscape(shop.id)}')" class="restaurant-card">
+    <span class="restaurant-card-image">${imageUrl ? `<img src="${serviceEscape(imageUrl)}" alt="${serviceEscape(shop.name || "Local store")}" onerror="this.remove()">` : `<span class="restaurant-image-placeholder"><span>Local Store</span></span>`}</span>
+    <span class="restaurant-card-content"><span class="restaurant-card-title-row"><strong>${serviceEscape(shop.name || "Local store")}</strong></span>
+      ${location ? `<span class="restaurant-card-meta">${serviceEscape(location)}</span>` : ""}
+      ${shop.description ? `<span class="restaurant-card-description">${serviceEscape(shop.description)}</span>` : ""}
+      <span class="restaurant-card-footer"><span class="restaurant-view-menu">View store <span aria-hidden="true">↗</span></span></span>
+    </span>
+  </button>`;
+}
+
+function renderLocalStores() {
+  const container = document.getElementById("localStoresList");
+  if (!container) return;
+  const searchTerm = normalizeServiceSearch(localStoreListSearchTerm);
+  const stores = localStores.filter(shop => normalizeServiceSearch([
+    shop.name, shop.description, shop.locality, shop.city, shop.state
+  ].filter(Boolean).join(" ")).includes(searchTerm));
+  container.innerHTML = stores.length
+    ? stores.map(renderLocalStoreCard).join("")
+    : `<p class="restaurant-empty-state">${localStores.length && searchTerm ? "No local stores match your search." : "No local stores available yet."}</p>`;
+}
+
+function searchLocalStores(value) {
+  localStoreListSearchTerm = value;
+  renderLocalStores();
+}
+
+function openLocalStoreMenu(shopId) {
+  if (!shopId) return;
+  window.location.href = `service.html?type=local-stores&shopId=${encodeURIComponent(shopId)}`;
+}
+
+function normalizeLocalStoreProduct(product, shopId) {
+  const variant = product.variants?.find(item => item.is_default) || product.variants?.[0] || {};
+  const image = product.images?.find(item => item.public_url) || product.images?.[0] || {};
+  return {
+    ...normalizeServiceProduct(product),
+    shop_id: shopId,
+    image_url: product.image_url || image.public_url || "",
+    qty_unit: product.unit_label || variant.unit_label || product.qty_unit || product.unit || "",
+    variant_id: variant.id || null,
+    default_variant_id: variant.id || null
+  };
+}
+
+async function loadLocalStoreMenu() {
+  const container = document.getElementById("localStoreMenuProducts");
+  if (!container) return;
+  const requestToken = ++localStoreRequestToken;
+  activeLocalStore = null;
+  localStoreMenuProducts = [];
+  localStoreCart = {};
+  localStoreProductSearchTerm = "";
+  document.getElementById("localStoreProductSearch").value = "";
+  document.getElementById("localStoreCartBar")?.classList.add("hidden");
+  container.setAttribute("aria-busy", "true");
+
+  try {
+    const shops = await getServiceApiData("/shops");
+    const store = shops.find(shop => String(shop.id) === selectedShopId
+      && String(shop.business_type || "").toUpperCase() === "OTHER");
+    if (!store) throw new Error("Local store is unavailable.");
+    const products = await getServiceApiData(`/shops/${encodeURIComponent(store.id)}/products`);
+    if (requestToken !== localStoreRequestToken) return;
+    activeLocalStore = store;
+    localStoreMenuProducts = products.map(product => normalizeLocalStoreProduct(product, store.id));
+    document.getElementById("serviceTitle").innerText = store.name || "Local store";
+    document.getElementById("serviceDescription").innerText = "";
+    document.getElementById("localStoreMenuTitle").innerText = store.name || "Local store";
+    renderLocalStoreMenuProducts();
+  } catch (error) {
+    if (requestToken !== localStoreRequestToken) return;
+    console.error("Local store menu loading failed:", error);
+    container.removeAttribute("aria-busy");
+    container.innerHTML = `<p class="restaurant-empty-state">${serviceEscape(error.message === "Local store is unavailable." ? error.message : "Unable to load this store's products right now.")}</p>`;
+  }
+}
+
+function localStoreProductCategory(product) {
+  if (product.category && typeof product.category === "object") return product.category.name || product.category.slug || "Uncategorized";
+  return product.category_name || product.category || "Uncategorized";
+}
+
+function localStoreProductCard(product) {
+  const productId = String(product.id || "");
+  const quantity = localStoreCart[productId] || 0;
+  const imageUrl = product.image_url || "../assets/audio/categories/logo.png";
+  const unit = product.qty_unit || product.unit || "";
+  const canOrder = Boolean(product.variant_id || product.default_variant_id);
+  return `<article class="restaurant-product">
+    <div class="restaurant-product-copy"><h3>${serviceEscape(product.name || "Product")}</h3>
+      ${product.description ? `<p class="restaurant-product-description">${serviceEscape(product.description)}</p>` : ""}
+      ${unit ? `<p class="local-store-product-unit">${serviceEscape(unit)}</p>` : ""}
+      <strong class="restaurant-product-price">₹${Number(product.price || 0).toLocaleString("en-IN")}</strong>
+    </div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
+      <div class="restaurant-product-action">${quantity
+        ? `<div class="restaurant-quantity-control"><button type="button" onclick="modifyLocalStoreCart('${serviceEscape(productId)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyLocalStoreCart('${serviceEscape(productId)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></div>`
+        : canOrder
+          ? `<button type="button" onclick="modifyLocalStoreCart('${serviceEscape(productId)}', 1)" class="restaurant-add-button">ADD <span>+</span></button>`
+          : `<button type="button" class="restaurant-add-button" disabled>Unavailable</button>`}</div>
+    </div>
+  </article>`;
+}
+
+function renderLocalStoreMenuProducts() {
+  const container = document.getElementById("localStoreMenuProducts");
+  if (!container) return;
+  const searchTerm = normalizeServiceSearch(localStoreProductSearchTerm);
+  const products = localStoreMenuProducts.filter(product => normalizeServiceSearch([
+    product.name, product.description, product.brand, localStoreProductCategory(product)
+  ].filter(Boolean).join(" ")).includes(searchTerm));
+  container.removeAttribute("aria-busy");
+  container.removeAttribute("role");
+  container.removeAttribute("aria-label");
+  if (!products.length) {
+    container.innerHTML = `<p class="restaurant-empty-state">${localStoreMenuProducts.length && searchTerm ? "No products match your search." : "No products available in this store yet."}</p>`;
+    return;
+  }
+
+  const groups = new Map();
+  products.forEach(product => {
+    const category = localStoreProductCategory(product);
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(product);
+  });
+  container.innerHTML = [...groups.entries()].map(([category, items]) => `
+    <section class="restaurant-category local-store-category">
+      <div class="local-store-category-heading"><h3>${serviceEscape(category)}</h3><span>${items.length}</span></div>
+      <div class="restaurant-category-items">${items.map(localStoreProductCard).join("")}</div>
+    </section>`).join("");
+}
+
+function searchLocalStoreProducts(value) {
+  localStoreProductSearchTerm = value;
+  renderLocalStoreMenuProducts();
+}
+
+function modifyLocalStoreCart(productId, delta) {
+  const product = localStoreMenuProducts.find(item => String(item.id) === String(productId));
+  if (!product || !(product.variant_id || product.default_variant_id)) return;
+  localStoreCart[productId] = Math.max(0, (localStoreCart[productId] || 0) + delta);
+  if (!localStoreCart[productId]) delete localStoreCart[productId];
+  renderLocalStoreMenuProducts();
+  const totalItems = Object.values(localStoreCart).reduce((sum, quantity) => sum + quantity, 0);
+  const total = Object.entries(localStoreCart).reduce((sum, [id, quantity]) => sum + Number(localStoreMenuProducts.find(item => String(item.id) === String(id))?.price || 0) * quantity, 0);
+  document.getElementById("localStoreCartBar")?.classList.toggle("hidden", totalItems === 0);
+  const count = document.getElementById("localStoreCartCount");
+  const totalLabel = document.getElementById("localStoreCartTotal");
+  if (count) count.innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
+  if (totalLabel) totalLabel.innerText = `₹${total.toLocaleString("en-IN")}`;
+}
+
+function continueLocalStoreCart() {
+  if (!activeLocalStore) return;
+  const selectedProducts = localStoreMenuProducts.filter(product => localStoreCart[product.id]);
+  if (!selectedProducts.length) return;
+  localStorage.setItem("myshopzy_pending_cart", JSON.stringify({ items: localStoreCart, products: selectedProducts }));
+  window.location.href = "index.html?cart=1";
 }
 
 function renderRestaurants() {

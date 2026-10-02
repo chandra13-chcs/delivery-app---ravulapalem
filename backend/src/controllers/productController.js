@@ -7,7 +7,7 @@ async function listProductsByCategory(req, res) {
     ? req.query.category.trim().toLowerCase()
     : "";
 
-  if (!categorySlugPattern.test(categorySlug)) {
+  if (categorySlug && !categorySlugPattern.test(categorySlug)) {
     return res.status(400).json({
       success: false,
       message: "A valid category slug is required",
@@ -25,6 +25,7 @@ async function listProductsByCategory(req, res) {
          p.brand,
          c.name AS category_name,
          c.slug AS category_slug,
+         variant.id AS variant_id,
          COALESCE(variant.price, 0) AS price,
          variant.unit_label,
          variant.unit_quantity,
@@ -44,7 +45,7 @@ async function listProductsByCategory(req, res) {
         AND partner.status = 'ACTIVE'
         AND partner.deleted_at IS NULL
        LEFT JOIN LATERAL (
-         SELECT pv.price, pv.unit_label, pv.unit_quantity
+         SELECT pv.id, pv.price, pv.unit_label, pv.unit_quantity
          FROM product_variants pv
          WHERE pv.product_id = p.id
            AND pv.is_active = true
@@ -61,9 +62,9 @@ async function listProductsByCategory(req, res) {
        ) image ON true
        WHERE p.status = 'ACTIVE'
          AND p.deleted_at IS NULL
-         AND c.slug = $1
+         AND ($1::text IS NULL OR c.slug = $1)
        ORDER BY p.name ASC`,
-      [categorySlug]
+      [categorySlug || null]
     );
 
     return res.json({

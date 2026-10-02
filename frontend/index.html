@@ -159,7 +159,7 @@
   </header>
 
   <!-- SIGNATURE NAVY BLUE HERO BANNER -->
-  <section id="customerHomeHero" class="storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
+  <section id="customerHomeHero" class="hidden storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
     <div id="heroBannerContainer" class="rounded-3xl bg-gradient-to-r from-[#0B132B] via-[#1C2541] to-[#0D1B2A] text-white p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between shadow-xl border border-slate-800/80 relative overflow-hidden">
       
       <div class="z-10 space-y-3 max-w-lg text-left">
@@ -249,7 +249,7 @@
     </div>
   </section>
 
-  <section id="homepageCategories" class="storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+  <section id="homepageCategories" class="hidden storefront-content-paused max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div onclick="selectCategory('personal', this)" class="p-4 rounded-2xl bg-white border border-slate-200 hover:border-brand-accent shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md transition group">
       <div>
         <h4 class="text-xs sm:text-sm font-black text-slate-900">Child care essentials at your door</h4>
@@ -261,7 +261,7 @@
   </section>
 
   <!-- RESTAURANTS WITHIN 25 KM -->
-  <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+  <section id="customerRestaurantSection" class="hidden max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div class="flex items-end justify-between gap-3 mb-3.5">
       <div>
         <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">Restaurants near Mandapeta</h3>
@@ -277,7 +277,7 @@
   </section>
 
   <!-- 20 VISUAL CATEGORIES GRID -->
-  <section class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+  <section class="hidden max-w-7xl mx-auto px-3 sm:px-6 pt-6">
     <div class="category-motion-viewport mb-5" aria-label="Featured categories">
       <div class="category-motion-track">
         <div class="category-motion-set">
@@ -506,7 +506,7 @@
     <div id="productsGrid" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5"></div>
   </main>
 
-  <footer class="mt-8 bg-[#0B132B] text-slate-300 border-t border-slate-800 py-5 text-xs">
+  <footer class="hidden mt-8 bg-[#0B132B] text-slate-300 border-t border-slate-800 py-5 text-xs">
     <div class="max-w-7xl mx-auto px-4 lg:px-8 text-center">
       <p class="font-bold text-white">MyShopzy Private Limited</p>
       <p class="mt-1 text-slate-400">Mandapeta, Andhra Pradesh</p>
@@ -730,75 +730,77 @@
   </div>
 
   <!-- 🌟 MOBILE BOTTOM NAVIGATION (Ref: ss5_2.jpeg) -->
-  <nav class="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg px-4 py-2 flex items-center justify-around text-center">
-    <a href="index.html" class="flex flex-col items-center text-emerald-600 font-extrabold text-[10px]">
+  <nav id="mobileBottomNav" class="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg px-4 py-2 flex items-center justify-around text-center">
+    <button type="button" id="homeNavigationButton" onclick="closeAccountModal()" class="flex flex-col items-center text-emerald-600 font-extrabold text-[10px]">
       <span class="text-lg">🏠</span><span>Home</span>
-    </a>
-    <button onclick="scrollToCategories()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+    </button>
+    <button onclick="closeAccountModal(); scrollToCategories()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
       <span class="text-lg">📂</span><span>Categories</span>
     </button>
-    <button onclick="toggleOrdersView()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+    <button onclick="closeAccountModal(); toggleOrdersView()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
       <span class="text-lg">📦</span><span>Cart/Orders</span>
     </button>
-    <button onclick="openAccountModal()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
-      <span class="text-lg">👤</span><span>My Account</span>
+    <button type="button" id="profileNavigationButton" onclick="openAccountModal()" class="flex flex-col items-center text-slate-500 hover:text-slate-900 font-bold text-[10px]">
+      <span class="text-lg">👤</span><span>Profile</span>
     </button>
   </nav>
 
-  <!-- 🌟 MY ACCOUNT MODAL (Ref: ss3_2.jpeg) -->
-  <div id="accountModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-3">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl relative">
-      <div class="flex items-center justify-between border-b pb-3">
-        <h3 class="text-base font-black text-slate-900" data-i18n="myAccount">My Account</h3>
-          <button onclick="closeAccountModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold flex items-center justify-center" aria-label="Close">✕</button>
+  <!-- Customer profile -->
+  <main id="accountModal" class="hidden customer-profile-page mx-auto w-full max-w-3xl px-4 pb-8 sm:px-6">
+      <div class="flex items-center justify-between border-b border-slate-100 py-4">
+        <h1 class="text-lg font-bold text-slate-900">My Profile</h1>
+        <button type="button" onclick="closeAccountModal()" class="min-h-10 px-3 text-sm font-semibold text-emerald-700" aria-label="Back to home">Back</button>
       </div>
 
-      <div class="p-3 bg-slate-50 rounded-2xl border space-y-1 text-xs">
-        <h4 class="font-black text-sm text-slate-900" id="accNameDisplay">Not logged in</h4>
-        <p class="text-slate-500">+91 <span id="accPhoneDisplay">Not logged in</span></p>
-        <p id="accEmailDisplay" class="text-slate-400 text-[11px]">Not logged in</p>
-      </div>
-
-      <div class="grid grid-cols-2 gap-2">
-        <button onclick="openAddressManager()" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
-          <span class="text-base">📍</span>
-          <p class="text-xs font-black text-slate-800" data-i18n="savedAddress">Saved Address</p>
-          <p class="text-[10px] text-slate-400" data-i18n="manageLocations">Manage family / other locations</p>
+      <div class="flex items-center gap-3 py-5">
+        <input id="accountAvatarInput" type="file" accept="image/*" class="hidden" onchange="saveCustomerProfilePhoto(event)">
+        <button type="button" onclick="document.getElementById('accountAvatarInput').click()" class="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-2xl font-bold text-slate-600" aria-label="Choose profile photo">
+          <img id="accountAvatarImage" class="hidden h-full w-full object-cover" alt="Profile photo">
+          <span id="accountAvatarFallback" aria-hidden="true">👤</span>
+          <span class="absolute bottom-0 right-0 grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-slate-800 text-xs text-white" aria-hidden="true">+</span>
         </button>
-        <button onclick="alert('Payment modes managed securely at checkout.')" class="p-3 border rounded-2xl text-left bg-white hover:border-brand-accent transition space-y-1">
-          <span class="text-base">💳</span>
-          <p class="text-xs font-black text-slate-800" data-i18n="paymentModes">Payment Modes</p>
-          <p class="text-[10px] text-slate-400" data-i18n="paymentDescription">UPI, QR & Cash on Delivery</p>
-        </button>
-      </div>
-
-      <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-        <div class="flex items-center justify-between">
-          <p class="text-[10px] font-black uppercase text-slate-600" data-i18n="preferences">Preferences</p>
-          <button type="button" onclick="toggleThemeMode()" id="themeToggleBtn" class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black">🌙 Dark</button>
-        </div>
-        <div class="flex items-center gap-2">
-          <label class="text-[10px] font-black uppercase text-slate-600" data-i18n="language">Language</label>
-          <select id="accountLanguageSelect" onchange="setUserLanguage(this.value)" class="flex-1 px-2 py-1.5 text-[10px] border rounded-lg bg-white font-bold">
-            <option value="en">English</option>
-            <option value="hi">हिन्दी</option>
-            <option value="te">తెలుగు</option>
-          </select>
+        <div class="min-w-0">
+          <h4 class="truncate text-sm font-bold text-slate-900" id="accNameDisplay">Not logged in</h4>
+          <p class="mt-1 text-xs text-slate-500"><span id="accPhoneDisplay">Not logged in</span></p>
+          <p id="accEmailDisplay" class="mt-0.5 truncate text-xs text-slate-400"></p>
         </div>
       </div>
 
-      <div class="space-y-2">
-        <h4 class="text-xs font-black uppercase text-slate-700" data-i18n="pastOrders">Past Orders & Tracking</h4>
-        <div id="accountOrdersFeed" class="space-y-2 max-h-40 overflow-y-auto text-xs"></div>
-      </div>
+      <section class="border-t border-slate-100 pt-4">
+        <h4 class="mb-2 text-xs font-semibold text-slate-500">Account</h4>
+        <div class="divide-y divide-slate-100 rounded-xl border border-slate-100 px-3">
+          <button type="button" onclick="openAddressManager()" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-sm text-slate-800">
+            <span class="flex items-center gap-3"><span aria-hidden="true">⌖</span>Saved Addresses</span><span aria-hidden="true">›</span>
+          </button>
+          <button type="button" onclick="toggleOrdersView(true)" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-sm text-slate-800">
+            <span class="flex items-center gap-3"><span aria-hidden="true">▤</span>My Orders</span><span aria-hidden="true">›</span>
+          </button>
+          <button type="button" onclick="toggleOrdersView(true)" class="flex min-h-12 w-full items-center justify-between gap-3 text-left text-sm text-slate-800">
+            <span class="flex items-center gap-3"><span aria-hidden="true">↩</span>Return Products</span><span aria-hidden="true">›</span>
+          </button>
+        </div>
+      </section>
 
-      <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
-        <h4 class="font-black uppercase" data-i18n="accountSecurity">Account Security</h4>
-        <p class="text-[11px]" data-i18n="securityDescription">Secure OTP-based passwordless authentication active.</p>
-      </div>
+      <section class="border-t border-slate-100 pt-4">
+        <h4 class="mb-2 text-xs font-semibold text-slate-500">Preferences</h4>
+        <div class="divide-y divide-slate-100 rounded-xl border border-slate-100 px-3">
+          <label for="accountLanguageSelect" class="flex min-h-12 items-center justify-between gap-3 text-sm text-slate-800">
+            <span class="flex items-center gap-3"><span aria-hidden="true">◎</span>Language</span>
+            <select id="accountLanguageSelect" onchange="setUserLanguage(this.value)" class="max-w-32 bg-transparent py-2 text-right text-sm font-medium text-slate-600 outline-none">
+              <option value="en">English</option>
+              <option value="hi">हिन्दी</option>
+              <option value="te">తెలుగు</option>
+            </select>
+          </label>
+          <div class="flex min-h-12 items-center justify-between gap-3 text-sm text-slate-800">
+            <span class="flex items-center gap-3"><span aria-hidden="true">◐</span>Theme</span>
+            <button type="button" onclick="toggleThemeMode()" id="themeToggleBtn" class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">Light</button>
+          </div>
+        </div>
+      </section>
 
-      <section id="customerLogoutSection" class="hidden rounded-xl border border-slate-200 p-3">
-        <button id="customerLogoutStartButton" type="button" onclick="showCustomerLogoutConfirmation()" class="text-xs font-bold text-rose-700">Log out</button>
+      <section id="customerLogoutSection" class="hidden border-t border-slate-100 pt-4">
+        <button id="customerLogoutStartButton" type="button" onclick="showCustomerLogoutConfirmation()" class="min-h-11 w-full text-left text-sm font-semibold text-rose-700">Log out</button>
         <div id="customerLogoutConfirmation" class="hidden mt-2 space-y-3" role="group" aria-labelledby="customerLogoutQuestion">
           <p id="customerLogoutQuestion" class="text-xs font-semibold text-slate-700">Are you sure you want to logout?</p>
           <p id="customerLogoutError" class="hidden text-xs text-rose-700" role="alert"></p>
@@ -808,8 +810,7 @@
           </div>
         </div>
       </section>
-    </div>
-  </div>
+  </main>
 
   <!-- MY ORDERS MODAL -->
   <div id="ordersModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
