@@ -1,1 +1,5 @@
 delivery_app_test_backup.sql
+.env
+.env.*
+backend/.env
+backend/.env.*

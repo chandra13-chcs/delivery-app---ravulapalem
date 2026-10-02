@@ -1,4 +1,5 @@
 const express = require("express");
+const multer = require("multer");
 const { requireUserAuth } = require("../middleware/requireAuth");
 const {
   listRiderNotifications,
@@ -11,6 +12,7 @@ const {
   updateRiderProfile,
   listRiderDocuments,
   createRiderDocument,
+  uploadRiderDocument,
   getRiderAvailability,
   setRiderAvailability,
   getRiderDashboard
@@ -29,6 +31,10 @@ const {
 const { getRiderEarnings } = require("../controllers/riderEarningsController");
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 router.use(requireUserAuth);
 
@@ -40,6 +46,18 @@ router.get("/me", getRiderProfile);
 router.patch("/me", updateRiderProfile);
 router.get("/documents", listRiderDocuments);
 router.post("/documents", createRiderDocument);
+router.post("/documents/upload", (req, res, next) => {
+  upload.single("file")(req, res, (error) => {
+    if (error) {
+      const code = error.code === "LIMIT_FILE_SIZE" ? "UPLOAD_FILE_TOO_LARGE" : "UPLOAD_VALIDATION_ERROR";
+      const message = error.code === "LIMIT_FILE_SIZE"
+        ? "File must be 10 MB or smaller."
+        : "Invalid document upload payload.";
+      return res.status(400).json({ success: false, code, message });
+    }
+    return next();
+  });
+}, uploadRiderDocument);
 router.get("/availability", getRiderAvailability);
 router.put("/availability", setRiderAvailability);
 router.get("/dashboard", getRiderDashboard);

@@ -446,12 +446,14 @@ async function loadRiderDocumentState() {
 function updateRiderDocumentSelection(input) {
   const file = input.files?.[0] || null;
   const status = document.getElementById(input.dataset.statusTarget);
+  const uploadButton = document.getElementById('riderUploadDocumentsButton');
   if (!status) return;
 
   status.textContent = '';
   status.classList.remove('is-ready', 'is-error');
   if (!file) {
     status.textContent = 'No file selected';
+    if (uploadButton) uploadButton.disabled = true;
     return;
   }
 
@@ -467,11 +469,116 @@ function updateRiderDocumentSelection(input) {
     input.value = '';
     status.textContent = error;
     status.classList.add('is-error');
+    if (uploadButton) uploadButton.disabled = true;
     return;
   }
 
-  status.textContent = 'File selected — ready for upload';
+  status.textContent = `Selected: ${file.name}`;
   status.classList.add('is-ready');
+  const readyForUpload = Array.from(document.querySelectorAll('.rider-document-input')).every((element) => {
+    const selectedFile = element.files?.[0];
+    if (!selectedFile) return false;
+    const selectedExtension = selectedFile.name.split('.').pop()?.toLowerCase() || '';
+    const selectedMime = String(selectedFile.type || '').toLowerCase();
+    return RIDER_DOCUMENT_EXTENSIONS.has(selectedExtension)
+      && (!selectedMime || RIDER_DOCUMENT_MIME_TYPES.has(selectedMime))
+      && selectedFile.size <= RIDER_DOCUMENT_MAX_BYTES;
+  });
+  if (uploadButton) uploadButton.disabled = !readyForUpload;
+}
+
+function setRiderDocumentStorageMessage(message, isError = false) {
+  const note = document.getElementById('riderDocumentStorageNote');
+  if (!note) return;
+  note.textContent = message;
+  note.classList.toggle('is-error', isError);
+  note.classList.toggle('is-success', !isError);
+}
+
+async function uploadRiderDocuments() {
+  const documentInputs = {
+    SELFIE: document.getElementById('riderSelfieFile'),
+    AADHAAR: document.getElementById('riderAadhaarFile'),
+    PAN: document.getElementById('riderPanFile')
+  };
+  const uploadButton = document.getElementById('riderUploadDocumentsButton');
+  if (!uploadButton) return;
+
+  const missingDocs = Object.entries(documentInputs)
+    .filter(([type, input]) => !input?.files?.[0] && type)
+    .map(([type]) => type);
+
+  if (missingDocs.length) {
+    setRiderDocumentStorageMessage('Please select files for all required documents before uploading.', true);
+    return;
+  }
+
+  uploadButton.disabled = true;
+  uploadButton.textContent = 'Uploading...';
+  setRiderDocumentStorageMessage('Uploading your verification documents securely...');
+
+  const orderedTypes = ['SELFIE', 'AADHAAR', 'PAN'];
+  let allUploaded = true;
+
+  for (const documentType of orderedTypes) {
+    const input = documentInputs[documentType];
+    const file = input?.files?.[0];
+    if (!file) {
+      allUploaded = false;
+      continue;
+    }
+
+    const status = document.getElementById(`rider${documentType === 'SELFIE' ? 'Selfie' : documentType === 'AADHAAR' ? 'Aadhaar' : 'Pan'}Status`);
+    if (status) {
+      status.textContent = 'Uploading...';
+      status.classList.remove('is-ready', 'is-error');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+
+    try {
+      const response = await fetch(`${RIDER_API_BASE_URL}/api/rider/documents/upload`, {
+        method: 'POST',
+        headers: buildRiderApiHeaders({ Accept: 'application/json' }),
+        body: formData
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = payload?.message || 'The backend rejected this upload.';
+        if (status) {
+          status.textContent = payload?.code === 'OBJECT_STORAGE_NOT_CONFIGURED' ? 'Storage unavailable' : message;
+          status.classList.add('is-error');
+        }
+        setRiderDocumentStorageMessage(payload?.code === 'OBJECT_STORAGE_NOT_CONFIGURED' ? 'Secure document storage is not configured yet.' : message, true);
+        allUploaded = false;
+        break;
+      }
+
+      if (status) {
+        status.textContent = 'Uploaded';
+        status.classList.add('is-ready');
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent = error.message || 'Upload failed';
+        status.classList.add('is-error');
+      }
+      setRiderDocumentStorageMessage(error.message || 'Could not upload the verification document.', true);
+      allUploaded = false;
+      break;
+    }
+  }
+
+  if (allUploaded) {
+    setRiderDocumentStorageMessage('Documents uploaded securely. We are refreshing your application status.');
+    await refreshRiderApplicationStatus();
+  }
+
+  uploadButton.disabled = false;
+  uploadButton.textContent = 'Upload documents';
 }
 
 async function routeAuthenticatedRider(profile) {
@@ -1383,6 +1490,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.rider-document-input').forEach((input) => {
     input.addEventListener('change', () => updateRiderDocumentSelection(input));
   });
+
+  const uploadButton = document.getElementById('riderUploadDocumentsButton');
+  if (uploadButton) {
+    uploadButton.addEventListener('click', uploadRiderDocuments);
+  }
 
   const token = getRiderAccessToken();
   if (token) {

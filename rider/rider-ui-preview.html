@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyShopzy Rider Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="css/rider-ui-preview.css" />
+  </head>
+  <body class="rider-preview-body">
+    <div class="preview-device-frame">
+      <div class="preview-app-shell">
+        <header class="top-bar top-bar--home">
+          <div>
+            <span class="eyebrow">Good morning</span>
+            <h1 id="previewHeaderName">Rider Dashboard</h1>
+          </div>
+          <div class="top-bar__avatar-wrap">
+            <div class="profile-pill">
+              <span class="profile-pill__badge">A</span>
+            </div>
+          </div>
+        </header>
+
+        <div id="homeScreen" class="screen is-active" data-screen="home">
+          <div class="status-banner">
+            <div>
+              <span class="status-banner__label">Availability</span>
+              <strong id="homeAvailabilityText">Offline</strong>
+            </div>
+            <button id="toggleAvailabilityBtn" class="toggle-button toggle-button--offline" type="button">
+              <span class="toggle-button__dot"></span>
+              <span class="toggle-button__label">Go Online</span>
+            </button>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-card">
+              <span>Today’s Earnings</span>
+              <strong id="homeTodayEarnings">₹0</strong>
+              <small id="homeEarningsDelta">Awaiting live data</small>
+            </div>
+            <div class="stat-card">
+              <span>Today’s Deliveries</span>
+              <strong id="homeTodayDeliveries">0</strong>
+              <small>Live rider data</small>
+            </div>
+          </div>
+
+          <section class="section-box">
+            <div class="section-head">
+              <h2>Delivery activity</h2>
+              <span class="chip chip--muted">Live</span>
+            </div>
+
+            <div id="deliveryActivityContainer"></div>
+          </section>
+        </div>
+
+        <div id="newDeliveryScreen" class="screen" data-screen="new-delivery">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="home" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>New Delivery</h2>
+            <span class="chip chip--warning">Offer</span>
+          </div>
+
+          <div class="full-card">
+            <div class="full-card__header">
+              <div>
+                <span class="eyebrow">Order ID</span>
+                <strong>#MYZ-4821</strong>
+              </div>
+              <span class="pill pill--fresh">Hot delivery</span>
+            </div>
+
+            <div class="route-block">
+              <div class="route-point route-point--pickup">
+                <span class="route-dot"></span>
+                <div>
+                  <small>Pickup</small>
+                  <strong>Fresh Basket · M.G. Road</strong>
+                  <p>3:20 PM · Corner bakery, Gate 2</p>
+                </div>
+              </div>
+              <div class="route-point route-point--drop">
+                <span class="route-dot"></span>
+                <div>
+                  <small>Delivery</small>
+                  <strong>7th Avenue Apartments</strong>
+                  <p>Flat 204 · Landmark: Blue Arch</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-grid">
+              <div><span>Distance</span><strong>3.8 km</strong></div>
+              <div><span>Earn</span><strong>₹210</strong></div>
+              <div><span>Payment</span><strong>UPI</strong></div>
+              <div><span>Type</span><strong>Food</strong></div>
+            </div>
+
+            <div class="action-row action-row--split action-row--stacked-mobile">
+              <button class="secondary-button" type="button" data-action="show-screen" data-screen="home">Reject</button>
+              <button class="primary-button" type="button" data-action="show-screen" data-screen="active-delivery">Accept Delivery</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="activeDeliveryScreen" class="screen" data-screen="active-delivery">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="home" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>Active Delivery</h2>
+            <span class="chip chip--success">On route</span>
+          </div>
+
+          <div class="full-card">
+            <div class="full-card__header">
+              <div>
+                <span class="eyebrow">Order</span>
+                <strong>#MYZ-4821</strong>
+              </div>
+              <span class="pill pill--soft">₹210</span>
+            </div>
+
+            <div class="route-summary">
+              <div>
+                <span>Pickup</span>
+                <strong>Fresh Basket</strong>
+              </div>
+              <div>
+                <span>Customer</span>
+                <strong>7th Avenue Apartments</strong>
+              </div>
+            </div>
+
+            <div class="progress-track">
+              <div class="progress-item is-complete"><span>Accepted</span></div>
+              <div class="progress-item is-complete"><span>Going to Pickup</span></div>
+              <div class="progress-item is-current"><span>Picked Up</span></div>
+              <div class="progress-item"><span>Out for Delivery</span></div>
+              <div class="progress-item"><span>Delivered</span></div>
+            </div>
+
+            <div class="detail-grid detail-grid--compact">
+              <div><span>ETA</span><strong>12 min</strong></div>
+              <div><span>Distance</span><strong>3.8 km</strong></div>
+            </div>
+
+            <button class="primary-button" type="button" data-action="show-screen" data-screen="pickup">Proceed to Pickup</button>
+          </div>
+        </div>
+
+        <div id="pickupScreen" class="screen" data-screen="pickup">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="active-delivery" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>Pickup</h2>
+            <span class="chip chip--muted">Store</span>
+          </div>
+
+          <div class="full-card">
+            <div class="pickup-card__header">
+              <div class="shop-badge">F</div>
+              <div>
+                <strong>Fresh Basket</strong>
+                <small>Pickup at M.G. Road</small>
+              </div>
+            </div>
+
+            <div class="pickup-details">
+              <div class="pickup-row">
+                <span>Order</span>
+                <strong>2 veg combos + 1 dessert</strong>
+              </div>
+              <div class="pickup-row">
+                <span>Instructions</span>
+                <strong>Gate 2, left side counter</strong>
+              </div>
+            </div>
+
+            <div class="otp-preview-box">
+              <span>Pickup OTP</span>
+              <strong>4821</strong>
+            </div>
+
+            <div class="action-row action-row--stacked">
+              <button class="secondary-button" type="button">Arrived at Pickup</button>
+              <button class="primary-button" type="button" data-action="show-screen" data-screen="out-for-delivery">Confirm Pickup</button>
+            </div>
+
+            <button class="ghost-button" type="button" data-action="show-screen" data-screen="active-delivery">Start Delivery</button>
+          </div>
+        </div>
+
+        <div id="outForDeliveryScreen" class="screen" data-screen="out-for-delivery">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="pickup" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>Out for Delivery</h2>
+            <span class="chip chip--info">Live</span>
+          </div>
+
+          <div class="full-card">
+            <div class="customer-strip">
+              <div class="avatar avatar--large">M</div>
+              <div>
+                <strong>Meghana S.</strong>
+                <small>House 204 · 7th Avenue</small>
+              </div>
+            </div>
+
+            <div class="map-placeholder">
+              <div class="map-placeholder__badge">Route map</div>
+              <div class="map-line map-line--one"></div>
+              <div class="map-line map-line--two"></div>
+              <div class="map-pin map-pin--pickup"></div>
+              <div class="map-pin map-pin--drop"></div>
+            </div>
+
+            <div class="detail-grid detail-grid--compact">
+              <div><span>ETA</span><strong>11 min</strong></div>
+              <div><span>Distance</span><strong>1.4 km</strong></div>
+            </div>
+
+            <div class="contact-row">
+              <button class="icon-action" type="button"><i data-lucide="phone"></i> Call</button>
+              <button class="icon-action" type="button"><i data-lucide="navigation"></i> Navigate</button>
+            </div>
+
+            <button class="primary-button" type="button" data-action="show-screen" data-screen="delivery-otp">I’ve Reached Customer</button>
+          </div>
+        </div>
+
+        <div id="deliveryOtpScreen" class="screen" data-screen="delivery-otp">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="out-for-delivery" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>Delivery OTP</h2>
+            <span class="chip chip--muted">Verify</span>
+          </div>
+
+          <div class="full-card full-card--center">
+            <div class="otp-heading">
+              <span class="eyebrow">Enter delivery OTP</span>
+              <h3>Confirm delivery</h3>
+            </div>
+
+            <div class="otp-inputs" aria-label="Six digit OTP">
+              <input type="text" maxlength="1" inputmode="numeric" value="4" />
+              <input type="text" maxlength="1" inputmode="numeric" value="8" />
+              <input type="text" maxlength="1" inputmode="numeric" value="2" />
+              <input type="text" maxlength="1" inputmode="numeric" value="1" />
+              <input type="text" maxlength="1" inputmode="numeric" value="6" />
+              <input type="text" maxlength="1" inputmode="numeric" value="9" />
+            </div>
+
+            <button class="primary-button" type="button" data-action="show-screen" data-screen="delivery-completed">Verify &amp; Complete Delivery</button>
+          </div>
+        </div>
+
+        <div id="deliveryCompletedScreen" class="screen" data-screen="delivery-completed">
+          <div class="screen-header screen-header--center">
+            <h2>Delivery Complete</h2>
+          </div>
+
+          <div class="success-card">
+            <div class="success-icon"><i data-lucide="check"></i></div>
+            <h3>Delivery Completed</h3>
+            <p>Your order was delivered successfully.</p>
+
+            <div class="summary-box">
+              <div><span>Earnings</span><strong>₹210</strong></div>
+              <div><span>Completed</span><strong>3:41 PM</strong></div>
+              <div><span>Order</span><strong>#MYZ-4821</strong></div>
+            </div>
+
+            <button class="primary-button" type="button" data-action="show-screen" data-screen="home">Back to Home</button>
+          </div>
+        </div>
+
+        <div id="ordersScreen" class="screen" data-screen="orders">
+          <div class="screen-header">
+            <h2>Orders</h2>
+            <span class="chip chip--success">2 active</span>
+          </div>
+
+          <div class="tabs-row">
+            <button class="tab-button is-active" type="button">Active Orders</button>
+            <button class="tab-button" type="button">Past Orders</button>
+          </div>
+
+          <div id="ordersList" class="list-stack"></div>
+        </div>
+
+        <div id="earningsScreen" class="screen" data-screen="earnings">
+          <div class="screen-header">
+            <h2>Earnings</h2>
+            <span class="chip chip--success">This week</span>
+          </div>
+
+          <div id="earningsSummary" class="earnings-summary"></div>
+
+          <div class="money-card">
+            <span class="eyebrow">Payout breakdown</span>
+            <div id="earningsChart" class="chart-bars" aria-label="Live earnings chart"></div>
+            <div id="earningsBreakdown" class="money-list"></div>
+          </div>
+        </div>
+
+        <div id="notificationsScreen" class="screen" data-screen="notifications">
+          <div class="screen-header">
+            <h2>Notifications</h2>
+            <button class="text-button" type="button">Mark all as read</button>
+          </div>
+
+          <div id="notificationsList" class="notification-list"></div>
+        </div>
+
+        <div id="accountScreen" class="screen" data-screen="account">
+          <div class="screen-header">
+            <h2>Account</h2>
+            <span class="chip chip--muted">Online</span>
+          </div>
+
+          <div class="profile-card">
+            <div id="accountProfileAvatar" class="profile-avatar">A</div>
+            <div>
+              <strong id="accountProfileName">Rider</strong>
+              <small id="accountProfilePhone">+91 ---</small>
+              <small id="accountProfileEmail">rider@myshopzy.dev</small>
+            </div>
+          </div>
+
+          <div class="menu-list">
+            <button class="menu-row" type="button"><span><i data-lucide="user"></i> My Profile</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button"><span><i data-lucide="shield-check"></i> Documents</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button"><span><i data-lucide="bike"></i> Vehicle</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button"><span><i data-lucide="wallet"></i> Earnings</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button" data-action="show-screen" data-screen="notifications"><span><i data-lucide="bell"></i> Notifications</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button" data-action="show-screen" data-screen="support"><span><i data-lucide="headphones"></i> Support</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row" type="button"><span><i data-lucide="settings"></i> Settings</span><i data-lucide="chevron-right"></i></button>
+            <button class="menu-row menu-row--danger" type="button"><span><i data-lucide="log-out"></i> Logout</span></button>
+          </div>
+        </div>
+
+        <div id="supportScreen" class="screen" data-screen="support">
+          <div class="screen-header">
+            <button class="icon-button" type="button" data-action="show-screen" data-screen="account" aria-label="Back"><i data-lucide="arrow-left"></i></button>
+            <h2>Help &amp; Support</h2>
+          </div>
+
+          <div class="support-list">
+            <button class="support-item" type="button"><span>Delivery issue</span><i data-lucide="chevron-right"></i></button>
+            <button class="support-item" type="button"><span>Payment issue</span><i data-lucide="chevron-right"></i></button>
+            <button class="support-item" type="button"><span>Account issue</span><i data-lucide="chevron-right"></i></button>
+            <button class="support-item" type="button"><span>Technical issue</span><i data-lucide="chevron-right"></i></button>
+          </div>
+
+          <button class="primary-button" type="button">Contact Support</button>
+        </div>
+
+        <nav class="bottom-nav" aria-label="Rider mobile navigation">
+          <button class="bottom-nav__item is-active" type="button" data-action="show-screen" data-screen="home">
+            <i data-lucide="house"></i>
+            <span>Home</span>
+          </button>
+          <button class="bottom-nav__item" type="button" data-action="show-screen" data-screen="orders">
+            <i data-lucide="clipboard-list"></i>
+            <span>Orders</span>
+          </button>
+          <button class="bottom-nav__item" type="button" data-action="show-screen" data-screen="earnings">
+            <i data-lucide="wallet"></i>
+            <span>Earnings</span>
+          </button>
+          <button class="bottom-nav__item" type="button" data-action="show-screen" data-screen="account">
+            <i data-lucide="user-circle"></i>
+            <span>Account</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <script src="js/rider-ui-preview.js"></script>
+  </body>
+</html>

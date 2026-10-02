@@ -1,6 +1,8 @@
 "use strict";
 
+const crypto = require("crypto");
 const db = require("../config/db");
+const objectStorageService = require("../services/objectStorageService");
 
 const VALID_RIDER_STATUSES = new Set([
   "PENDING",
@@ -19,6 +21,10 @@ const VALID_DOCUMENT_TYPES = new Set([
   "PASSPORT",
   "VEHICLE_RC"
 ]);
+const UPLOAD_DOCUMENT_TYPES = new Set(["SELFIE", "AADHAAR", "PAN"]);
+const UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 function valueText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -319,6 +325,126 @@ async function createRiderDocument(req, res) {
   }
 }
 
+async function uploadRiderDocument(req, res) {
+  const body = req.body || {};
+  const file = req.file || null;
+  const rawDocumentType = body.document_type || body.documentType || body.type || "";
+  const documentType = normalizeDocumentType(rawDocumentType);
+
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      code: "UPLOAD_VALIDATION_ERROR",
+      message: "A document file is required."
+    });
+  }
+
+  if (!documentType || !UPLOAD_DOCUMENT_TYPES.has(documentType)) {
+    return res.status(400).json({
+      success: false,
+      code: "UPLOAD_VALIDATION_ERROR",
+      message: "Unsupported document type. Use SELFIE, AADHAAR, or PAN."
+    });
+  }
+
+  const mimeType = String(file.mimetype || "").toLowerCase();
+  const originalName = typeof file.originalname === "string" ? file.originalname : "document";
+  const extension = (originalName.split(".").pop() || "").toLowerCase();
+
+  if (!UPLOAD_MIME_TYPES.has(mimeType) || !UPLOAD_EXTENSIONS.has(extension)) {
+    return res.status(400).json({
+      success: false,
+      code: "UPLOAD_VALIDATION_ERROR",
+      message: "Unsupported file type. Only JPG, PNG, and WEBP images are allowed."
+    });
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return res.status(400).json({
+      success: false,
+      code: "UPLOAD_VALIDATION_ERROR",
+      message: "File must be 10 MB or smaller."
+    });
+  }
+
+  try {
+    const rider = await getRiderByUserId(req.user.id);
+    if (!rider) {
+      return res.status(403).json({
+        success: false,
+        code: "RIDER_ACCESS_REQUIRED",
+        message: "Rider access is required to upload verification documents."
+      });
+    }
+
+    if (!objectStorageService.isObjectStorageConfigured()) {
+      return res.status(503).json({
+        success: false,
+        code: "OBJECT_STORAGE_NOT_CONFIGURED",
+        message: "Secure document storage is not configured yet."
+      });
+    }
+
+    const objectKey = `riders/${rider.id}/documents/${documentType}/${crypto.randomUUID()}.${extension}`;
+
+    const uploadResult = await objectStorageService.uploadFile({
+      key: objectKey,
+      fileBuffer: file.buffer,
+      contentType: mimeType,
+      metadata: {
+        rider_id: rider.id,
+        document_type: documentType,
+        original_filename: originalName
+      }
+    });
+
+    if (!uploadResult?.success) {
+      return res.status(503).json({
+        success: false,
+        code: uploadResult?.code || "OBJECT_STORAGE_UNAVAILABLE",
+        message: uploadResult?.message || "Secure document storage is unavailable."
+      });
+    }
+
+    try {
+      const result = await db.query(
+        `INSERT INTO rider_documents (rider_id, document_type, object_key, original_filename, content_type, verification_status)
+         VALUES ($1, $2, $3, $4, $5, 'PENDING')
+         RETURNING *`,
+        [rider.id, documentType, objectKey, originalName || null, mimeType || null]
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Document uploaded securely.",
+        data: safeDocumentRow(result.rows[0])
+      });
+    } catch (dbError) {
+      console.error("Rider document metadata save failed after upload:", dbError.message);
+      await objectStorageService.deleteFile(objectKey).catch(() => {});
+      if (dbError.code === "23505") {
+        return res.status(409).json({
+          success: false,
+          code: "DOCUMENT_ALREADY_EXISTS",
+          message: "This document record already exists for this rider."
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        code: "DOCUMENT_SAVE_FAILED",
+        message: "Document upload succeeded, but saving the record failed."
+      });
+    }
+  } catch (error) {
+    console.error("Rider document upload failed:", error.message);
+    return res.status(500).json({
+      success: false,
+      code: "UPLOAD_FAILED",
+      message: "Unable to process the rider document upload."
+    });
+  }
+}
+
 async function getRiderAvailability(req, res) {
   try {
     const rider = await getRiderByUserId(req.user.id);
@@ -501,6 +627,7 @@ module.exports = {
   updateRiderProfile,
   listRiderDocuments,
   createRiderDocument,
+  uploadRiderDocument,
   getRiderAvailability,
   setRiderAvailability,
   getRiderDashboard,
