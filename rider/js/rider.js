@@ -2,22 +2,33 @@
 // 🛵 DELIVERY PARTNER ENGINE (rider.js)
 // ==========================================
 
-let riderProfile = JSON.parse(localStorage.getItem('rider_profile') || 'null');
-let currentActiveRider = riderProfile?.name || localStorage.getItem('active_rider_name') || '';
+let riderProfile = null;
+let currentActiveRider = '';
 let currentTab = 'pending';
 let allRiderOrders = [];
 let currentVerifyingOrderId = null;
 let gpsWatchId = null;
 let activeGpsAssignmentId = null;
-let riderIsAvailable = localStorage.getItem('rider_available') === 'true' && isWithinWorkingHours();
+let riderIsAvailable = false;
 let knownAssignedOrderIds = new Set();
 let riderOrdersInitialized = false;
 let riderOrdersUnsubscribe = null;
-let riderOtpSent = false;
 let pendingRiderRegistration = null;
+let riderNotifications = [];
+let riderEarnings = null;
+let riderAuthMode = 'login';
+let riderOtpPurpose = '';
+let riderOtpPhone = '';
+let riderOtpCountdownTimer = null;
+let riderOtpSecondsRemaining = 45;
+let riderSelectedVehicleType = 'BIKE';
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const RIDER_API_BASE_URL = 'http://localhost:5000';
+const RIDER_REQUIRED_DOCUMENT_TYPES = ['SELFIE', 'AADHAAR', 'PAN'];
+const RIDER_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+const RIDER_DOCUMENT_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+const RIDER_DOCUMENT_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 RIDER_ORDER_SOUND.loop = true;
 
 function getRiderAccessToken() {
@@ -28,26 +39,82 @@ function getRiderAccessToken() {
     || '';
 }
 
-function buildRiderApiHeaders(additionalHeaders = {}) {
+function buildRiderApiHeaders(additionalHeaders = {}, tokenOverride = '') {
   const headers = { ...additionalHeaders };
-  const token = getRiderAccessToken();
+  const token = tokenOverride || getRiderAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
 
+function normalizeRiderPhone(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (/^\+\d{10,15}$/.test(raw)) return raw;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length > 10 && digits.startsWith('91')) return `+${digits}`;
+  return '';
+}
+
+function persistRiderAccessToken(token) {
+  if (!token) return;
+  for (const key of ['user_access_token', 'myshopzy_user_access_token']) {
+    sessionStorage.setItem(key, token);
+    localStorage.setItem(key, token);
+  }
+}
+
+function clearRiderAuthState() {
+  riderProfile = null;
+  currentActiveRider = '';
+  riderIsAvailable = false;
+  riderAuthMode = 'login';
+  pendingRiderRegistration = null;
+  riderOtpPurpose = '';
+  window.clearInterval(riderOtpCountdownTimer);
+  riderOtpCountdownTimer = null;
+  knownAssignedOrderIds = new Set();
+  riderOrdersInitialized = false;
+  riderOrdersUnsubscribe?.();
+  riderOrdersUnsubscribe = null;
+  allRiderOrders = [];
+  riderNotifications = [];
+  riderEarnings = null;
+  stopRiderGpsBroadcast();
+  localStorage.removeItem('rider_profile');
+  localStorage.removeItem('active_rider_name');
+  localStorage.removeItem('rider_available');
+  localStorage.removeItem('rider_registration_pending');
+  for (const key of ['user_access_token', 'myshopzy_user_access_token']) {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+  }
+  renderPickupQueue();
+  renderRiderOrders();
+  renderRiderNotifications();
+  renderRiderEarnings();
+  updateRiderIdentity();
+}
+
 async function riderApiRequest(path, options = {}) {
+  const { authToken = '', preserveAuthOn401 = false, headers: extraHeaders = {}, ...requestOptions } = options;
+  const hasSessionToken = Boolean(authToken || getRiderAccessToken());
   const response = await fetch(`${RIDER_API_BASE_URL}${path}`, {
+    ...requestOptions,
     headers: buildRiderApiHeaders({
       Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {})
-    }),
-    ...options
+      ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
+      ...extraHeaders
+    }, authToken)
   });
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401 && hasSessionToken && !preserveAuthOn401) clearRiderAuthState();
     const message = payload?.message || `Request failed with status ${response.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return payload;
@@ -64,10 +131,25 @@ async function hydrateRiderSession() {
   if (!token) return null;
   try {
     const authUser = await riderApiRequest('/api/auth/me');
-    const riderProfileResult = await riderApiRequest('/api/rider/me');
+    let riderProfileResult;
+    try {
+      riderProfileResult = await riderApiRequest('/api/rider/me');
+    } catch (error) {
+      if (error.status === 404 && localStorage.getItem('rider_registration_pending')) {
+        const user = authUser?.user || null;
+        pendingRiderRegistration = {
+          name: user?.display_name || '',
+          mobile: user?.phone_e164 || '',
+          email: user?.email || '',
+          vehicle_type: localStorage.getItem('rider_registration_pending') || 'BIKE'
+        };
+        return { needsApplication: true };
+      }
+      throw error;
+    }
     const rider = riderProfileResult?.data?.rider || null;
     const user = authUser?.user || riderProfileResult?.data?.user || null;
-    if (!rider || !user) return null;
+    if (!rider || !user || String(rider.user_id) !== String(user.id)) return null;
 
     const mergedProfile = {
       id: rider.id,
@@ -85,8 +167,10 @@ async function hydrateRiderSession() {
     riderProfile = mergedProfile;
     currentActiveRider = mergedProfile.name;
     riderIsAvailable = mergedProfile.is_available;
+    riderAuthMode = mergedProfile.verification_status === 'APPROVED' ? 'dashboard' : 'pending';
     localStorage.setItem('rider_profile', JSON.stringify(mergedProfile));
     localStorage.setItem('active_rider_name', mergedProfile.name);
+    localStorage.removeItem('rider_registration_pending');
     updateRiderIdentity();
     return mergedProfile;
   } catch (error) {
@@ -108,6 +192,17 @@ function formatOrderDateTime(order) {
   return date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function formatRiderCurrency(amount) {
+  const numericValue = Number(amount || 0);
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(numericValue);
+}
+
+function formatRiderNotificationTime(value) {
+  const date = new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) return 'Just now';
+  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
 function isWithinWorkingHours() {
   const hour = new Date().getHours();
   return hour >= 7 && hour < 22;
@@ -123,188 +218,406 @@ function showRiderSection(section) {
     if (element) element.classList.toggle('hidden', name !== section);
   });
   if (section === 'orders') renderRiderOrders();
-  if (section === 'account') syncRiderAccount();
+  if (section === 'account') {
+    syncRiderAccount();
+    loadRiderNotifications();
+    loadRiderEarnings();
+  }
 }
 
-function openRiderRegistrationModal() {
-  document.getElementById('riderRegistrationModal')?.classList.remove('hidden');
-  syncRiderAccount();
+function showRiderAuthScreen(screenName) {
+  riderAuthMode = screenName;
+  if (screenName === 'register') setRiderAuthError('riderRegisterError', '');
+  const isApplicationResume = screenName === 'register'
+    && Boolean(getRiderAccessToken() && localStorage.getItem('rider_registration_pending'));
+  document.querySelector('.rider-register-form')?.classList.toggle('hidden', isApplicationResume);
+  document.getElementById('riderApplicationRetry')?.classList.toggle('hidden', !isApplicationResume);
+  document.querySelectorAll('.rider-auth-screen').forEach((screen) => {
+    const active = screen.id === `rider${screenName[0].toUpperCase()}${screenName.slice(1)}Screen`
+      || (screenName === 'loading' && screen.id === 'riderAuthLoading');
+    screen.hidden = !active;
+    screen.classList.toggle('is-active', active);
+  });
+  if (window.lucide) window.lucide.createIcons();
+  if (screenName === 'login') document.getElementById('riderLoginIdentityInput')?.focus({ preventScroll: true });
+  if (screenName === 'register') document.getElementById('riderNameInput')?.focus({ preventScroll: true });
+  if (screenName === 'otp') document.querySelector('.rider-otp-digit')?.focus({ preventScroll: true });
 }
 
-function closeRiderRegistrationModal() {
-  document.getElementById('riderRegistrationModal')?.classList.add('hidden');
+function setRiderAuthError(elementId, message) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  element.textContent = message || '';
+  element.classList.toggle('hidden', !message);
 }
 
-function openRiderLoginModal() {
-  document.getElementById('riderLoginModal')?.classList.remove('hidden');
-  document.getElementById('riderLoginIdentityInput')?.focus();
+function setRiderDevelopmentOtp(payload) {
+  const element = document.getElementById('riderDevelopmentOtp');
+  if (!element) return;
+  const code = typeof payload?.development_otp === 'string' && /^\d{6}$/.test(payload.development_otp)
+    ? payload.development_otp
+    : '';
+  element.textContent = code ? `Development OTP: ${code}` : '';
+  element.classList.toggle('hidden', !code);
 }
 
-function closeRiderLoginModal() {
-  document.getElementById('riderLoginModal')?.classList.add('hidden');
+function startRiderOtpCountdown() {
+  window.clearInterval(riderOtpCountdownTimer);
+  riderOtpSecondsRemaining = 45;
+  const countdown = document.getElementById('riderOtpCountdown');
+  const resend = document.getElementById('riderOtpResend');
+  const renderCountdown = () => {
+    if (countdown) {
+      const minutes = String(Math.floor(riderOtpSecondsRemaining / 60)).padStart(2, '0');
+      const seconds = String(riderOtpSecondsRemaining % 60).padStart(2, '0');
+      countdown.innerHTML = `Resend OTP in <strong>${minutes}:${seconds}</strong>`;
+    }
+    const finished = riderOtpSecondsRemaining <= 0;
+    countdown?.classList.toggle('hidden', finished);
+    resend?.classList.toggle('hidden', !finished);
+    if (finished) {
+      window.clearInterval(riderOtpCountdownTimer);
+      riderOtpCountdownTimer = null;
+    }
+  };
+  renderCountdown();
+  riderOtpCountdownTimer = window.setInterval(() => {
+    riderOtpSecondsRemaining -= 1;
+    renderCountdown();
+  }, 1000);
 }
 
-function openRiderVerificationModal() {
-  document.getElementById('riderVerificationModal')?.classList.remove('hidden');
+function maskRiderPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return `+91 ${'•'.repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 }
 
-function closeRiderVerificationModal() {
-  document.getElementById('riderVerificationModal')?.classList.add('hidden');
+function clearRiderOtpInputs() {
+  document.querySelectorAll('.rider-otp-digit').forEach((input) => { input.value = ''; });
+  setRiderAuthError('riderOtpError', '');
+  document.querySelector('.rider-otp-digit')?.focus({ preventScroll: true });
 }
 
-function sendRiderRegistrationOtp() {
-  const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
-  if (mobile.length !== 10) {
-    alert('Enter a valid 10-digit mobile number.');
+async function requestRiderLoginOtp() {
+  const phone = normalizeRiderPhone(document.getElementById('riderLoginIdentityInput')?.value);
+  setRiderAuthError('riderLoginError', '');
+  setRiderDevelopmentOtp(null);
+  if (!phone) {
+    setRiderAuthError('riderLoginError', 'Enter a valid 10-digit mobile number.');
     return;
   }
-  riderOtpSent = true;
-  alert('Demo OTP: 4821');
+  try {
+    const result = await riderApiRequest('/api/auth/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ phone_e164: phone })
+    });
+    setRiderDevelopmentOtp(result);
+    riderOtpPurpose = 'LOGIN';
+    riderOtpPhone = phone;
+    document.getElementById('riderOtpPhone').textContent = maskRiderPhone(phone);
+    clearRiderOtpInputs();
+    showRiderAuthScreen('otp');
+    startRiderOtpCountdown();
+  } catch (error) {
+    setRiderAuthError('riderLoginError', error.message || 'Unable to request a verification code.');
+  }
 }
 
-async function hashRiderPassword(password) {
-  const bytes = new TextEncoder().encode(password);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-async function completeRiderRegistration() {
+async function requestRiderRegistrationOtp() {
   const name = document.getElementById('riderNameInput')?.value.trim();
-  const mobile = document.getElementById('riderMobileInput')?.value.replace(/\D/g, '');
+  const phone = normalizeRiderPhone(document.getElementById('riderMobileInput')?.value);
   const email = document.getElementById('riderEmailInput')?.value.trim().toLowerCase();
-  const aadhaar = document.getElementById('riderAadhaarInput')?.value.replace(/\D/g, '');
-  const password = document.getElementById('riderPasswordInput')?.value;
-  const confirmPassword = document.getElementById('riderConfirmPasswordInput')?.value;
-  const otp = document.getElementById('riderOtpInput')?.value.trim();
-
-  if (!name || mobile.length !== 10 || !email || aadhaar.length !== 12 || !password || password.length < 6 || password !== confirmPassword) {
-    alert('Complete all details and make sure both passwords match.');
+  const password = document.getElementById('riderPasswordInput')?.value || '';
+  const referral = document.getElementById('riderReferralInput')?.value.trim();
+  setRiderAuthError('riderRegisterError', '');
+  if (!name || !phone || !email || password.length < 6) {
+    setRiderAuthError('riderRegisterError', 'Enter your name, a valid mobile number, email, and a password of at least 6 characters.');
     return;
   }
-  if (!riderOtpSent || otp !== '4821') {
-    alert('Send the OTP first and enter the demo OTP: 4821');
+  if (referral) {
+    setRiderAuthError('riderRegisterError', 'Referral codes are not supported by the current account API. Clear this field to continue.');
     return;
   }
+  setRiderDevelopmentOtp(null);
 
-  const profile = { name, mobile, email, aadhaar_last4: aadhaar.slice(-4), password_hash: await hashRiderPassword(password), verification_status: 'PENDING', registered_at_ms: Date.now() };
-  pendingRiderRegistration = profile;
+  const registration = {
+    name,
+    phone,
+    email,
+    password,
+    vehicle_type: riderSelectedVehicleType
+  };
   try {
-    const token = getRiderAccessToken();
-    if (token) {
-      const payload = {
-        vehicle_type: 'BIKE',
-        vehicle_registration: mobile,
-        license_last4: aadhaar.slice(-4)
-      };
-      const result = await riderApiRequest('/api/rider/applications', {
+    const result = await riderApiRequest('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        display_name: registration.name,
+        phone_e164: registration.phone,
+        email: registration.email,
+        password: registration.password
+      })
+    });
+    setRiderDevelopmentOtp(result);
+    pendingRiderRegistration = registration;
+    riderOtpPurpose = 'REGISTER';
+    riderOtpPhone = phone;
+    document.getElementById('riderOtpPhone').textContent = maskRiderPhone(phone);
+    clearRiderOtpInputs();
+    showRiderAuthScreen('otp');
+    startRiderOtpCountdown();
+  } catch (error) {
+    setRiderAuthError('riderRegisterError', error.message || 'Unable to request a verification code.');
+  }
+}
+
+async function resendRiderOtp() {
+  setRiderDevelopmentOtp(null);
+  try {
+    let result;
+    if (riderOtpPurpose === 'REGISTER') {
+      if (!pendingRiderRegistration?.password) throw new Error('Please return to account creation and request a new code.');
+      result = await riderApiRequest('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          display_name: pendingRiderRegistration.name,
+          phone_e164: pendingRiderRegistration.phone,
+          email: pendingRiderRegistration.email,
+          password: pendingRiderRegistration.password
+        })
       });
-      riderProfile = { ...profile, ...result.data, id: result.data?.id || profile.id };
-      currentActiveRider = profile.name;
-      localStorage.setItem('rider_profile', JSON.stringify(riderProfile));
-      localStorage.setItem('active_rider_name', profile.name);
     } else {
-      await db.collection('rider_profiles').doc(mobile).set(profile, { merge: true });
+      result = await riderApiRequest('/api/auth/otp/request', {
+        method: 'POST',
+        body: JSON.stringify({ phone_e164: riderOtpPhone })
+      });
     }
+    setRiderDevelopmentOtp(result);
+    clearRiderOtpInputs();
+    startRiderOtpCountdown();
   } catch (error) {
-    console.error('Rider profile save failed:', error);
-    alert('Profile saved on this device. Backend rider registration failed.');
+    setRiderAuthError('riderOtpError', error.message || 'Unable to resend the verification code.');
   }
-  closeRiderRegistrationModal();
-  document.getElementById('riderPanInput').value = '';
-  document.getElementById('riderSelfieFile').value = '';
-  document.getElementById('riderAadhaarFile').value = '';
-  document.getElementById('riderPanFile').value = '';
-  openRiderVerificationModal();
 }
 
-async function uploadRiderVerificationFile(file, mobile, type) {
-  if (!file || !firebase.storage) return null;
-  const storageRef = firebase.storage().ref(`rider_verification/${mobile}/${type}_${Date.now()}_${file.name}`);
-  await storageRef.put(file);
-  return storageRef.fullPath;
+function backFromRiderOtp() {
+  window.clearInterval(riderOtpCountdownTimer);
+  riderOtpCountdownTimer = null;
+  setRiderDevelopmentOtp(null);
+  showRiderAuthScreen(riderOtpPurpose === 'REGISTER' ? 'register' : 'login');
 }
 
-async function submitRiderVerification() {
-  if (!pendingRiderRegistration) {
-    alert('Please complete registration first.');
+async function submitRiderApplication(accessToken) {
+  const vehicleType = pendingRiderRegistration?.vehicle_type
+    || localStorage.getItem('rider_registration_pending')
+    || riderSelectedVehicleType;
+  try {
+    await riderApiRequest('/api/rider/applications', {
+      method: 'POST',
+      body: JSON.stringify({ vehicle_type: vehicleType }),
+      authToken: accessToken
+    });
+  } catch (error) {
+    if (error.status !== 409) throw error;
+    await riderApiRequest('/api/rider/me', { authToken: accessToken });
+  }
+  const profile = await hydrateRiderSession();
+  if (!profile || profile.needsApplication) throw new Error('The rider application could not be confirmed.');
+  pendingRiderRegistration = null;
+  await routeAuthenticatedRider(profile);
+}
+
+async function loadRiderDocumentState() {
+  try {
+    const result = await riderApiRequest('/api/rider/documents');
+    const documents = Array.isArray(result?.data) ? result.data : [];
+    const submittedTypes = new Set(documents
+      .filter(document => document.object_key && document.verification_status !== 'REJECTED')
+      .map(document => document.document_type));
+    return {
+      complete: RIDER_REQUIRED_DOCUMENT_TYPES.every(documentType => submittedTypes.has(documentType)),
+      documents,
+      error: ''
+    };
+  } catch (error) {
+    return { complete: false, documents: [], error: error.message || 'Unable to check document status.' };
+  }
+}
+
+function updateRiderDocumentSelection(input) {
+  const file = input.files?.[0] || null;
+  const status = document.getElementById(input.dataset.statusTarget);
+  if (!status) return;
+
+  status.textContent = '';
+  status.classList.remove('is-ready', 'is-error');
+  if (!file) {
+    status.textContent = 'No file selected';
     return;
   }
-  const panNumber = document.getElementById('riderPanInput')?.value.trim().toUpperCase();
-  const selfie = document.getElementById('riderSelfieFile')?.files?.[0];
-  const aadhaarPhoto = document.getElementById('riderAadhaarFile')?.files?.[0];
-  const panPhoto = document.getElementById('riderPanFile')?.files?.[0];
-  const status = document.getElementById('riderVerificationStatus');
-  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNumber || '') || !selfie || !aadhaarPhoto || !panPhoto) {
-    if (status) { status.innerText = 'Enter a valid PAN and choose all three original photos.'; status.classList.remove('hidden'); }
+
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  const mimeType = String(file.type || '').toLowerCase();
+  const supportedType = RIDER_DOCUMENT_EXTENSIONS.has(extension)
+    && (!mimeType || RIDER_DOCUMENT_MIME_TYPES.has(mimeType));
+  let error = '';
+  if (!supportedType) error = 'Choose a JPG, PNG, or WEBP image.';
+  else if (file.size > RIDER_DOCUMENT_MAX_BYTES) error = 'File must be 10 MB or smaller.';
+
+  if (error) {
+    input.value = '';
+    status.textContent = error;
+    status.classList.add('is-error');
+    return;
+  }
+
+  status.textContent = 'File selected — ready for upload';
+  status.classList.add('is-ready');
+}
+
+async function routeAuthenticatedRider(profile) {
+  if (profile.verification_status === 'APPROVED') {
+    riderAuthMode = 'dashboard';
+    updateRiderIdentity();
+    showRiderSection('home');
+    startRiderOrdersListener();
+    return;
+  }
+  const canSubmitDocuments = ['PENDING', 'SUBMITTED'].includes(profile.verification_status);
+  const documentState = canSubmitDocuments
+    ? await loadRiderDocumentState()
+    : { complete: false, documents: [], error: '' };
+  if (!getRiderAccessToken()) {
+    clearRiderAuthState();
+    showRiderAuthScreen('login');
+    return;
+  }
+
+  const statusMessages = {
+    REJECTED: ['Application Needs Attention', 'Your rider application was not approved. Contact MyShopzy support for next steps.'],
+    SUSPENDED: ['Rider Access Paused', 'Your rider access is currently paused. Contact MyShopzy support for assistance.'],
+    EXPIRED: ['Verification Expired', 'Your rider verification has expired. Contact MyShopzy support to renew it.']
+  };
+  const [heading, message] = !canSubmitDocuments
+    ? statusMessages[profile.verification_status] || statusMessages.PENDING
+    : documentState.error
+      ? ['Complete Your Verification', 'We could not check your saved documents. Select Check status to try again.']
+      : documentState.complete
+        ? ['Application Received', 'Your rider application is under review. We’ll open your delivery console as soon as it’s approved.']
+        : ['Complete Your Verification', 'Your rider account has been created. Please upload your verification documents to complete your application.'];
+  const headingElement = document.getElementById('riderPendingHeading');
+  const messageElement = document.getElementById('riderPendingMessage');
+  const documentSection = document.getElementById('riderDocumentSection');
+  const documentStorageNote = document.getElementById('riderDocumentStorageNote');
+  if (headingElement) headingElement.textContent = heading;
+  if (messageElement) messageElement.textContent = message;
+  if (documentSection) documentSection.hidden = !canSubmitDocuments || documentState.complete;
+  if (documentStorageNote && documentState.error) documentStorageNote.textContent = documentState.error;
+  riderAuthMode = 'pending';
+  updateRiderIdentity();
+  showRiderAuthScreen('pending');
+}
+
+async function verifyRiderOtp() {
+  const code = Array.from(document.querySelectorAll('.rider-otp-digit')).map((input) => input.value).join('');
+  setRiderAuthError('riderOtpError', '');
+  if (!/^\d{6}$/.test(code)) {
+    setRiderAuthError('riderOtpError', 'Enter the complete 6-digit verification code.');
     return;
   }
   try {
-    const { mobile } = pendingRiderRegistration;
-    const [selfiePath, aadhaarPath, panPath] = await Promise.all([
-      uploadRiderVerificationFile(selfie, mobile, 'selfie'),
-      uploadRiderVerificationFile(aadhaarPhoto, mobile, 'aadhaar'),
-      uploadRiderVerificationFile(panPhoto, mobile, 'pan')
-    ]);
+    const authResult = await riderApiRequest('/api/auth/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ phone_e164: riderOtpPhone, purpose: riderOtpPurpose, otp: code })
+    });
+    if (!authResult?.access_token) throw new Error('Authentication response did not include an access token.');
+    setRiderDevelopmentOtp(null);
+    window.clearInterval(riderOtpCountdownTimer);
+    riderOtpCountdownTimer = null;
 
-    const token = getRiderAccessToken();
-    if (token) {
-      await Promise.all([
-        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'SELFIE', object_key: selfiePath, original_filename: selfie.name, content_type: selfie.type || 'image/jpeg' }) }),
-        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'AADHAAR', object_key: aadhaarPath, original_filename: aadhaarPhoto.name, content_type: aadhaarPhoto.type || 'image/jpeg' }) }),
-        riderApiRequest('/api/rider/documents', { method: 'POST', body: JSON.stringify({ document_type: 'PAN', object_key: panPath, original_filename: panPhoto.name, content_type: panPhoto.type || 'image/jpeg' }) })
-      ]);
+    if (riderOtpPurpose === 'REGISTER') {
+      localStorage.setItem('rider_registration_pending', pendingRiderRegistration?.vehicle_type || 'BIKE');
+      persistRiderAccessToken(authResult.access_token);
+      if (pendingRiderRegistration) pendingRiderRegistration.password = '';
+      await submitRiderApplication(authResult.access_token);
+      return;
     }
-
-    const verification = {
-      pan_last4: panNumber.slice(-4),
-      selfie_file: selfie.name,
-      aadhaar_file: aadhaarPhoto.name,
-      pan_file: panPhoto.name,
-      selfie_path: selfiePath,
-      aadhaar_path: aadhaarPath,
-      pan_path: panPath,
-      verification_status: 'SUBMITTED',
-      verification_submitted_at_ms: Date.now()
-    };
-    if (!token) {
-      await db.collection('rider_profiles').doc(mobile).set(verification, { merge: true });
-    }
-    closeRiderVerificationModal();
-    document.getElementById('riderLoginIdentityInput').value = mobile;
-    openRiderLoginModal();
-    alert('Verification submitted. Login with your registered details after admin approval.');
-    pendingRiderRegistration = null;
+    await completeRiderAuthentication(authResult.access_token);
   } catch (error) {
-    console.error('Rider verification upload failed:', error);
-    if (status) { status.innerText = 'Upload failed. Check Firebase Storage rules and try again.'; status.classList.remove('hidden'); }
+    if (riderOtpPurpose === 'REGISTER' && getRiderAccessToken() && localStorage.getItem('rider_registration_pending')) {
+      showRiderAuthScreen('register');
+      setRiderAuthError('riderRegisterError', `Your number is verified, but the application could not be submitted. ${error.message || 'Try again.'}`);
+    } else {
+      setRiderAuthError('riderOtpError', error.message || 'Unable to verify the code. Please try again.');
+    }
   }
+}
+
+async function completeRiderAuthentication(accessToken) {
+  persistRiderAccessToken(accessToken);
+  const profile = await hydrateRiderSession();
+  if (profile?.needsApplication) {
+    showRiderAuthScreen('register');
+    setRiderAuthError('riderRegisterError', 'Your number is verified. Finish the rider application to continue.');
+    return;
+  }
+  if (!profile) {
+    await riderApiRequest('/api/auth/logout', {
+      method: 'POST',
+      authToken: accessToken,
+      preserveAuthOn401: true
+    }).catch(() => {});
+    clearRiderAuthState();
+    throw new Error('This account does not have a rider profile.');
+  }
+  await routeAuthenticatedRider(profile);
 }
 
 async function loginRider() {
-  const errorElement = document.getElementById('riderLoginError');
-  if (!getRiderAccessToken()) {
-    if (errorElement) {
-      errorElement.innerText = 'Sign in to your MyShopzy account before opening the rider app.';
-      errorElement.classList.remove('hidden');
-    }
+  const phone = normalizeRiderPhone(document.getElementById('riderLoginIdentityInput')?.value);
+  const password = document.getElementById('riderLoginPasswordInput')?.value || '';
+  setRiderAuthError('riderLoginError', '');
+  if (!phone || !password) {
+    setRiderAuthError('riderLoginError', 'Enter a valid mobile number and password.');
     return;
   }
   try {
-    const profile = await hydrateRiderSession();
-    if (!profile) throw new Error('Authenticated rider profile not found.');
-    closeRiderLoginModal();
-    updateRiderIdentity();
-    startRiderOrdersListener();
-    alert(`Welcome back, ${profile.name}.`);
+    const result = await riderApiRequest('/api/auth/password/login', {
+      method: 'POST',
+      body: JSON.stringify({ phone, password })
+    });
+    if (!result?.access_token) throw new Error('Authentication response did not include an access token.');
+    await completeRiderAuthentication(result.access_token);
   } catch (error) {
-    console.error('Rider login failed:', error);
-    if (errorElement) {
-      errorElement.innerText = error.message || 'Unable to sign in.';
-      errorElement.classList.remove('hidden');
-    }
+    setRiderAuthError('riderLoginError', error.message || 'Unable to sign in.');
   }
+}
+
+async function retryRiderApplication() {
+  const token = getRiderAccessToken();
+  if (!token) {
+    setRiderAuthError('riderRegisterError', 'Your session expired. Sign in and continue your rider application.');
+    return;
+  }
+  try {
+    await submitRiderApplication(token);
+  } catch (error) {
+    setRiderAuthError('riderRegisterError', error.message || 'Unable to submit the rider application.');
+  }
+}
+
+async function refreshRiderApplicationStatus() {
+  const profile = await hydrateRiderSession();
+  if (profile?.needsApplication) {
+    showRiderAuthScreen('register');
+    setRiderAuthError('riderRegisterError', 'Finish your rider application to continue.');
+    return;
+  }
+  if (!profile) {
+    clearRiderAuthState();
+    setRiderAuthError('riderLoginError', 'Your session has expired. Please sign in again.');
+    return;
+  }
+  await routeAuthenticatedRider(profile);
 }
 
 function syncRiderAccount() {
@@ -320,61 +633,234 @@ function syncRiderAccount() {
   });
 }
 
+function renderRiderEarnings() {
+  const summaryEl = document.getElementById('riderEarningsSummary');
+  const listEl = document.getElementById('riderEarningsList');
+  if (!summaryEl || !listEl) return;
+
+  if (!getRiderAccessToken()) {
+    summaryEl.innerHTML = '<p class="text-amber-700 font-bold">Sign in to view rider earnings.</p>';
+    listEl.innerHTML = '';
+    return;
+  }
+
+  if (!riderEarnings) {
+    summaryEl.innerHTML = '<p class="text-slate-500">Loading earnings…</p>';
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const deliveries = Array.isArray(riderEarnings.deliveries) ? riderEarnings.deliveries : [];
+  const total = Number(riderEarnings.total_earnings_inr || 0);
+  const count = Number(riderEarnings.completed_count || deliveries.length || 0);
+  const currency = riderEarnings.currency || 'INR';
+
+  summaryEl.innerHTML = `
+    <div class="space-y-1">
+      <p class="text-[10px] uppercase tracking-wider font-black text-slate-400">Total earnings</p>
+      <p class="text-2xl font-black text-slate-900">${formatRiderCurrency(total)}</p>
+      <p class="text-[10px] text-slate-500">${count} completed delivery${count === 1 ? '' : 'ies'} · ${currency}</p>
+    </div>
+  `;
+
+  if (!deliveries.length) {
+    listEl.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500 text-center">No completed deliveries yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = deliveries.map((delivery) => `
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[10px] font-black uppercase text-slate-500">${escapeRiderHtml(delivery.order_number || 'Order')}</span>
+        <span class="text-[10px] font-black text-emerald-700">${formatRiderCurrency(delivery.total_earning_inr || 0)}</span>
+      </div>
+      <div class="mt-1 text-[10px] text-slate-500">
+        <p>Base: ${formatRiderCurrency(delivery.base_earning_inr || 0)}</p>
+        <p>Surge: ${formatRiderCurrency(delivery.rain_surge_inr || 0)}</p>
+        <p>Distance: ${formatRiderCurrency(delivery.distance_bonus_inr || 0)}</p>
+        <p>Completed: ${formatRiderNotificationTime(delivery.completed_at)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadRiderEarnings() {
+  if (!getRiderAccessToken()) {
+    riderEarnings = null;
+    renderRiderEarnings();
+    return;
+  }
+
+  try {
+    const result = await riderApiRequest('/api/rider/earnings');
+    riderEarnings = result?.data || { currency: 'INR', completed_count: 0, total_earnings_inr: 0, deliveries: [] };
+    renderRiderEarnings();
+  } catch (error) {
+    riderEarnings = null;
+    const summaryEl = document.getElementById('riderEarningsSummary');
+    const listEl = document.getElementById('riderEarningsList');
+    if (summaryEl) summaryEl.innerHTML = `<p class="text-rose-600 font-bold">${escapeRiderHtml(error.message)}</p>`;
+    if (listEl) listEl.innerHTML = '';
+  }
+}
+
+function getRiderUnreadNotificationCount() {
+  return riderNotifications.filter((notification) => {
+    const isRead = notification.status === 'READ' || Boolean(notification.read_at);
+    return !isRead;
+  }).length;
+}
+
+function renderRiderNotifications() {
+  const container = document.getElementById('riderNotificationsContainer');
+  const unreadBadge = document.getElementById('riderNotificationsUnreadCount');
+  const markAllButton = document.getElementById('riderMarkAllNotificationsReadBtn');
+  if (!container || !unreadBadge || !markAllButton) return;
+
+  const unreadCount = getRiderUnreadNotificationCount();
+  unreadBadge.textContent = String(unreadCount);
+  markAllButton.disabled = unreadCount === 0 || !getRiderAccessToken();
+  markAllButton.classList.toggle('opacity-50', markAllButton.disabled);
+
+  if (!getRiderAccessToken()) {
+    container.innerHTML = '<p class="text-[11px] text-slate-500">Sign in to view notifications.</p>';
+    return;
+  }
+
+  if (riderNotifications.length === 0) {
+    container.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500 text-center">No notifications yet.</div>';
+    return;
+  }
+
+  container.innerHTML = riderNotifications.map((notification) => {
+    const isRead = notification.status === 'READ' || Boolean(notification.read_at);
+    return `
+      <div class="rounded-xl border ${isRead ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50'} p-2.5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-[11px] font-black text-slate-900">${escapeRiderHtml(notification.title || 'Notification')}</p>
+            <p class="mt-1 text-[10px] text-slate-600">${escapeRiderHtml(notification.body || '')}</p>
+            <p class="mt-1 text-[10px] text-slate-400">${formatRiderNotificationTime(notification.created_at)}</p>
+          </div>
+          ${!isRead ? '<button onclick="markRiderNotificationRead(\'' + escapeRiderHtml(notification.id || '') + '\')" class="shrink-0 text-[10px] font-black text-brand-accent">Mark read</button>' : '<span class="text-[10px] font-black text-slate-400">Read</span>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadRiderNotifications() {
+  if (!getRiderAccessToken()) {
+    riderNotifications = [];
+    renderRiderNotifications();
+    return;
+  }
+
+  const container = document.getElementById('riderNotificationsContainer');
+  if (container) {
+    container.innerHTML = '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500 text-center">Loading notifications…</div>';
+  }
+
+  try {
+    const result = await riderApiRequest('/api/rider/notifications');
+    riderNotifications = Array.isArray(result?.data) ? result.data : [];
+    renderRiderNotifications();
+  } catch (error) {
+    if (container) {
+      container.innerHTML = `<div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[11px] font-bold text-rose-700 text-center">${escapeRiderHtml(error.message)}</div>`;
+    }
+  }
+}
+
+async function markRiderNotificationRead(notificationId) {
+  if (!notificationId || !getRiderAccessToken()) return;
+  try {
+    await riderApiRequest(`/api/rider/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PATCH' });
+    riderNotifications = riderNotifications.map((notification) => notification.id === notificationId
+      ? { ...notification, status: 'READ', read_at: new Date().toISOString() }
+      : notification);
+    renderRiderNotifications();
+  } catch (error) {
+    console.warn('Unable to mark rider notification as read:', error.message);
+  }
+}
+
+async function markAllRiderNotificationsRead() {
+  if (!getRiderAccessToken()) return;
+  try {
+    await riderApiRequest('/api/rider/notifications/read-all', { method: 'PATCH' });
+    riderNotifications = riderNotifications.map((notification) => ({ ...notification, status: 'READ', read_at: notification.read_at || new Date().toISOString() }));
+    renderRiderNotifications();
+  } catch (error) {
+    console.warn('Unable to mark all rider notifications as read:', error.message);
+  }
+}
+
 function updateRiderIdentity() {
   const titleEl = document.getElementById('currentRiderTitle');
   if (titleEl) titleEl.innerText = currentActiveRider || 'Not registered';
-  const welcomeScreen = document.getElementById('riderWelcomeScreen');
+  const authShell = document.getElementById('riderAuthShell');
+  const dashboardHeader = document.getElementById('riderDashboardHeader');
   const appShell = document.getElementById('riderAppShell');
   const bottomNav = document.getElementById('riderBottomNav');
-  const isAuthenticated = Boolean(getRiderAccessToken() && riderProfile?.id && riderProfile?.user_id && currentActiveRider);
-  welcomeScreen?.classList.toggle('hidden', isAuthenticated);
+  const isAuthenticated = Boolean(
+    getRiderAccessToken()
+    && riderProfile?.id
+    && riderProfile?.user_id
+    && currentActiveRider
+    && riderProfile.verification_status === 'APPROVED'
+  );
+  authShell?.classList.toggle('hidden', isAuthenticated);
+  dashboardHeader?.classList.toggle('hidden', !isAuthenticated);
   appShell?.classList.toggle('hidden', !isAuthenticated);
   bottomNav?.classList.toggle('hidden', !isAuthenticated);
+  if (!isAuthenticated) {
+    const screenId = riderAuthMode === 'loading'
+      ? 'riderAuthLoading'
+      : `rider${riderAuthMode[0].toUpperCase()}${riderAuthMode.slice(1)}Screen`;
+    document.querySelectorAll('.rider-auth-screen').forEach((screen) => {
+      const active = screen.id === screenId;
+      screen.hidden = !active;
+      screen.classList.toggle('is-active', active);
+    });
+  }
   syncRiderAccount();
   updateAvailabilityUi();
+  renderRiderNotifications();
+  renderRiderEarnings();
 }
 
 async function logoutRider() {
-  stopRiderGpsBroadcast();
-  if (getRiderAccessToken()) {
-    try {
-      await riderApiRequest('/api/rider/availability', { method: 'PUT', body: JSON.stringify({ is_available: false }) });
-    } catch (error) {
-      alert(error.message);
-      return;
-    }
-    try {
-      await riderApiRequest('/api/auth/logout', { method: 'POST' });
-    } catch (error) {
-      console.warn('Rider session revocation failed:', error.message);
-    }
+  const token = getRiderAccessToken();
+  if (!token) {
+    clearRiderAuthState();
+    showRiderAuthScreen('login');
+    return;
   }
-  riderIsAvailable = false;
-  riderProfile = null;
-  currentActiveRider = '';
-  riderOrdersUnsubscribe?.();
-  riderOrdersUnsubscribe = null;
-  localStorage.removeItem('rider_profile');
-  localStorage.removeItem('active_rider_name');
-  localStorage.removeItem('rider_available');
-  for (const key of ['user_access_token', 'myshopzy_user_access_token']) {
-    sessionStorage.removeItem(key);
-    localStorage.removeItem(key);
+  try {
+    try {
+      await riderApiRequest('/api/rider/availability', {
+        method: 'PUT',
+        body: JSON.stringify({ is_available: false }),
+        preserveAuthOn401: true
+      });
+      riderIsAvailable = false;
+      localStorage.setItem('rider_available', 'false');
+      stopRiderGpsBroadcast();
+    } catch (error) {
+      console.warn('Rider availability update during logout failed:', error.message);
+    }
+    await riderApiRequest('/api/auth/logout', { method: 'POST', preserveAuthOn401: true });
+    clearRiderAuthState();
+    showRiderAuthScreen('login');
+  } catch (error) {
+    alert(error.message || 'Unable to sign out. Your session is still active.');
   }
-  updateRiderIdentity();
-  allRiderOrders = [];
-  renderPickupQueue();
-  renderRiderOrders();
-  showRiderSection('account');
 }
 
 function updateAvailabilityUi() {
   const button = document.getElementById('riderAvailabilityToggle');
-  const loginButton = document.getElementById('riderLoginButton');
-  const registerButton = document.getElementById('riderRegisterButton');
   const status = document.getElementById('riderDutyStatus');
-  if (loginButton) loginButton.classList.toggle('hidden', Boolean(riderProfile?.name));
-  if (registerButton) registerButton.classList.toggle('hidden', Boolean(riderProfile?.name));
   if (button) {
     button.innerText = riderIsAvailable ? 'Go offline' : 'Go online';
     button.className = riderIsAvailable
@@ -861,15 +1347,69 @@ document.addEventListener('DOMContentLoaded', async () => {
       RIDER_TAB_SOUND.play().catch(() => {});
     }
   });
-  const backendProfile = await hydrateRiderSession();
-  if (!backendProfile) {
-    riderProfile = null;
-    currentActiveRider = '';
-    riderIsAvailable = false;
+
+  const otpDigits = Array.from(document.querySelectorAll('.rider-otp-digit'));
+  otpDigits.forEach((input, index) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '').slice(-1);
+      if (input.value) otpDigits[Math.min(index + 1, otpDigits.length - 1)]?.focus();
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !input.value) otpDigits[index - 1]?.focus();
+      if (event.key === 'ArrowLeft') otpDigits[index - 1]?.focus();
+      if (event.key === 'ArrowRight') otpDigits[index + 1]?.focus();
+    });
+    input.addEventListener('paste', (event) => {
+      const pasted = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, 6) || '';
+      if (!pasted) return;
+      event.preventDefault();
+      pasted.split('').forEach((digit, digitIndex) => {
+        if (otpDigits[digitIndex]) otpDigits[digitIndex].value = digit;
+      });
+      otpDigits[Math.min(pasted.length, otpDigits.length - 1)]?.focus();
+    });
+  });
+
+  document.querySelectorAll('.rider-vehicle-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      riderSelectedVehicleType = button.dataset.vehicleType || 'BIKE';
+      document.querySelectorAll('.rider-vehicle-option').forEach((option) => {
+        const selected = option === button;
+        option.classList.toggle('is-selected', selected);
+        option.setAttribute('aria-pressed', String(selected));
+      });
+    });
+  });
+  document.querySelectorAll('.rider-document-input').forEach((input) => {
+    input.addEventListener('change', () => updateRiderDocumentSelection(input));
+  });
+
+  const token = getRiderAccessToken();
+  if (token) {
+    riderAuthMode = 'loading';
+    updateRiderIdentity();
+    const profile = await hydrateRiderSession();
+    if (profile?.needsApplication) {
+      showRiderAuthScreen('register');
+      setRiderAuthError('riderRegisterError', 'Your number is verified. Finish the rider application to continue.');
+    } else if (profile) {
+      await routeAuthenticatedRider(profile);
+    } else {
+      if (getRiderAccessToken()) {
+        await riderApiRequest('/api/auth/logout', {
+          method: 'POST',
+          authToken: token,
+          preserveAuthOn401: true
+        }).catch(() => {});
+      }
+      clearRiderAuthState();
+      showRiderAuthScreen('login');
+      setRiderAuthError('riderLoginError', 'This session is invalid or is not linked to a rider profile. Sign in with a rider account.');
+    }
+  } else {
+    clearRiderAuthState();
+    showRiderAuthScreen('login');
   }
-  updateRiderIdentity();
   updateAvailabilityUi();
-  showRiderSection('home');
-  if (backendProfile) startRiderOrdersListener();
   if (window.lucide) lucide.createIcons();
 });

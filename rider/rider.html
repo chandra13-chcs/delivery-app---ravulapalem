@@ -10,11 +10,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="../frontend/css/style.css">
-
-  <!-- FIREBASE SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+  <link rel="stylesheet" href="css/rider.css">
 
   <script>
     tailwind.config = {
@@ -22,9 +18,9 @@
         extend: {
           colors: {
             brand: {
-              navy: '#0B132B',
-              navyLight: '#1C2541',
-              accent: '#3A86FF',
+              navy: '#123F31',
+              navyLight: '#1D5843',
+              accent: '#15834C',
               slateBg: '#F8FAFC',
               border: '#E2E8F0'
             }
@@ -44,10 +40,172 @@
     }
   </script>
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans antialiased min-h-screen pb-12">
+<body class="rider-app-body">
+  <section id="riderAuthShell" class="rider-auth-shell" aria-live="polite">
+    <section id="riderLoginScreen" class="rider-auth-screen rider-auth-screen--login is-active" aria-labelledby="riderLoginHeading">
+      <div class="rider-auth-brand">
+        <img src="../assets/audio/categories/logo.png" alt="MyShopzy" class="rider-brand-mark">
+        <span class="rider-brand-name">MyShopzy<span>Rider</span></span>
+      </div>
+      <div class="rider-auth-copy">
+        <h1 id="riderLoginHeading">Welcome <span>Back</span></h1>
+        <p>Login to your rider account and keep delivering happiness</p>
+      </div>
+      <form class="rider-auth-form" onsubmit="event.preventDefault(); loginRider();">
+        <label class="rider-input-wrap">
+          <i data-lucide="smartphone" aria-hidden="true"></i>
+          <span class="rider-country-code">+91</span>
+          <input id="riderLoginIdentityInput" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="Enter mobile number" aria-label="Mobile number" required>
+        </label>
+        <div id="riderPasswordLoginArea" class="rider-password-area">
+          <label class="rider-input-wrap">
+            <i data-lucide="lock-keyhole" aria-hidden="true"></i>
+            <input id="riderLoginPasswordInput" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+          </label>
+        </div>
+        <button type="submit" id="riderLoginSubmit" class="rider-primary-button">Login <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+        <p id="riderLoginError" class="rider-form-error hidden" role="alert"></p>
+      </form>
+      <div class="rider-or-divider"><span>OR</span></div>
+      <button type="button" class="rider-outline-button" onclick="requestRiderLoginOtp()"><i data-lucide="message-square-code" aria-hidden="true"></i> Login with OTP</button>
+      <p class="rider-auth-switch">New to MyShopzy Rider? <button type="button" onclick="showRiderAuthScreen('register')">Create New Account</button></p>
+      <div class="rider-auth-art rider-auth-art--delivery" aria-hidden="true">
+        <img class="rider-login-artwork" src="../assets/audio/categories/login-rider-illustration.png" alt="">
+      </div>
+      <p class="rider-terms">By continuing, you agree to our <a href="#terms">Terms &amp; Conditions</a></p>
+    </section>
 
-  <!-- TOP APP BAR -->
-  <header class="bg-brand-navy text-white px-4 py-3.5 sticky top-0 z-30 shadow-md border-b border-slate-800">
+    <section id="riderOtpScreen" class="rider-auth-screen" aria-labelledby="riderOtpHeading" hidden>
+      <button type="button" class="rider-back-button" onclick="backFromRiderOtp()" aria-label="Go back"><i data-lucide="arrow-left"></i></button>
+      <div class="rider-auth-brand rider-auth-brand--compact">
+        <img src="../assets/audio/categories/logo.png" alt="MyShopzy" class="rider-brand-mark">
+        <span class="rider-brand-name">MyShopzy<span>Rider</span></span>
+      </div>
+      <div class="rider-auth-copy rider-auth-copy--center">
+        <h1 id="riderOtpHeading">Verify Your Number</h1>
+        <p>We've sent a 6-digit OTP to</p>
+        <strong id="riderOtpPhone" class="rider-otp-phone"></strong>
+      </div>
+      <p id="riderDevelopmentOtp" class="rider-development-otp hidden" aria-live="polite"></p>
+      <div class="rider-otp-inputs" role="group" aria-label="6-digit verification code">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="OTP digit 1">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 2">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 3">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 4">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 5">
+        <input class="rider-otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 6">
+      </div>
+      <p id="riderOtpError" class="rider-form-error rider-form-error--center hidden" role="alert"></p>
+      <p id="riderOtpCountdown" class="rider-resend-countdown">Resend OTP in <strong>00:45</strong></p>
+      <button type="button" id="riderOtpResend" class="rider-text-action rider-resend-button hidden" onclick="resendRiderOtp()">Resend OTP</button>
+      <button type="button" class="rider-primary-button rider-verify-button" onclick="verifyRiderOtp()">Verify <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+      <button type="button" class="rider-text-action rider-change-number" onclick="backFromRiderOtp()">Change Number</button>
+      <div class="rider-auth-art rider-auth-art--security" aria-hidden="true">
+        <div class="rider-art-sun"></div>
+        <div class="rider-shield"><i data-lucide="shield-check"></i></div>
+        <div class="rider-auth-horizon rider-auth-horizon--yellow"></div>
+        <div class="rider-auth-horizon rider-auth-horizon--green"></div>
+      </div>
+    </section>
+
+    <section id="riderRegisterScreen" class="rider-auth-screen rider-auth-screen--register" aria-labelledby="riderRegisterHeading" hidden>
+      <button type="button" class="rider-back-button" onclick="showRiderAuthScreen('login')" aria-label="Go back"><i data-lucide="arrow-left"></i></button>
+      <div class="rider-auth-brand rider-auth-brand--compact">
+        <img src="../assets/audio/categories/logo.png" alt="MyShopzy" class="rider-brand-mark">
+        <span class="rider-brand-name">MyShopzy<span>Rider</span></span>
+      </div>
+      <div class="rider-auth-copy rider-auth-copy--register">
+        <h1 id="riderRegisterHeading">Create Your Rider Account</h1>
+        <p>Get started and be a part of our delivery team</p>
+      </div>
+      <form class="rider-auth-form rider-register-form" onsubmit="event.preventDefault(); requestRiderRegistrationOtp();">
+        <label class="rider-input-wrap">
+          <i data-lucide="user-round" aria-hidden="true"></i>
+          <span class="rider-input-content"><small>Full Name</small><input id="riderNameInput" type="text" autocomplete="name" maxlength="100" placeholder="Enter your full name" required></span>
+        </label>
+        <label class="rider-input-wrap">
+          <i data-lucide="phone" aria-hidden="true"></i>
+          <span class="rider-country-code">+91</span>
+          <input id="riderMobileInput" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="Enter mobile number" aria-label="Mobile number" required>
+        </label>
+        <div class="rider-register-extra-fields">
+          <label class="rider-input-wrap">
+            <i data-lucide="mail" aria-hidden="true"></i>
+            <span class="rider-input-content"><small>Email Address</small><input id="riderEmailInput" type="email" autocomplete="email" maxlength="254" placeholder="Enter your email" required></span>
+          </label>
+          <label class="rider-input-wrap">
+            <i data-lucide="lock-keyhole" aria-hidden="true"></i>
+            <span class="rider-input-content"><small>Create Password</small><input id="riderPasswordInput" type="password" autocomplete="new-password" minlength="6" maxlength="128" placeholder="At least 6 characters" required></span>
+          </label>
+        </div>
+        <fieldset class="rider-vehicle-picker">
+          <legend>Vehicle Type</legend>
+          <div class="rider-vehicle-options">
+            <button type="button" class="rider-vehicle-option is-selected" data-vehicle-type="BIKE" aria-pressed="true"><i data-lucide="bike" aria-hidden="true"></i><span>Bike</span></button>
+            <button type="button" class="rider-vehicle-option" data-vehicle-type="SCOOTER" aria-pressed="false"><i data-lucide="motorbike" aria-hidden="true"></i><span>Scooter</span></button>
+            <button type="button" class="rider-vehicle-option" data-vehicle-type="BICYCLE" aria-pressed="false"><i data-lucide="bike" aria-hidden="true"></i><span>Bicycle</span></button>
+          </div>
+        </fieldset>
+        <label class="rider-input-wrap">
+          <i data-lucide="gift" aria-hidden="true"></i>
+          <input id="riderReferralInput" type="text" autocomplete="off" maxlength="64" placeholder="Referral code (optional)" aria-label="Referral code (optional)">
+        </label>
+        <p id="riderRegisterError" class="rider-form-error hidden" role="alert"></p>
+        <button type="submit" class="rider-primary-button">Create Account <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+      </form>
+      <button type="button" id="riderApplicationRetry" class="rider-primary-button hidden" onclick="retryRiderApplication()">Submit Rider Application <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+      <p class="rider-auth-switch">Already have an account? <button type="button" onclick="showRiderAuthScreen('login')">Login</button></p>
+      <div class="rider-register-decoration" aria-hidden="true"><img class="rider-register-artwork" src="../assets/audio/categories/registration-rider-illustration.png" alt=""></div>
+    </section>
+
+    <section id="riderPendingScreen" class="rider-auth-screen rider-auth-screen--pending" aria-labelledby="riderPendingHeading" hidden>
+      <div class="rider-pending-icon"><i data-lucide="shield-check"></i></div>
+      <div class="rider-auth-copy rider-auth-copy--center">
+        <h1 id="riderPendingHeading">Complete Your Verification</h1>
+        <p id="riderPendingMessage">Your rider account has been created. Please upload your verification documents to complete your application.</p>
+      </div>
+      <section id="riderDocumentSection" class="rider-document-section" aria-labelledby="riderDocumentHeading">
+        <h2 id="riderDocumentHeading">Verification Documents</h2>
+        <div class="rider-document-field">
+          <label class="rider-document-label" for="riderSelfieFile">Selfie photo</label>
+          <input id="riderSelfieFile" class="rider-document-input" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" capture="user" data-status-target="riderSelfieStatus" aria-describedby="riderSelfieStatus">
+          <p id="riderSelfieStatus" class="rider-document-file-status" aria-live="polite">No file selected</p>
+        </div>
+        <div class="rider-document-field">
+          <label class="rider-document-label" for="riderAadhaarFile">Aadhaar</label>
+          <input id="riderAadhaarFile" class="rider-document-input" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" capture="environment" data-status-target="riderAadhaarStatus" aria-describedby="riderAadhaarStatus">
+          <p id="riderAadhaarStatus" class="rider-document-file-status" aria-live="polite">No file selected</p>
+        </div>
+        <div class="rider-document-field">
+          <label class="rider-document-label" for="riderPanFile">PAN</label>
+          <input id="riderPanFile" class="rider-document-input" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" capture="environment" data-status-target="riderPanStatus" aria-describedby="riderPanStatus">
+          <p id="riderPanStatus" class="rider-document-file-status" aria-live="polite">No file selected</p>
+        </div>
+        <p id="riderDocumentStorageNote" class="rider-document-storage-note" role="status">Secure document storage is not configured yet. Your selected files have not been uploaded.</p>
+        <button type="button" class="rider-primary-button" disabled aria-disabled="true">Upload documents</button>
+      </section>
+      <button type="button" class="rider-outline-button" onclick="refreshRiderApplicationStatus()"><i data-lucide="refresh-cw" aria-hidden="true"></i> Check status</button>
+      <button type="button" class="rider-text-action rider-pending-logout" onclick="logoutRider()">Sign out</button>
+      <div class="rider-auth-art rider-auth-art--security" aria-hidden="true">
+        <div class="rider-art-sun"></div>
+        <div class="rider-shield"><i data-lucide="shield-check"></i></div>
+        <div class="rider-auth-horizon rider-auth-horizon--yellow"></div>
+        <div class="rider-auth-horizon rider-auth-horizon--green"></div>
+      </div>
+    </section>
+
+    <section id="riderAuthLoading" class="rider-auth-screen rider-auth-screen--loading" hidden>
+      <div class="rider-auth-brand">
+        <img src="../assets/audio/categories/logo.png" alt="MyShopzy" class="rider-brand-mark">
+        <span class="rider-brand-name">MyShopzy<span>Rider</span></span>
+      </div>
+      <div class="rider-loading-indicator" aria-label="Checking rider session"></div>
+      <p>Checking your rider session…</p>
+    </section>
+  </section>
+
+  <!-- TOP APP BAR (authenticated dashboard only) -->
+  <header id="riderDashboardHeader" class="hidden bg-brand-navy text-white px-4 py-3.5 sticky top-0 z-30 shadow-md border-b border-slate-800">
     <div class="max-w-md mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-xl bg-cyan-400 text-brand-navy flex items-center justify-center font-black text-lg">
@@ -60,34 +218,13 @@
       </div>
 
       <div class="flex items-center gap-1.5">
-        <button onclick="openRiderRegistrationModal()" id="riderRegisterButton" class="px-2 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-[10px] font-black">New rider · Register</button>
-        <button onclick="openRiderLoginModal()" id="riderLoginButton" class="px-2 py-1.5 rounded-xl bg-emerald-400 text-slate-950 text-[10px] font-black">Existing rider · Login</button>
         <button onclick="showRiderSection('account')" class="w-8 h-8 rounded-xl bg-brand-navyLight border border-slate-700 text-sm" aria-label="My Account">👤</button>
       </div>
     </div>
   </header>
 
-  <!-- MAIN CONTAINER -->
-  <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
-
-    <section id="riderWelcomeScreen" class="rider-welcome-screen rounded-[2rem] p-6 text-center shadow-xl">
-      <div class="rider-welcome-logo mx-auto flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-cyan-400 text-4xl shadow-lg shadow-cyan-950/20">🛵</div>
-      <p class="mt-5 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">MyShopzy Express</p>
-      <h2 class="mt-2 text-3xl font-black tracking-tight text-white">Ride. Deliver. Earn.</h2>
-      <p class="mx-auto mt-2 max-w-xs text-xs font-semibold leading-relaxed text-slate-300">Join Mandapeta's fast delivery network and manage every order from one simple rider app.</p>
-      <div class="mt-6 grid grid-cols-3 gap-2 text-left">
-        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">⚡</span><strong class="mt-1 block text-[10px] text-white">Fast dispatch</strong></div>
-        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">📍</span><strong class="mt-1 block text-[10px] text-white">Live GPS</strong></div>
-        <div class="rounded-2xl border border-white/10 bg-white/10 p-2.5"><span class="text-lg">💰</span><strong class="mt-1 block text-[10px] text-white">Track earnings</strong></div>
-      </div>
-      <div class="mt-6 space-y-2">
-        <button onclick="openRiderRegistrationModal()" class="w-full rounded-2xl bg-amber-400 px-4 py-3.5 text-xs font-black uppercase tracking-wider text-slate-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-300">Create rider account</button>
-        <button onclick="openRiderLoginModal()" class="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-white/20">Login to rider app</button>
-      </div>
-      <p class="mt-4 text-[10px] font-semibold text-slate-400">Secure profile verification · Quick order alerts · Customer details after pickup</p>
-    </section>
-
-    <div id="riderAppShell" class="hidden space-y-4">
+  <!-- Existing Rider dashboard; its delivery sections remain unchanged. -->
+  <main id="riderAppShell" class="hidden max-w-md mx-auto px-4 pt-4 pb-24 space-y-4">
 
     <div id="riderAlertBanner" class="hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold"></div>
 
@@ -136,12 +273,31 @@
           <p><strong>Email:</strong> <span id="riderAccountEmail">-</span></p>
           <p><strong>Aadhaar:</strong> <span id="riderAccountAadhaar">-</span></p>
         </div>
-        <button onclick="openRiderRegistrationModal()" class="w-full py-2.5 rounded-xl bg-brand-navy text-white text-xs font-black">Register / Update Profile</button>
+        <button onclick="refreshRiderApplicationStatus()" class="w-full py-2.5 rounded-xl bg-brand-navy text-white text-xs font-black">Check Rider Status</button>
         <button onclick="logoutRider()" class="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black">Logout</button>
       </div>
-    </section>
 
-    </div>
+      <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-sm font-black text-slate-900">Rider Earnings</h3>
+          <button onclick="loadRiderEarnings()" class="text-[10px] font-black uppercase tracking-wide text-brand-accent">Refresh</button>
+        </div>
+        <div id="riderEarningsSummary" class="text-slate-600 text-xs">Loading earnings…</div>
+        <div id="riderEarningsList" class="space-y-2"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-brand-border shadow-sm space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-sm font-black text-slate-900">Notifications</h3>
+          <button id="riderMarkAllNotificationsReadBtn" onclick="markAllRiderNotificationsRead()" class="text-[10px] font-black uppercase tracking-wide text-brand-accent">Mark all read</button>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-500">
+          <span>Inbox</span>
+          <span id="riderNotificationsUnreadCount" class="inline-flex items-center justify-center min-w-[1.4rem] h-5 rounded-full bg-amber-100 text-amber-800 font-black px-1.5">0</span>
+        </div>
+        <div id="riderNotificationsContainer" class="space-y-2"></div>
+      </div>
+    </section>
 
   </main>
 
@@ -152,58 +308,6 @@
       <button onclick="showRiderSection('account')" class="py-2.5 text-[10px] font-black text-slate-600">👤<span class="block">My Account</span></button>
     </div>
   </nav>
-
-  <!-- RIDER REGISTRATION MODAL -->
-  <div id="riderRegistrationModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between">
-        <h3 class="text-base font-black text-slate-900">Rider Registration</h3>
-        <button onclick="closeRiderRegistrationModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
-      </div>
-      <input id="riderNameInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Full name">
-      <input id="riderMobileInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="10-digit mobile" maxlength="10" inputmode="numeric">
-      <input id="riderEmailInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Email address" type="email">
-      <input id="riderAadhaarInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Aadhaar number" maxlength="12" inputmode="numeric">
-      <input id="riderPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password (min 6 characters)" type="password" autocomplete="new-password">
-      <input id="riderConfirmPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Confirm password" type="password" autocomplete="new-password">
-      <div class="flex gap-2">
-        <input id="riderOtpInput" class="flex-1 p-2.5 border rounded-xl text-xs" placeholder="OTP" maxlength="4" inputmode="numeric">
-        <button onclick="sendRiderRegistrationOtp()" class="px-3 rounded-xl bg-slate-900 text-white text-[10px] font-black">Send OTP</button>
-      </div>
-      <p class="text-[10px] text-slate-500">Demo OTP: 4821. Production deployment should connect this flow to a server-side OTP provider.</p>
-      <button onclick="completeRiderRegistration()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Verify & Register</button>
-    </div>
-  </div>
-
-  <!-- RIDER DOCUMENT VERIFICATION MODAL -->
-  <div id="riderVerificationModal" class="hidden fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-3 max-h-[92vh] overflow-y-auto">
-      <div class="flex items-start justify-between gap-3">
-        <div><p class="text-[10px] uppercase tracking-wider font-black text-amber-600">Step 2 of 2</p><h3 class="text-base font-black text-slate-900">Verify rider identity</h3><p class="text-[11px] text-slate-500 mt-1">Upload clear original photos for admin verification.</p></div>
-        <button onclick="closeRiderVerificationModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
-      </div>
-      <input id="riderPanInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="PAN card number" maxlength="10" autocomplete="off">
-      <label class="block text-[10px] font-black uppercase text-slate-500">Original selfie<input id="riderSelfieFile" type="file" accept="image/*" capture="user" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
-      <label class="block text-[10px] font-black uppercase text-slate-500">Aadhaar photo<input id="riderAadhaarFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
-      <label class="block text-[10px] font-black uppercase text-slate-500">PAN card photo<input id="riderPanFile" type="file" accept="image/*" capture="environment" class="mt-1 w-full p-2 border rounded-xl text-xs"></label>
-      <p id="riderVerificationStatus" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-2 text-[11px] font-bold text-amber-800"></p>
-      <button onclick="submitRiderVerification()" class="w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black">Submit for admin verification</button>
-    </div>
-  </div>
-
-  <!-- RIDER LOGIN MODAL -->
-  <div id="riderLoginModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-base font-black text-slate-900">Rider Login</h3>
-        <button onclick="closeRiderLoginModal()" class="w-8 h-8 rounded-xl bg-slate-100 font-bold">✕</button>
-      </div>
-      <input id="riderLoginIdentityInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Mobile number or email" autocomplete="username">
-      <input id="riderLoginPasswordInput" class="w-full p-2.5 border rounded-xl text-xs" placeholder="Password" type="password" autocomplete="current-password">
-      <p id="riderLoginError" class="hidden text-xs font-bold text-rose-600"></p>
-      <button onclick="loginRider()" class="w-full py-3 rounded-xl bg-brand-navy text-white text-xs font-black">Sign in</button>
-    </div>
-  </div>
 
   <!-- OTP VERIFICATION MODAL -->
   <div id="otpModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -238,7 +342,6 @@
   </div>
 
   <!-- MODULAR JAVASCRIPT CALLS -->
-  <script src="../backend/firebase-config.js"></script>
   <script src="js/rider.js"></script>
 </body>
 </html>
