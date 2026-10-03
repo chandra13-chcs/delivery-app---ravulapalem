@@ -5,9 +5,13 @@ const categoryId = new URLSearchParams(window.location.search).get("categorySlug
   || new URLSearchParams(window.location.search).get("categoryId")
   || "";
 const requestedCategoryName = new URLSearchParams(window.location.search).get("categoryName") || "";
-const isLocalServiceHost = window.location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const serviceHostName = window.location.hostname;
+const isPrivateServiceIpv4Host = /^(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\./.test(serviceHostName);
+const isLocalServiceHost = window.location.protocol === "file:"
+  || ["localhost", "127.0.0.1"].includes(serviceHostName)
+  || isPrivateServiceIpv4Host;
 const serviceApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (isLocalServiceHost
-  ? `http://${window.location.hostname || "localhost"}:5000/api`
+  ? `http://${serviceHostName || "localhost"}:5000/api`
   : `${window.location.origin}/api`);
 let serviceRestaurants = [];
 let serviceProducts = [];
