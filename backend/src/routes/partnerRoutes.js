@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getPartnerProfile,
   listPartnerShops,
+  listPartnerCategories,
   getPartnerShop,
   getPartnerShopDashboard,
   listPartnerShopProducts,
@@ -43,6 +44,7 @@ router.get("/orders/:orderId", getPartnerOrder);
 router.patch("/orders/:orderId/shops/:shopId/status", updatePartnerOrderStatus);
 router.post("/orders/:orderId/shops/:shopId/pickup-otp", issuePickupOtp);
 router.get("/shops", listPartnerShops);
+router.get("/categories", listPartnerCategories);
 router.get("/shops/:shopId/dashboard", getPartnerShopDashboard);
 router.patch("/shops/:shopId/status", updatePartnerShopStatus);
 router.patch("/shops/:shopId", updatePartnerShop);

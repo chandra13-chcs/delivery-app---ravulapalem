@@ -4916,7 +4916,7 @@ async function finalizeOrderAndLaunch(
         items: orderItems.map(item => {
           const product = liveCatalog.find(entry => String(entry.id) === String(item.id));
           return {
-            product_id: item.id,
+            product_id: product?.product_id || item.id,
             variant_id: item.variant_id || product?.variant_id || product?.default_variant_id || null,
             quantity: item.quantity,
             selected_weight: product && supportsWeightOptions(product) ? getSelectedProductWeight(product) : null

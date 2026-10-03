@@ -85,13 +85,32 @@ function validateProductBody(body) {
   return { name, description, brand, categoryId, variant, imageUrl };
 }
 
-async function categoryIsAvailable(queryable, categoryId) {
+async function categoryMatchesBusinessType(queryable, categoryId, businessType) {
   if (!categoryId) return true;
   const result = await queryable.query(
-    "SELECT 1 FROM categories WHERE id = $1 AND is_active = true AND deleted_at IS NULL",
+    `SELECT business_type
+     FROM categories
+     WHERE id = $1
+       AND is_active = true
+       AND deleted_at IS NULL`,
     [categoryId]
   );
-  return Boolean(result.rows[0]);
+  if (!result.rows[0]) return false;
+  return result.rows[0].business_type === null || result.rows[0].business_type === businessType;
+}
+
+async function getAuthorizedShopBusinessType(queryable, shopId, partnerIds) {
+  const result = await queryable.query(
+    `SELECT p.business_type
+     FROM shops s
+     JOIN partners p ON p.id = s.partner_id
+     WHERE s.id = $1
+       AND s.partner_id = ANY($2::uuid[])
+       AND s.deleted_at IS NULL
+       AND p.deleted_at IS NULL`,
+    [shopId, partnerIds]
+  );
+  return result.rows[0]?.business_type || null;
 }
 
 async function saveProductImage(queryable, productId, imageUrl, productName) {
@@ -247,9 +266,14 @@ async function createPartnerProduct(req, res) {
   try {
     client = await db.connect();
     await client.query("BEGIN");
-    if (!await categoryIsAvailable(client, input.categoryId)) {
+    const businessType = await getAuthorizedShopBusinessType(client, shopId, req.partnerIds);
+    if (!businessType) {
       await client.query("ROLLBACK");
-      return badRequest(res, "The selected category is not active.");
+      return notFound(res);
+    }
+    if (!await categoryMatchesBusinessType(client, input.categoryId, businessType)) {
+      await client.query("ROLLBACK");
+      return badRequest(res, "The selected category is inactive or incompatible with this shop's business type.");
     }
     const productResult = await client.query(
       `INSERT INTO products (shop_id, category_id, name, description, brand, status)
@@ -313,9 +337,14 @@ async function updatePartnerProduct(req, res) {
       await client.query("ROLLBACK");
       return notFound(res, "Product not found.");
     }
-    if (!await categoryIsAvailable(client, input.categoryId)) {
+    const businessType = await getAuthorizedShopBusinessType(client, shopId, req.partnerIds);
+    if (!businessType) {
       await client.query("ROLLBACK");
-      return badRequest(res, "The selected category is not active.");
+      return notFound(res);
+    }
+    if (!await categoryMatchesBusinessType(client, input.categoryId, businessType)) {
+      await client.query("ROLLBACK");
+      return badRequest(res, "The selected category is inactive or incompatible with this shop's business type.");
     }
 
     await client.query(

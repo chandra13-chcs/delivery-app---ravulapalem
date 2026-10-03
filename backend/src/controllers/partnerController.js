@@ -66,6 +66,41 @@ async function listPartnerShops(req, res) {
   }
 }
 
+async function listPartnerCategories(req, res) {
+  const shopId = typeof req.query.shop_id === "string" ? req.query.shop_id : "";
+  if (!isValidUuid(shopId)) {
+    return res.status(400).json({ success: false, message: "A valid shop_id is required.", data: null });
+  }
+
+  try {
+    const shopResult = await db.query(
+      `SELECT p.business_type
+       FROM shops s
+       JOIN partners p ON p.id = s.partner_id
+       WHERE s.id = $1
+         AND s.partner_id = ANY($2::uuid[])
+         AND s.deleted_at IS NULL
+         AND p.deleted_at IS NULL`,
+      [shopId, req.partnerIds]
+    );
+    if (!shopResult.rows[0]) return notFoundResponse(res);
+
+    const result = await db.query(
+      `SELECT id, name, slug, description, parent_id, business_type, sort_order
+       FROM categories
+       WHERE is_active = true
+         AND deleted_at IS NULL
+         AND (business_type IS NULL OR business_type = $1)
+       ORDER BY sort_order ASC, name ASC`,
+      [shopResult.rows[0].business_type]
+    );
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error("Partner category listing failed:", error.message);
+    return res.status(500).json({ success: false, message: "Unable to retrieve partner categories.", data: null });
+  }
+}
+
 async function getPartnerShop(req, res) {
   const { shopId } = req.params;
   if (!isValidUuid(shopId)) return invalidIdResponse(res);
@@ -239,6 +274,7 @@ async function listPartnerShopInventory(req, res) {
 module.exports = {
   getPartnerProfile,
   listPartnerShops,
+  listPartnerCategories,
   getPartnerShop,
   getPartnerShopDashboard,
   listPartnerShopProducts,

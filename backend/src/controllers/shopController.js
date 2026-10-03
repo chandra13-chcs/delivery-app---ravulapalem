@@ -1,6 +1,7 @@
 const db = require("../config/db");
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
 
 function isValidUuid(value) {
   return typeof value === "string" && uuidPattern.test(value);
@@ -15,14 +16,39 @@ function invalidUuidResponse(res) {
 }
 
 async function listShops(req, res) {
+  const requestedBusinessType = typeof req.query.business_type === "string"
+    ? req.query.business_type.trim().toUpperCase()
+    : null;
+  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+    return res.status(400).json({
+      success: false,
+      message: "A supported business_type is required",
+      data: null
+    });
+  }
+
   try {
     const result = await db.query(
       `SELECT s.id, s.partner_id, s.name, s.description, s.cuisine, s.image_object_key,
-          partner.business_type
+          partner.business_type, COALESCE(shop_categories.items, '[]'::jsonb) AS categories
        FROM shops s
        JOIN partners partner ON partner.id = s.partner_id
+       LEFT JOIN LATERAL (
+         SELECT jsonb_agg(DISTINCT jsonb_build_object(
+           'id', c.id, 'name', c.name, 'slug', c.slug
+         )) AS items
+         FROM products p
+         JOIN categories c ON c.id = p.category_id
+         WHERE p.shop_id = s.id
+           AND p.status = 'ACTIVE'
+           AND p.deleted_at IS NULL
+           AND c.is_active = true
+           AND c.deleted_at IS NULL
+       ) shop_categories ON true
        WHERE s.status = 'ACTIVE' AND s.deleted_at IS NULL
-       ORDER BY s.name ASC`
+         AND ($1::text IS NULL OR partner.business_type = $1)
+       ORDER BY s.name ASC`,
+      [requestedBusinessType]
     );
 
     return res.json({
@@ -129,7 +155,13 @@ async function listShopProducts(req, res) {
              'unit_quantity', pv.unit_quantity,
              'price', pv.price,
              'compare_at_price', pv.compare_at_price,
-             'is_default', pv.is_default
+             'is_default', pv.is_default,
+             'is_available', EXISTS (
+               SELECT 1
+               FROM inventory inv
+               WHERE inv.variant_id = pv.id
+                 AND inv.quantity_on_hand > inv.quantity_reserved
+             )
            ) ORDER BY pv.is_default DESC, pv.name ASC
          ) AS items
          FROM product_variants pv

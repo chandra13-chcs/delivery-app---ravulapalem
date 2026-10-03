@@ -1,9 +1,10 @@
 const db = require("../config/db");
 const { writeAuditLog } = require("../services/auditService");
 
-const CATEGORY_COLUMNS = `id, name, slug, description, parent_id, sort_order,
+const CATEGORY_COLUMNS = `id, name, slug, description, parent_id, business_type, sort_order,
                          is_active, created_at, updated_at, deleted_at`;
-const CATEGORY_FIELDS = new Set(["name", "slug", "description", "parent_id", "sort_order", "is_active"]);
+const CATEGORY_FIELDS = new Set(["name", "slug", "description", "parent_id", "business_type", "sort_order", "is_active"]);
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
 const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 60;
@@ -70,6 +71,16 @@ function validateCategoryBody(body, creating) {
     value.parent_id = null;
   }
 
+  if (Object.prototype.hasOwnProperty.call(body, "business_type")) {
+    if (body.business_type !== null
+        && (typeof body.business_type !== "string" || !BUSINESS_TYPES.has(body.business_type))) {
+      return { error: "business_type must be a supported business type or null." };
+    }
+    value.business_type = body.business_type;
+  } else if (creating) {
+    value.business_type = null;
+  }
+
   if (Object.prototype.hasOwnProperty.call(body, "sort_order")) {
     if (!Number.isInteger(body.sort_order) || body.sort_order < MIN_POSTGRES_INTEGER || body.sort_order > MAX_POSTGRES_INTEGER) {
       return { error: "Category sort_order must be a valid PostgreSQL integer." };
@@ -93,13 +104,36 @@ function isDuplicateSlug(error) {
   return error.code === "23505" && (!error.constraint || error.constraint.includes("slug"));
 }
 
-async function parentExists(queryable, parentId) {
-  if (parentId === null) return true;
+async function getCategoryParent(queryable, parentId) {
+  if (parentId === null) return null;
   const result = await queryable.query(
-    "SELECT EXISTS (SELECT 1 FROM categories WHERE id = $1 AND deleted_at IS NULL) AS category_exists",
+    "SELECT id, business_type FROM categories WHERE id = $1 AND deleted_at IS NULL",
     [parentId]
   );
-  return result.rows[0]?.category_exists === true;
+  return result.rows[0] || null;
+}
+
+async function categoryParentScopeIsCompatible(queryable, parentId, businessType) {
+  const parent = await getCategoryParent(queryable, parentId);
+  if (parentId !== null && !parent) return { error: "Parent category does not exist." };
+  if (parent?.business_type && parent.business_type !== businessType) {
+    return { error: "Child category business_type must match its parent category." };
+  }
+  return {};
+}
+
+async function categoryChildrenMatchScope(queryable, categoryId, businessType) {
+  if (businessType === null) return true;
+  const children = await queryable.query(
+    `SELECT 1
+     FROM categories
+     WHERE parent_id = $1
+       AND deleted_at IS NULL
+       AND business_type IS DISTINCT FROM $2
+     LIMIT 1`,
+    [categoryId, businessType]
+  );
+  return children.rows.length === 0;
 }
 
 async function parentWouldCreateCycle(queryable, categoryId, parentId) {
@@ -131,13 +165,25 @@ async function listAdminCategories(req, res) {
 }
 
 async function listCategories(req, res) {
+  const requestedBusinessType = typeof req.query.business_type === "string"
+    ? req.query.business_type.trim().toUpperCase()
+    : null;
+  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+    return responseError(res, 400, "business_type must be a supported business type.");
+  }
+
   try {
     const result = await db.query(
-      `SELECT id, name, slug, description, parent_id, sort_order
+      `SELECT id, name, slug, description, parent_id, business_type, sort_order
        FROM categories
        WHERE is_active = true
          AND deleted_at IS NULL
-       ORDER BY sort_order ASC, name ASC`
+         AND (
+           ($1::text IS NULL AND business_type IS NULL)
+           OR ($1::text IS NOT NULL AND (business_type IS NULL OR business_type = $1))
+         )
+         ORDER BY sort_order ASC, name ASC`,
+      [requestedBusinessType]
     );
 
     return res.json({
@@ -164,16 +210,18 @@ async function createCategory(req, res) {
   try {
     client = await db.connect();
     await client.query("BEGIN");
-    if (!await parentExists(client, category.parent_id)) {
+    const parentScope = await categoryParentScopeIsCompatible(client, category.parent_id, category.business_type);
+    if (parentScope.error) {
       await client.query("ROLLBACK");
-      return responseError(res, 400, "Parent category does not exist.");
+      return responseError(res, 400, parentScope.error);
     }
 
     const result = await client.query(
-      `INSERT INTO categories (name, slug, description, parent_id, sort_order, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO categories (name, slug, description, parent_id, business_type, sort_order, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING ${CATEGORY_COLUMNS}`,
-      [category.name, category.slug, category.description, category.parent_id, category.sort_order, category.is_active]
+      [category.name, category.slug, category.description, category.parent_id, category.business_type,
+        category.sort_order, category.is_active]
     );
     await writeAuditLog(client, req, "category.created", "categories", result.rows[0].id, null, result.rows[0]);
     await client.query("COMMIT");
@@ -212,13 +260,24 @@ async function updateCategory(req, res) {
       return responseError(res, 404, "Category not found.");
     }
 
-    if (Object.prototype.hasOwnProperty.call(category, "parent_id") && !await parentExists(client, category.parent_id)) {
+    const nextParentId = Object.prototype.hasOwnProperty.call(category, "parent_id")
+      ? category.parent_id
+      : existingCategory.rows[0].parent_id;
+    const nextBusinessType = Object.prototype.hasOwnProperty.call(category, "business_type")
+      ? category.business_type
+      : existingCategory.rows[0].business_type;
+    const parentScope = await categoryParentScopeIsCompatible(client, nextParentId, nextBusinessType);
+    if (parentScope.error) {
       await client.query("ROLLBACK");
-      return responseError(res, 400, "Parent category does not exist.");
+      return responseError(res, 400, parentScope.error);
     }
-    if (category.parent_id && await parentWouldCreateCycle(client, categoryId, category.parent_id)) {
+    if (nextParentId && await parentWouldCreateCycle(client, categoryId, nextParentId)) {
       await client.query("ROLLBACK");
       return responseError(res, 400, "A category cannot be its own parent or a descendant of itself.");
+    }
+    if (!await categoryChildrenMatchScope(client, categoryId, nextBusinessType)) {
+      await client.query("ROLLBACK");
+      return responseError(res, 400, "Category business_type must remain compatible with its child categories.");
     }
 
     const values = [categoryId];

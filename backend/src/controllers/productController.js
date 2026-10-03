@@ -1,16 +1,27 @@
 const db = require("../config/db");
 
 const categorySlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
 
 async function listProductsByCategory(req, res) {
   const categorySlug = typeof req.query.category === "string"
     ? req.query.category.trim().toLowerCase()
     : "";
+  const requestedBusinessType = typeof req.query.business_type === "string"
+    ? req.query.business_type.trim().toUpperCase()
+    : null;
 
   if (categorySlug && !categorySlugPattern.test(categorySlug)) {
     return res.status(400).json({
       success: false,
       message: "A valid category slug is required",
+      data: null
+    });
+  }
+  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+    return res.status(400).json({
+      success: false,
+      message: "A supported business_type is required",
       data: null
     });
   }
@@ -44,6 +55,7 @@ async function listProductsByCategory(req, res) {
          ON partner.id = s.partner_id
         AND partner.status = 'ACTIVE'
         AND partner.deleted_at IS NULL
+        AND (c.business_type IS NULL OR c.business_type = partner.business_type)
        LEFT JOIN LATERAL (
          SELECT pv.id, pv.price, pv.unit_label, pv.unit_quantity
          FROM product_variants pv
@@ -63,8 +75,9 @@ async function listProductsByCategory(req, res) {
        WHERE p.status = 'ACTIVE'
          AND p.deleted_at IS NULL
          AND ($1::text IS NULL OR c.slug = $1)
+         AND ($2::text IS NULL OR partner.business_type = $2)
        ORDER BY p.name ASC`,
-      [categorySlug || null]
+      [categorySlug || null, requestedBusinessType]
     );
 
     return res.json({

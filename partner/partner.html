@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyShopzy | Partner Restaurant Console</title>
+  <title>MyShopzy | Partner Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,12 +15,12 @@
     <div class="partner-login-brand">
       <a class="partner-brand" href="../frontend/index.html" aria-label="MyShopzy home">
         <span class="partner-brand-mark">M</span>
-        <span><strong>MyShopzy</strong><small>Restaurant partner</small></span>
+        <span><strong>MyShopzy</strong><small id="partnerSetupType">Partner console</small></span>
       </a>
       <div class="partner-login-copy">
         <span class="eyebrow">PARTNER PORTAL</span>
-        <h1>Your restaurant,<br>in good hands.</h1>
-        <p>Manage your menu, inventory and orders from one place.</p>
+        <h1>Your business,<br>in good hands.</h1>
+        <p>Manage your products, inventory and orders from one place.</p>
       </div>
       <p class="partner-login-footnote">Secure sign-in with your registered mobile number.</p>
     </div>
@@ -47,15 +47,15 @@
     <aside class="partner-sidebar" aria-label="Partner navigation">
       <a class="partner-brand" href="#dashboard" onclick="navigatePartnerSection(event, 'dashboard')">
         <span class="partner-brand-mark">M</span>
-        <span><strong>MyShopzy</strong><small>Restaurant console</small></span>
+        <span><strong>MyShopzy</strong><small id="partnerBrandType">Partner console</small></span>
       </a>
       <div class="partner-sidebar-label">WORKSPACE</div>
       <nav class="partner-nav">
         <button type="button" class="partner-nav-link is-active" data-section="dashboard" onclick="navigatePartnerSection(event, 'dashboard')"><span class="nav-symbol">◫</span>Dashboard</button>
         <button type="button" class="partner-nav-link" data-section="orders" onclick="navigatePartnerSection(event, 'orders')"><span class="nav-symbol">▤</span>Orders<span id="partnerNavOrderCount" class="partner-nav-count" hidden></span></button>
-        <button type="button" class="partner-nav-link" data-section="products" onclick="navigatePartnerSection(event, 'products')"><span class="nav-symbol">▦</span>Menu / Products</button>
+        <button type="button" class="partner-nav-link" data-section="products" onclick="navigatePartnerSection(event, 'products')"><span class="nav-symbol">▦</span><span id="partnerProductsNavLabel">Products</span></button>
         <button type="button" class="partner-nav-link" data-section="inventory" onclick="navigatePartnerSection(event, 'inventory')"><span class="nav-symbol">▧</span>Inventory</button>
-        <button type="button" class="partner-nav-link" data-section="restaurant-info" onclick="navigatePartnerSection(event, 'restaurant-info')"><span class="nav-symbol">⌂</span>Restaurant Info</button>
+        <button type="button" class="partner-nav-link" data-section="restaurant-info" onclick="navigatePartnerSection(event, 'restaurant-info')"><span class="nav-symbol">⌂</span><span id="partnerShopInfoNavLabel">Shop Info</span></button>
         <button type="button" class="partner-nav-link" data-section="reports" onclick="navigatePartnerSection(event, 'reports')"><span class="nav-symbol">▥</span>Sales &amp; Reports</button>
         <button type="button" class="partner-nav-link" data-section="reviews" onclick="navigatePartnerSection(event, 'reviews')"><span class="nav-symbol">☆</span>Ratings &amp; Reviews</button>
         <button type="button" class="partner-nav-link" data-section="settings" onclick="navigatePartnerSection(event, 'settings')"><span class="nav-symbol">⚙</span>Settings</button>
@@ -63,7 +63,7 @@
       <div class="partner-sidebar-bottom">
         <div class="partner-account" id="partnerIdentityPanel">
           <span class="partner-avatar" id="partnerAvatar">P</span>
-          <span class="partner-account-copy"><strong id="partnerAccountName">Partner account</strong><small id="partnerIdentityLabel">Restaurant</small></span>
+          <span class="partner-account-copy"><strong id="partnerAccountName">Partner account</strong><small id="partnerIdentityLabel">Partner</small></span>
         </div>
         <button type="button" class="partner-nav-link partner-logout" onclick="signOutPartner()"><span class="nav-symbol">⇥</span>Log out</button>
       </div>
@@ -87,8 +87,8 @@
           </section>
         </div>
         <div class="partner-topbar-shop">
-          <label for="partnerShopSelect">Restaurant</label>
-          <select id="partnerShopSelect" onchange="selectPartnerShop(this.value)" aria-label="Select an authorized restaurant"></select>
+          <label id="partnerShopSelectLabel" for="partnerShopSelect">Shop</label>
+          <select id="partnerShopSelect" onchange="selectPartnerShop(this.value)" aria-label="Select an authorized shop"></select>
           <span id="partnerShopStatusLabel" class="partner-status-badge">Loading</span>
         </div>
       </header>
@@ -96,7 +96,7 @@
       <div class="partner-content">
         <section id="partnerDashboardPage" class="partner-page">
           <div class="partner-page-heading">
-            <div><span class="eyebrow">OVERVIEW</span><h2 id="partnerWelcomeTitle">Restaurant dashboard</h2><p id="partnerHeaderSubtitle" class="partner-muted">Your restaurant activity at a glance.</p></div>
+            <div><span class="eyebrow">OVERVIEW</span><h2 id="partnerWelcomeTitle">Partner dashboard</h2><p id="partnerHeaderSubtitle" class="partner-muted">Your shop activity at a glance.</p></div>
             <button type="button" id="partnerShopStatusButton" class="partner-button partner-button-outline" onclick="togglePartnerShopStatus()">Shop status</button>
           </div>
 
@@ -120,20 +120,20 @@
           </div>
 
           <section class="partner-panel partner-quick-panel">
-            <div class="partner-panel-heading"><div><h3>Quick Actions</h3><p>Common restaurant tasks</p></div></div>
+            <div class="partner-panel-heading"><div><h3>Quick Actions</h3><p>Common shop tasks</p></div></div>
             <div class="partner-quick-actions">
               <button type="button" onclick="startAddPartnerProduct()"><span>＋</span>Add New Item</button>
-              <button type="button" onclick="navigatePartnerSection(null, 'products')"><span>▦</span>Manage Menu</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'products')"><span>▦</span><span id="partnerManageProductsLabel">Manage Products</span></button>
               <button type="button" onclick="navigatePartnerSection(null, 'inventory')"><span>▧</span>Update Inventory</button>
               <button type="button" onclick="navigatePartnerSection(null, 'orders')"><span>▤</span>View Orders</button>
               <button type="button" onclick="navigatePartnerSection(null, 'reports')"><span>▥</span>View Reports</button>
-              <button type="button" onclick="navigatePartnerSection(null, 'restaurant-info')"><span>⌂</span>Restaurant Info</button>
+              <button type="button" onclick="navigatePartnerSection(null, 'restaurant-info')"><span>⌂</span><span id="partnerQuickShopInfoLabel">Shop Info</span></button>
             </div>
           </section>
 
           <div class="partner-dashboard-grid partner-dashboard-lower">
             <section class="partner-panel">
-              <div class="partner-panel-heading"><div><h3>Recent Orders</h3><p>Latest orders for this restaurant</p></div><button class="partner-text-button" onclick="navigatePartnerSection(null, 'orders')">View all</button></div>
+              <div class="partner-panel-heading"><div><h3>Recent Orders</h3><p>Latest orders for this shop</p></div><button class="partner-text-button" onclick="navigatePartnerSection(null, 'orders')">View all</button></div>
               <div id="partnerRecentOrders" class="partner-compact-list"></div>
             </section>
             <section class="partner-panel">
@@ -149,7 +149,7 @@
               <div id="partnerLiveOrders" class="partner-compact-list"></div>
             </section>
             <section class="partner-panel">
-              <div class="partner-panel-heading"><div><h3>Restaurant Performance</h3><p>Menu and stock snapshot</p></div></div>
+              <div class="partner-panel-heading"><div><h3>Shop Performance</h3><p>Products and stock snapshot</p></div></div>
               <div class="partner-performance-grid">
                 <div><span>Products</span><strong id="partnerTotalProducts">-</strong></div>
                 <div><span>Active items</span><strong id="partnerActiveProducts">-</strong></div>
@@ -174,7 +174,7 @@
         </section>
 
         <section id="partnerProductsView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">CATALOG</span><h2>Menu &amp; Products</h2><p class="partner-muted">Manage the items available from your restaurant.</p></div><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add Product</button></div>
+          <div class="partner-page-heading"><div><span class="eyebrow">CATALOG</span><h2 id="partnerProductsHeading">Products</h2><p class="partner-muted">Manage the items available from your shop.</p></div><button type="button" class="partner-button partner-button-primary" onclick="startAddPartnerProduct()">＋ Add Product</button></div>
           <p id="partnerProductFeedback" class="partner-feedback" role="status" aria-live="polite"></p>
           <div id="partnerProductsContainer" class="partner-product-grid"></div>
           <dialog id="partnerProductModal" class="partner-modal" aria-labelledby="partnerProductModalTitle">
@@ -184,12 +184,13 @@
                 <input type="hidden" id="partnerProductId"><input type="hidden" id="partnerProductVariantId"><input type="hidden" id="partnerProductMode">
                 <label>Product name<input id="partnerProductName" required maxlength="300" placeholder="Product or dish name"></label>
                 <label>Category<select id="partnerProductCategory"><option value="">No category</option></select></label>
+                <label>Brand<input id="partnerProductBrand" maxlength="200" placeholder="Optional brand"></label>
                 <label class="form-wide">Description<textarea id="partnerProductDescription" maxlength="2000" rows="3" placeholder="Short product description"></textarea></label>
                 <label>Variant name<input id="partnerProductVariantName" maxlength="200" placeholder="e.g. Regular"></label>
                 <label>Price<input id="partnerProductPrice" required type="number" min="0" step="0.01" placeholder="₹"></label>
                 <label>Compare-at price<input id="partnerProductComparePrice" type="number" min="0" step="0.01" placeholder="Optional"></label>
                 <label>SKU<input id="partnerProductSku" maxlength="200" placeholder="Optional"></label>
-                <label>Unit<input id="partnerProductUnit" maxlength="100" placeholder="e.g. 1 plate"></label>
+                <label>Unit<input id="partnerProductUnit" maxlength="100" placeholder="e.g. 500 g, 1 kg, 1 piece, pack"></label>
                 <label>Unit quantity<input id="partnerProductUnitQuantity" required type="number" min="0.001" max="999999999.999" step="0.001" value="1"></label>
                 <label class="form-wide">Hosted image URL<input id="partnerProductImage" type="url" placeholder="HTTPS image URL (optional)"></label>
                 <label class="partner-check-label"><input id="partnerProductVariantActive" type="checkbox" checked> Available to order</label>
@@ -200,16 +201,16 @@
         </section>
 
         <section id="partnerInventoryView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">STOCK CONTROL</span><h2>Inventory</h2><p class="partner-muted">Stock levels for your restaurant items.</p></div></div>
+          <div class="partner-page-heading"><div><span class="eyebrow">STOCK CONTROL</span><h2>Inventory</h2><p class="partner-muted">Stock levels for your shop items.</p></div></div>
           <section class="partner-panel"><div id="partnerInventoryContainer" class="partner-table-wrap"><p class="partner-empty">Loading inventory...</p></div></section>
         </section>
 
         <section id="partnerProfileView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">RESTAURANT PROFILE</span><h2>Restaurant Info</h2><p class="partner-muted">Keep your restaurant and pickup details current.</p></div></div>
+          <div class="partner-page-heading"><div><span id="partnerShopInfoEyebrow" class="eyebrow">SHOP PROFILE</span><h2 id="partnerShopInfoHeading">Shop Info</h2><p id="partnerShopInfoDescription" class="partner-muted">Keep your shop and pickup details current.</p></div></div>
           <form onsubmit="savePartnerProfile(event)" class="partner-panel partner-profile-form">
-            <label>Restaurant name<input id="partnerProfileName" required></label>
+            <label><span id="partnerProfileNameLabel">Shop name</span><input id="partnerProfileName" required></label>
             <label>Description<textarea id="partnerProfileDescription" rows="3"></textarea></label>
-            <label class="form-wide">Pickup / kitchen address<input id="partnerProfileAddress" required></label>
+            <label class="form-wide">Pickup address<input id="partnerProfileAddress" required></label>
             <label>Address line 2<input id="partnerProfileAddress2"></label>
             <label>Locality<input id="partnerProfileLocality"></label>
             <label>City<input id="partnerProfileCity" required></label>
@@ -217,12 +218,12 @@
             <label>Postal code<input id="partnerProfilePostal" required></label>
             <label>Phone<input id="partnerProfilePhone" type="tel" placeholder="+91"></label>
             <label>Email<input id="partnerProfileEmail" type="email"></label>
-            <button type="submit" class="partner-button partner-button-primary form-wide">Save restaurant details</button>
+            <button id="partnerSaveShopButton" type="submit" class="partner-button partner-button-primary form-wide">Save shop details</button>
           </form>
         </section>
 
         <section id="partnerReportsView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">BUSINESS INSIGHTS</span><h2>Sales &amp; Reports</h2><p class="partner-muted">Sales totals come from delivered orders for this restaurant.</p></div><div class="partner-report-actions"><p id="partnerReportUpdatedAt" class="partner-muted" role="status" aria-live="polite">Report time unavailable</p><button type="button" id="partnerReportCsvButton" class="partner-button partner-button-outline" onclick="downloadPartnerSalesReportCsv()">Download report CSV</button><span id="partnerReportCsvStatus" class="partner-order-export-status" role="status" aria-live="polite"></span></div></div>
+          <div class="partner-page-heading"><div><span class="eyebrow">BUSINESS INSIGHTS</span><h2>Sales &amp; Reports</h2><p class="partner-muted">Sales totals come from delivered orders for this shop.</p></div><div class="partner-report-actions"><p id="partnerReportUpdatedAt" class="partner-muted" role="status" aria-live="polite">Report time unavailable</p><button type="button" id="partnerReportCsvButton" class="partner-button partner-button-outline" onclick="downloadPartnerSalesReportCsv()">Download report CSV</button><span id="partnerReportCsvStatus" class="partner-order-export-status" role="status" aria-live="polite"></span></div></div>
           <div class="partner-dashboard-grid">
             <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Delivered Sales</h3><p>Delivered item value</p></div></div><strong id="partnerReportSales" class="partner-report-total">-</strong><p id="partnerReportSalesNote" class="partner-muted"></p></section>
             <section class="partner-panel"><div class="partner-panel-heading"><div><h3>Order Summary</h3><p>Counts from the partner dashboard API</p></div></div><div id="partnerReportCounts" class="partner-report-counts"></div></section>
@@ -231,13 +232,13 @@
         </section>
 
         <section id="partnerReviewsView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">CUSTOMER FEEDBACK</span><h2>Ratings &amp; Reviews</h2><p class="partner-muted">Restaurant feedback will appear here when a partner reviews API is available.</p></div></div>
+          <div class="partner-page-heading"><div><span class="eyebrow">CUSTOMER FEEDBACK</span><h2>Ratings &amp; Reviews</h2><p class="partner-muted">Shop feedback will appear here when a partner reviews API is available.</p></div></div>
           <section class="partner-panel"><div class="partner-placeholder-mark">☆</div><h3>Reviews are not available yet</h3><p class="partner-muted">This console does not currently have a partner-scoped ratings endpoint.</p></section>
         </section>
 
         <section id="partnerSettingsView" class="partner-page" hidden>
-          <div class="partner-page-heading"><div><span class="eyebrow">ACCOUNT</span><h2>Settings</h2><p class="partner-muted">Your signed-in partner identity and restaurant access.</p></div></div>
-          <section class="partner-panel partner-settings-panel"><div><span>Signed in as</span><strong id="partnerSettingsUser">Partner user</strong></div><div><span>Partner account</span><strong id="partnerSettingsPartner">Restaurant partner</strong></div><div><span>Shop access</span><strong id="partnerSettingsShop">Restaurant</strong></div><button type="button" class="partner-button partner-button-danger" onclick="signOutPartner()">Log out</button></section>
+          <div class="partner-page-heading"><div><span class="eyebrow">ACCOUNT</span><h2>Settings</h2><p class="partner-muted">Your signed-in partner identity and shop access.</p></div></div>
+          <section class="partner-panel partner-settings-panel"><div><span>Signed in as</span><strong id="partnerSettingsUser">Partner user</strong></div><div><span>Partner account</span><strong id="partnerSettingsPartner">Partner account</strong></div><div><span>Shop access</span><strong id="partnerSettingsShop">Shop</strong></div><button type="button" class="partner-button partner-button-danger" onclick="signOutPartner()">Log out</button></section>
         </section>
       </div>
     </main>

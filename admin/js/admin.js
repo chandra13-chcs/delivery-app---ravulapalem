@@ -2001,6 +2001,7 @@ function normalizeCategoryList(rows) {
       slug: category.slug || '',
       description: category.description || null,
       parent_id: category.parent_id || null,
+      business_type: category.business_type || null,
       sort_order: Number.isFinite(Number(category.sort_order)) ? Number(category.sort_order) : 0,
       is_active: category.is_active !== false,
       deleted_at: category.deleted_at || null,
@@ -2063,13 +2064,23 @@ async function handleCategoryDirectFile(event, catId) {
 function renderCategoryManager() {
   const container = document.getElementById('categoryManagerGrid');
   if (!container) return;
+  const businessTypes = [
+    { value: '', label: 'Shared (all types)' },
+    { value: 'RESTAURANT', label: 'Restaurant' },
+    { value: 'GROCERY', label: 'Grocery' },
+    { value: 'MEAT', label: 'Meat' },
+    { value: 'OTHER', label: 'Other' }
+  ];
   container.innerHTML = adminCategoryItems.length ? adminCategoryItems.map(category => {
     const defaultCategory = adminCategoryDefaults.find(item => item.id === category.id);
     const imageUrl = adminCategoryImages[category.id] || category.image_url || defaultCategory?.img || '';
     const encodedId = encodeURIComponent(category.id);
+    const businessTypeOptions = businessTypes.map(type =>
+      `<option value="${type.value}" ${category.business_type === (type.value || null) ? 'selected' : ''}>${type.label}</option>`
+    ).join('');
     return `<article class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
       <img id="cat_preview_${escapeAdminHtml(category.id)}" src="${escapeAdminHtml(imageUrl)}" alt="${escapeAdminHtml(category.name)}" class="h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1" onerror="this.classList.add('hidden')">
-      <div class="min-w-0 flex-1"><form onsubmit="handleUpdateAdminCategory(event, '${encodedId}')" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><input name="name" required maxlength="60" value="${escapeAdminHtml(category.name)}" aria-label="Category name" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold"><input name="slug" required maxlength="120" value="${escapeAdminHtml(category.slug)}" aria-label="Category slug" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><input name="description" maxlength="2000" value="${escapeAdminHtml(category.description || '')}" aria-label="Category description" placeholder="Description" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><input name="sort_order" type="number" step="1" value="${category.sort_order}" aria-label="Category display order" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><button class="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-bold text-white">Save category</button><span class="text-[10px] ${category.is_active && !category.deleted_at ? 'text-emerald-700' : 'text-slate-500'}">${category.deleted_at ? 'Deactivated' : category.is_active ? 'Active' : 'Inactive'}</span></form><p class="mt-1 truncate text-[9px] text-slate-400">${escapeAdminHtml(category.id)}</p><input type="file" accept="image/*" aria-label="Change ${escapeAdminHtml(category.name)} photo" onchange="handleCategoryDirectFile(event, '${encodedId}')" class="mt-1 w-full cursor-pointer rounded border border-slate-200 bg-white p-0.5 text-[9px] file:mr-1 file:rounded file:border-0 file:bg-[#1C2541] file:px-2 file:py-1 file:text-[9px] file:text-white"></div>
+      <div class="min-w-0 flex-1"><form onsubmit="handleUpdateAdminCategory(event, '${encodedId}')" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><input name="name" required maxlength="60" value="${escapeAdminHtml(category.name)}" aria-label="Category name" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold"><input name="slug" required maxlength="120" value="${escapeAdminHtml(category.slug)}" aria-label="Category slug" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><input name="description" maxlength="2000" value="${escapeAdminHtml(category.description || '')}" aria-label="Category description" placeholder="Description" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><select name="business_type" aria-label="Category business type" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]">${businessTypeOptions}</select><input name="sort_order" type="number" step="1" value="${category.sort_order}" aria-label="Category display order" class="min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px]"><button class="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-bold text-white">Save category</button><span class="text-[10px] ${category.is_active && !category.deleted_at ? 'text-emerald-700' : 'text-slate-500'}">${category.deleted_at ? 'Deactivated' : category.is_active ? 'Active' : 'Inactive'}</span></form><p class="mt-1 truncate text-[9px] text-slate-400">${escapeAdminHtml(category.id)}</p><input type="file" accept="image/*" aria-label="Change ${escapeAdminHtml(category.name)} photo" onchange="handleCategoryDirectFile(event, '${encodedId}')" class="mt-1 w-full cursor-pointer rounded border border-slate-200 bg-white p-0.5 text-[9px] file:mr-1 file:rounded file:border-0 file:bg-[#1C2541] file:px-2 file:py-1 file:text-[9px] file:text-white"></div>
       <button type="button" onclick="deleteAdminCategory('${encodedId}')" aria-label="${category.is_active && !category.deleted_at ? 'Deactivate' : 'Activate'} ${escapeAdminHtml(category.name)} category" class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-black text-rose-700">${category.is_active && !category.deleted_at ? 'Deactivate' : 'Activate'}</button>
     </article>`;
   }).join('') : '<p class="text-xs text-slate-500">No storefront categories configured.</p>';
@@ -2079,7 +2090,9 @@ function renderAdminProductCategoryOptions() {
   const select = document.getElementById('pCategory');
   if (!select || !adminCategoryItems.length) return;
   const selectedId = select.value;
-  const activeCategories = adminCategoryItems.filter(category => category.is_active && !category.deleted_at);
+  const activeCategories = adminCategoryItems.filter(category =>
+    category.is_active && !category.deleted_at && !category.business_type
+  );
   select.innerHTML = activeCategories.map(category => `<option value="${escapeAdminHtml(category.id)}">${escapeAdminHtml(category.name)}</option>`).join('');
   if (activeCategories.some(category => category.id === selectedId)) select.value = selectedId;
   toggleRestaurantProductFields();
@@ -2098,6 +2111,7 @@ async function handleUpdateAdminCategory(event, encodedId) {
         name: String(form.get('name') || '').trim(),
         slug: String(form.get('slug') || '').trim(),
         description: String(form.get('description') || '').trim() || null,
+        business_type: String(form.get('business_type') || '').trim() || null,
         sort_order: sortOrder
       })
     });
@@ -2144,6 +2158,7 @@ async function handleAddCategory(event) {
       slug: slugifyAdminCategoryName(name),
       description: null,
       parent_id: null,
+      business_type: document.getElementById('newCategoryBusinessTypeInput').value || null,
       sort_order: adminCategoryItems.length,
       is_active: true
     };

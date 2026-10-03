@@ -49,7 +49,26 @@
       </header>
       <div id="localStoreMenuProducts" class="restaurant-category-list" role="status" aria-label="Loading local store products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div>
     </section>
-    <section id="meatServiceView" class="hidden"><div id="serviceMeatProducts" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5"></div></section>
+    <section id="meatServiceView" class="hidden space-y-4">
+      <div id="meatTypeChoices" class="grid grid-cols-2 gap-3" aria-label="Choose a meat category" aria-busy="true">
+        <div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div>
+      </div>
+      <section id="meatShopBrowse" class="hidden space-y-3">
+        <label class="restaurant-search"><span class="sr-only">Search shops</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="meatShopSearch" type="search" oninput="searchMeatShops(this.value)" placeholder="Search shops" aria-label="Search shops"></label>
+        <div id="meatShopList" class="restaurant-list" aria-live="polite"></div>
+      </section>
+      <section id="meatShopMenuView" class="hidden restaurant-menu-view space-y-4">
+        <header class="restaurant-menu-heading">
+          <div class="restaurant-menu-title-row"><button type="button" class="restaurant-back-link" onclick="backToMeatShops()" aria-label="Back to meat shops">←</button><h2 id="meatShopMenuTitle">Shop</h2></div>
+          <label class="restaurant-menu-search"><span class="sr-only">Search this shop's products</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg><input id="meatProductSearch" type="search" oninput="searchMeatProducts(this.value)" placeholder="Search products in this shop" aria-label="Search this shop's products"></label>
+        </header>
+        <nav id="meatProductCategories" class="flex gap-2 overflow-x-auto no-scrollbar pb-1" aria-label="Shop product categories"></nav>
+        <div id="serviceMeatProducts" class="restaurant-category-list grid grid-cols-1 gap-3" role="status" aria-label="Loading shop products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div>
+      </section>
+    </section>
+    <dialog id="meatProductDialog" class="m-auto max-h-[90vh] w-[min(92vw,460px)] overflow-y-auto rounded-2xl border-0 bg-white p-0 shadow-2xl backdrop:bg-slate-950/50" aria-labelledby="meatProductDialogTitle">
+      <div id="meatProductDialogContent"></div>
+    </dialog>
     <section id="categoryServiceView" class="hidden"><div id="serviceCategoryProducts" class="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5" role="status" aria-label="Loading category products" aria-busy="true"><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div><div class="category-loading-card" aria-hidden="true"></div></div></section>
     <section id="parcelServiceView" class="hidden max-w-xl"><form id="serviceParcelForm" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3"><input id="serviceParcelPickup" required placeholder="Pickup location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><input id="serviceParcelDrop" required placeholder="Drop location" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl"><textarea id="serviceParcelDescription" required placeholder="What are you sending?" class="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl" rows="3"></textarea><button class="w-full py-3 bg-[#0B132B] text-white rounded-xl text-xs font-black">Request parcel pickup</button><p id="serviceParcelStatus" class="hidden text-xs font-bold text-emerald-700"></p></form></section>
   </main>

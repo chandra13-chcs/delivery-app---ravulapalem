@@ -27,6 +27,15 @@ let localStoreListSearchTerm = "";
 let localStoreProductSearchTerm = "";
 let localStoreRequestToken = 0;
 let activeLocalStore = null;
+let meatShops = [];
+let meatCategories = [];
+let meatShopProducts = [];
+let selectedMeatCategory = null;
+let selectedMeatShop = null;
+let selectedMeatProductCategory = "";
+let meatShopSearchTerm = "";
+let meatProductSearchTerm = "";
+let meatRequestToken = 0;
 
 function serviceEscape(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -122,7 +131,7 @@ function setupServicePage() {
   const settings = {
     restaurant: ["Restaurants", selectedShopId ? "Loading restaurant..." : "Restaurants near Mandapeta", selectedShopId ? "Loading restaurant menu..." : "Browse available restaurant menus."],
     "local-stores": ["Local Stores", selectedShopId ? "Loading store..." : "Local Stores near Mandapeta", selectedShopId ? "Loading store products..." : "Choose a local store to browse its products."],
-    meat: ["Fresh Meat", "Chicken, meat & fish", "Fresh meat products available from partner stores."],
+    meat: ["Meat", selectedShopId ? "Loading shop..." : "Choose Chicken or Mutton", selectedShopId ? "Loading products from this shop." : "Choose a meat category to browse its partner shops."],
     category: ["Shop by Category", requestedCategoryName || categoryId || "Products", "Products in this category."],
     parcel: ["Parcel Delivery", "Send a parcel across Mandapeta", "Add pickup and drop details to request a delivery rider."]
   }[serviceType] || [];
@@ -141,10 +150,11 @@ function setupServicePage() {
     view?.classList.remove("hidden");
     if (selectedShopId) loadRestaurantMenu();
     else loadRestaurants();
+    return;
   } else {
     document.getElementById(`${serviceType}ServiceView`)?.classList.remove("hidden");
   }
-  if (serviceType === "meat") loadMeatProducts();
+  if (serviceType === "meat") loadMeatDirectory();
   if (serviceType === "category") loadCategoryProducts();
   if (serviceType === "parcel") document.getElementById("serviceParcelForm")?.addEventListener("submit", submitServiceParcel);
 }
@@ -651,34 +661,358 @@ function modifyRestaurantCart(productId, delta) {
 }
 
 function continueServiceCart() {
-  const selectedProducts = restaurantMenuProducts.filter(product => restaurantCart[product.id]);
-  localStorage.setItem("myshopzy_pending_cart", JSON.stringify({ items: restaurantCart, products: selectedProducts }));
+  const selectedProducts = serviceType === "meat"
+    ? meatCartEntries().map(({ cartId, product, variant, quantity }) => ({
+      ...product,
+      id: cartId,
+      product_id: product.id,
+      variant_id: variant.id,
+      default_variant_id: variant.id,
+      selected_variant_name: variant.name,
+      price: Number(variant.price),
+      qty_value: null,
+      qty_unit: variant.name || variant.unit_label || "",
+      unit_label: variant.name || variant.unit_label || "",
+      shop_id: product.shop_id,
+      quantity
+    }))
+    : restaurantMenuProducts.filter(product => restaurantCart[product.id]);
+  const items = serviceType === "meat"
+    ? Object.fromEntries(meatCartEntries().map(entry => [entry.cartId, entry.quantity]))
+    : restaurantCart;
+  if (!selectedProducts.length) return;
+  localStorage.setItem("myshopzy_pending_cart", JSON.stringify({ items, products: selectedProducts }));
   window.location.href = "index.html?cart=1";
 }
 
-function loadMeatProducts() {
-  const container = document.getElementById("serviceMeatProducts");
-  getServiceApiData("/products?category=meat").then(products => {
-    serviceProducts = products.map(normalizeServiceProduct);
-    container.innerHTML = serviceProducts.length
-      ? serviceProducts.map(serviceProductCard).join("")
-      : '<p class="col-span-full text-xs text-slate-500">No fresh meat products available yet.</p>';
-  }).catch(error => {
-    console.error("Meat products loading failed:", error);
-    container.innerHTML = '<p class="col-span-full text-xs text-rose-600">Unable to load meat products.</p>';
-  });
+async function loadMeatDirectory() {
+  const choices = document.getElementById("meatTypeChoices");
+  const shopList = document.getElementById("meatShopList");
+  if (!choices || !shopList) return;
+  choices.setAttribute("aria-busy", "true");
+  try {
+    const [shops, categories] = await Promise.all([
+      getServiceApiData("/shops?business_type=MEAT"),
+      getServiceApiData("/categories?business_type=MEAT")
+    ]);
+    meatShops = shops.filter(shop => String(shop.business_type || "").toUpperCase() === "MEAT");
+    meatCategories = categories;
+    const parent = meatCategories.find(category => category.slug === "meat");
+    const subcategories = meatCategories.filter(category =>
+      category.id !== parent?.id && (parent ? category.parent_id === parent.id : Boolean(category.parent_id))
+    );
+    if (!subcategories.length) throw new Error("Meat categories are not available.");
+    renderMeatTypeChoices(subcategories);
+
+    const requestedCategory = subcategories.find(category => category.slug === categoryId);
+    const requestedShop = selectedShopId
+      ? meatShops.find(shop => String(shop.id) === selectedShopId)
+      : null;
+    if (selectedShopId && !requestedShop) throw new Error("This meat shop is unavailable.");
+    selectedMeatCategory = requestedCategory
+      || (requestedShop && subcategories.find(category => requestedShop.categories?.some(item => item.id === category.id)))
+      || null;
+
+    choices.removeAttribute("aria-busy");
+    if (selectedShopId && selectedMeatCategory) {
+      await loadMeatShopMenu(selectedShopId);
+    } else if (selectedMeatCategory) {
+      renderMeatShops();
+    } else {
+      document.getElementById("meatShopBrowse")?.classList.add("hidden");
+    }
+  } catch (error) {
+    console.error("Meat shop listing failed:", error);
+    choices.removeAttribute("aria-busy");
+    choices.innerHTML = `<p class="col-span-full restaurant-empty-state">${serviceEscape(error.message === "Meat categories are not available." ? error.message : "Unable to load meat shops right now.")}</p>`;
+  }
 }
 
-function modifyServiceCart(productId, delta) {
-  restaurantCart[productId] = Math.max(0, (restaurantCart[productId] || 0) + delta);
-  if (!restaurantCart[productId]) delete restaurantCart[productId];
-  const totalItems = Object.values(restaurantCart).reduce((sum, quantity) => sum + quantity, 0);
-  const total = Object.entries(restaurantCart).reduce((sum, [id, quantity]) => sum + (Number(serviceProducts.find(item => item.id === id)?.price || 0) * quantity), 0);
-  const container = document.getElementById(serviceType === "category" ? "serviceCategoryProducts" : "serviceMeatProducts");
-  if (container) container.innerHTML = serviceProducts.map(serviceProductCard).join("");
+function renderMeatTypeChoices(categories) {
+  const choices = document.getElementById("meatTypeChoices");
+  if (!choices) return;
+  choices.innerHTML = categories.map(category => {
+    const selected = selectedMeatCategory?.id === category.id;
+    const icon = category.slug === "chicken" ? "🐔" : category.slug === "mutton" ? "🐐" : "🥩";
+    return `<button type="button" onclick="selectMeatCategory('${serviceEscape(category.slug)}')" class="flex min-h-20 items-center gap-3 rounded-2xl border px-4 py-4 text-left shadow-sm transition ${selected ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white hover:border-emerald-300"}" aria-pressed="${selected}"><span class="text-3xl" aria-hidden="true">${icon}</span><span class="text-sm font-black">${serviceEscape(category.name)}</span></button>`;
+  }).join("");
+}
+
+function selectMeatCategory(slug) {
+  const nextCategory = meatCategories.find(category => category.slug === slug) || null;
+  if (!nextCategory) return;
+  if (selectedMeatCategory?.id !== nextCategory.id && meatCartEntries().length) {
+    if (!window.confirm("Switching meat categories will clear your current cart. Continue?")) return;
+    restaurantCart = {};
+    refreshMeatServiceCart();
+  }
+  selectedMeatCategory = nextCategory;
+  selectedMeatProductCategory = "";
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("categorySlug", selectedMeatCategory.slug);
+  nextUrl.searchParams.delete("shopId");
+  window.history.replaceState({}, "", nextUrl);
+  document.getElementById("meatShopMenuView")?.classList.add("hidden");
+  document.getElementById("meatShopBrowse")?.classList.remove("hidden");
+  document.getElementById("serviceTitle").innerText = selectedMeatCategory.name;
+  document.getElementById("serviceDescription").innerText = "Choose a shop to view its products.";
+  renderMeatTypeChoices(meatCategories.filter(category => category.parent_id === selectedMeatCategory.parent_id));
+  renderMeatShops();
+}
+
+function renderMeatShops() {
+  const list = document.getElementById("meatShopList");
+  const browse = document.getElementById("meatShopBrowse");
+  if (!list || !browse || !selectedMeatCategory) return;
+  browse.classList.remove("hidden");
+  const term = normalizeServiceSearch(meatShopSearchTerm);
+  const shops = meatShops.filter(shop =>
+    shop.categories?.some(category => category.id === selectedMeatCategory.id)
+    && normalizeServiceSearch([shop.name, shop.description, shop.locality, shop.city].filter(Boolean).join(" ")).includes(term)
+  );
+  list.innerHTML = shops.length
+    ? shops.map(shop => `<button type="button" onclick="openMeatShop('${serviceEscape(shop.id)}')" class="restaurant-card">
+        <span class="restaurant-card-image">${shop.image_object_key ? `<span class="restaurant-image-placeholder"><span>${serviceEscape(selectedMeatCategory.name)}</span></span>` : `<span class="restaurant-image-placeholder"><span>${serviceEscape(selectedMeatCategory.name)}</span></span>`}</span>
+        <span class="restaurant-card-content"><span class="restaurant-card-title-row"><strong>${serviceEscape(shop.name || "Meat shop")}</strong></span>
+          ${shop.description ? `<span class="restaurant-card-description">${serviceEscape(shop.description)}</span>` : ""}
+          <span class="restaurant-card-footer"><span class="restaurant-view-menu">View products <span aria-hidden="true">↗</span></span></span>
+        </span>
+      </button>`).join("")
+    : `<p class="restaurant-empty-state">${meatShops.length && term ? "No shops match your search." : `No ${serviceEscape(selectedMeatCategory.name.toLowerCase())} shops available right now.`}</p>`;
+}
+
+function searchMeatShops(value) {
+  meatShopSearchTerm = value;
+  renderMeatShops();
+}
+
+function openMeatShop(shopId) {
+  const shop = meatShops.find(item => String(item.id) === String(shopId)
+    && item.categories?.some(category => category.id === selectedMeatCategory?.id));
+  if (!shop || !selectedMeatCategory) return;
+  if (meatCartEntries().length && selectedMeatShop && String(selectedMeatShop.id) !== String(shop.id)) {
+    if (!window.confirm("Switching shops will clear your current cart. Continue?")) return;
+    restaurantCart = {};
+    refreshMeatServiceCart();
+  }
+  if (selectedMeatShop && String(selectedMeatShop.id) === String(shop.id)) {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("categorySlug", selectedMeatCategory.slug);
+    nextUrl.searchParams.set("shopId", shop.id);
+    window.history.replaceState({}, "", nextUrl);
+    loadMeatShopMenu(shop.id);
+    return;
+  }
+  window.location.href = `service.html?type=meat&categorySlug=${encodeURIComponent(selectedMeatCategory.slug)}&shopId=${encodeURIComponent(shop.id)}`;
+}
+
+async function loadMeatShopMenu(shopId) {
+  const container = document.getElementById("serviceMeatProducts");
+  const shop = meatShops.find(item => String(item.id) === String(shopId)
+    && item.categories?.some(category => category.id === selectedMeatCategory?.id));
+  if (!container || !shop) {
+    document.getElementById("meatShopBrowse")?.classList.remove("hidden");
+    document.getElementById("meatShopList").innerHTML = '<p class="restaurant-empty-state">This shop is not available for the selected category.</p>';
+    return;
+  }
+  const requestToken = ++meatRequestToken;
+  selectedMeatShop = shop;
+  selectedMeatProductCategory = "";
+  meatProductSearchTerm = "";
+  document.getElementById("meatProductSearch").value = "";
+  document.getElementById("meatShopBrowse")?.classList.add("hidden");
+  document.getElementById("meatShopMenuView")?.classList.remove("hidden");
+  container.setAttribute("aria-busy", "true");
+  document.getElementById("serviceTitle").innerText = shop.name || "Meat shop";
+  document.getElementById("serviceDescription").innerText = "";
+  document.getElementById("meatShopMenuTitle").innerText = shop.name || "Meat shop";
+  try {
+    const products = await getServiceApiData(`/shops/${encodeURIComponent(shop.id)}/products`);
+    if (requestToken !== meatRequestToken) return;
+    meatShopProducts = products.map(product => normalizeMeatProduct(product, shop.id));
+    serviceProducts = meatShopProducts;
+    renderMeatProductCategories();
+    renderMeatProducts();
+    refreshMeatServiceCart();
+  } catch (error) {
+    if (requestToken !== meatRequestToken) return;
+    console.error("Meat shop products loading failed:", error);
+    container.removeAttribute("aria-busy");
+    container.innerHTML = '<p class="restaurant-empty-state">Unable to load this shop’s products right now.</p>';
+  }
+}
+
+function normalizeMeatProduct(product, shopId) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const image = product.images?.find(item => item.public_url) || {};
+  return {
+    ...product,
+    shop_id: shopId,
+    image_url: image.public_url || "",
+    variants,
+    price: variants.length ? Math.min(...variants.map(variant => Number(variant.price || 0))) : 0
+  };
+}
+
+function meatProductCategory(product) {
+  return product.category && typeof product.category === "object" ? product.category : null;
+}
+
+function meatVariantLabel(variant) {
+  return variant.name || [variant.unit_quantity, variant.unit_label].filter(Boolean).join(" ");
+}
+
+function renderMeatProductCategories() {
+  const nav = document.getElementById("meatProductCategories");
+  if (!nav) return;
+  const categories = [...new Map(meatShopProducts
+    .map(product => meatProductCategory(product))
+    .filter(Boolean)
+    .map(category => [category.id, category])).values()];
+  nav.innerHTML = [
+    `<button type="button" onclick="selectMeatProductCategory('')" class="shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${selectedMeatProductCategory ? "border-slate-200 bg-white text-slate-600" : "border-emerald-700 bg-emerald-700 text-white"}" aria-pressed="${!selectedMeatProductCategory}">All products</button>`,
+    ...categories.map(category => `<button type="button" onclick="selectMeatProductCategory('${serviceEscape(category.id)}')" class="shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${selectedMeatProductCategory === category.id ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 bg-white text-slate-600"}" aria-pressed="${selectedMeatProductCategory === category.id}">${serviceEscape(category.name || category.slug || "Products")}</button>`)
+  ].join("");
+}
+
+function selectMeatProductCategory(categoryIdValue) {
+  selectedMeatProductCategory = categoryIdValue;
+  renderMeatProductCategories();
+  renderMeatProducts();
+}
+
+function renderMeatProducts() {
+  const container = document.getElementById("serviceMeatProducts");
+  if (!container) return;
+  const term = normalizeServiceSearch(meatProductSearchTerm);
+  const products = meatShopProducts.filter(product => {
+    const category = meatProductCategory(product);
+    const matchesCategory = !selectedMeatProductCategory || category?.id === selectedMeatProductCategory;
+    const haystack = normalizeServiceSearch([
+      product.name, product.description, product.brand, category?.name, category?.slug
+    ].filter(Boolean).join(" "));
+    return matchesCategory && haystack.includes(term);
+  });
+  container.removeAttribute("aria-busy");
+  container.removeAttribute("role");
+  container.removeAttribute("aria-label");
+  if (!products.length) {
+    container.innerHTML = `<p class="restaurant-empty-state">${meatShopProducts.length && term ? "No products match your search in this shop." : "No products available in this shop yet."}</p>`;
+    return;
+  }
+  const grouped = new Map();
+  products.forEach(product => {
+    const category = meatProductCategory(product);
+    const key = category?.id || "uncategorized";
+    if (!grouped.has(key)) grouped.set(key, { name: category?.name || "", products: [] });
+    grouped.get(key).products.push(product);
+  });
+  container.innerHTML = [...grouped.values()].map(group => `
+    <section class="restaurant-category local-store-category">
+      ${group.name ? `<div class="local-store-category-heading"><h3>${serviceEscape(group.name)}</h3><span>${group.products.length}</span></div>` : ""}
+      <div class="restaurant-category-items">${group.products.map(meatProductCard).join("")}</div>
+    </section>`).join("");
+}
+
+function searchMeatProducts(value) {
+  meatProductSearchTerm = value;
+  renderMeatProducts();
+}
+
+function meatProductCard(product) {
+  const productId = String(product.id);
+  const entries = meatCartEntries().filter(entry => String(entry.product.id) === productId);
+  const availableVariants = product.variants.filter(variant => variant.is_available === true);
+  const lowestPrice = product.variants.length
+    ? Math.min(...product.variants.map(variant => Number(variant.price || 0)))
+    : null;
+  return `<article class="restaurant-product">
+    <div class="restaurant-product-copy"><h3>${serviceEscape(product.name || "Product")}</h3>
+      ${product.description ? `<p class="restaurant-product-description">${serviceEscape(product.description)}</p>` : ""}
+      <p class="local-store-product-unit">${product.variants.length} option${product.variants.length === 1 ? "" : "s"}</p>
+      <strong class="restaurant-product-price">${lowestPrice === null ? "" : `From ₹${lowestPrice.toLocaleString("en-IN")}`}</strong>
+      <button type="button" onclick="openMeatProductDetails('${serviceEscape(productId)}')" class="mt-2 text-xs font-bold text-emerald-700 underline">View details & variants</button>
+    </div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image">${product.image_url ? `<img src="${serviceEscape(product.image_url)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.remove()">` : `<span class="restaurant-image-placeholder" aria-hidden="true"></span>`}</div>
+      <div class="restaurant-product-action">${entries.length
+        ? entries.map(({ cartId, variant, quantity }) => `<div class="mb-1 flex items-center justify-between gap-1 rounded-lg border border-emerald-200 bg-white px-1.5 py-1 text-[10px] font-bold text-emerald-800"><span class="truncate">${serviceEscape(meatVariantLabel(variant))} · ₹${Number(variant.price).toLocaleString("en-IN")}</span><span class="flex items-center gap-1"><button type="button" onclick="modifyMeatCart('${serviceEscape(cartId)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyMeatCart('${serviceEscape(cartId)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></span></div>`).join("")
+        : `<button type="button" onclick="openMeatProductDetails('${serviceEscape(productId)}')" class="restaurant-add-button" ${availableVariants.length ? "" : "disabled"}>${availableVariants.length ? "ADD" : "Unavailable"} <span>+</span></button>`}</div>
+    </div>
+  </article>`;
+}
+
+function openMeatProductDetails(productId) {
+  const product = meatShopProducts.find(item => String(item.id) === String(productId));
+  const dialog = document.getElementById("meatProductDialog");
+  const content = document.getElementById("meatProductDialogContent");
+  if (!product || !dialog || !content) return;
+  const image = product.image_url
+    ? `<img src="${serviceEscape(product.image_url)}" alt="${serviceEscape(product.name || "Product")}" class="max-h-48 w-full object-contain" onerror="this.remove()">`
+    : "";
+  const variants = product.variants.map(variant => `
+    <button type="button" onclick="selectMeatVariant('${serviceEscape(product.id)}','${serviceEscape(variant.id)}')" class="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left ${variant.is_available ? "hover:border-emerald-500" : "cursor-not-allowed bg-slate-50 opacity-60"}" ${variant.is_available ? "" : "disabled"}>
+      <span><strong class="block text-sm">${serviceEscape(meatVariantLabel(variant) || "Variant")}</strong><span class="text-xs ${variant.is_available ? "text-emerald-700" : "text-rose-600"}">${variant.is_available ? "Available" : "Out of stock"}</span></span>
+      <strong class="text-sm">₹${Number(variant.price || 0).toLocaleString("en-IN")}</strong>
+    </button>`).join("");
+  content.innerHTML = `<div class="p-5">
+    <div class="flex items-start justify-between gap-3"><h2 id="meatProductDialogTitle" class="text-lg font-black">${serviceEscape(product.name || "Product")}</h2><button type="button" onclick="document.getElementById('meatProductDialog').close()" aria-label="Close product details" class="rounded-lg px-2 py-1 text-xl text-slate-500">×</button></div>
+    ${image ? `<div class="my-4 rounded-xl bg-slate-50 p-3">${image}</div>` : ""}
+    ${product.description ? `<p class="mt-3 text-sm text-slate-600">${serviceEscape(product.description)}</p>` : ""}
+    <h3 class="mb-2 mt-4 text-xs font-black uppercase tracking-wide text-slate-500">Available variants</h3>
+    <div class="space-y-2">${variants || '<p class="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">No variants available.</p>'}</div>
+  </div>`;
+  if (!dialog.open) dialog.showModal();
+}
+
+function selectMeatVariant(productId, variantId) {
+  const product = meatShopProducts.find(item => String(item.id) === String(productId));
+  const variant = product?.variants.find(item => String(item.id) === String(variantId));
+  if (!product || !variant || variant.is_available !== true) return;
+  const cartId = `${product.id}::${variant.id}`;
+  restaurantCart[cartId] = (restaurantCart[cartId] || 0) + 1;
+  document.getElementById("meatProductDialog")?.close();
+  renderMeatProducts();
+  refreshMeatServiceCart();
+}
+
+function meatCartEntries() {
+  return Object.entries(restaurantCart).map(([cartId, quantity]) => {
+    const [productId, variantId] = cartId.split("::");
+    const product = meatShopProducts.find(item => String(item.id) === productId);
+    const variant = product?.variants.find(item => String(item.id) === variantId);
+    return product && variant ? { cartId, product, variant, quantity } : null;
+  }).filter(Boolean);
+}
+
+function modifyMeatCart(cartId, delta) {
+  const entry = meatCartEntries().find(item => item.cartId === cartId);
+  const { product, variant } = entry || {};
+  if (!product || !variant || !variant.is_available) return;
+  restaurantCart[cartId] = Math.max(0, (restaurantCart[cartId] || 0) + delta);
+  if (!restaurantCart[cartId]) delete restaurantCart[cartId];
+  renderMeatProducts();
+  refreshMeatServiceCart();
+}
+
+function refreshMeatServiceCart() {
+  const entries = meatCartEntries();
+  const totalItems = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const total = entries.reduce((sum, entry) => sum + Number(entry.variant.price || 0) * entry.quantity, 0);
   document.getElementById("serviceCartBar")?.classList.toggle("hidden", totalItems === 0);
-  document.getElementById("serviceCartCount").innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
-  document.getElementById("serviceCartTotal").innerText = `₹${total}`;
+  const count = document.getElementById("serviceCartCount");
+  const totalLabel = document.getElementById("serviceCartTotal");
+  if (count) count.innerText = `${totalItems} item${totalItems === 1 ? "" : "s"}`;
+  if (totalLabel) totalLabel.innerText = `₹${total.toLocaleString("en-IN")}`;
+}
+
+function backToMeatShops() {
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete("shopId");
+  window.history.replaceState({}, "", nextUrl);
+  document.getElementById("meatShopMenuView")?.classList.add("hidden");
+  document.getElementById("meatShopBrowse")?.classList.remove("hidden");
+  renderMeatShops();
+  refreshMeatServiceCart();
 }
 
 async function submitServiceParcel(event) {

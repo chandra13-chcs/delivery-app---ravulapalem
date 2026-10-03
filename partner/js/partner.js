@@ -1,5 +1,6 @@
 const partnerState = {
   shopId: "",
+  businessType: "",
   name: "",
   label: "",
   shopStatus: "",
@@ -305,13 +306,9 @@ async function loadPartnerRestaurants() {
     partnerState.shops = Array.isArray(shops) ? shops : [];
     if (!partnerState.shops.length) throw new Error("No active shops are linked to this partner account.");
     const partnerNames = partnerState.memberships.map(partner => partner.display_name).join(", ");
+    document.title = "MyShopzy | Partner Console";
     document.getElementById("partnerAccountName").textContent = partnerState.user?.display_name || "Partner account";
-    document.getElementById("partnerIdentityLabel").textContent = partnerNames || "Partner user";
     document.getElementById("partnerAvatar").textContent = (partnerState.user?.display_name || "P").trim().charAt(0).toUpperCase();
-    document.getElementById("partnerWelcomeTitle").textContent = partnerState.shops.length === 1
-      ? `Welcome, ${partnerState.shops[0].name}`
-      : "Restaurant dashboard";
-    document.getElementById("partnerHeaderSubtitle").textContent = partnerNames;
     document.getElementById("partnerSettingsUser").textContent = partnerState.user?.display_name || "Partner user";
     document.getElementById("partnerSettingsPartner").textContent = partnerNames || "Partner account";
 
@@ -333,11 +330,12 @@ async function loadPartnerRestaurants() {
 }
 
 async function loadPartnerProductCategories() {
+  const shopId = partnerState.shopId;
+  if (!shopId) return;
   try {
-    const response = await fetch(`${PARTNER_API_ROOT}/categories`, { headers: { Accept: "application/json" } });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.message || "Unable to load categories.");
-    partnerState.categories = Array.isArray(payload.data) ? payload.data : [];
+    const categories = await partnerApiRequest(`/categories?shop_id=${encodeURIComponent(shopId)}`);
+    if (partnerState.shopId !== shopId) return;
+    partnerState.categories = Array.isArray(categories) ? categories : [];
     const select = document.getElementById("partnerProductCategory");
     if (!select) return;
     select.innerHTML = '<option value="">No category</option>' + partnerState.categories.map(category =>
@@ -352,6 +350,11 @@ async function loadPartnerProductCategories() {
 async function openPartnerDesk(shopId = document.getElementById("partnerShopSelect")?.value || "") {
   const shop = partnerState.shops.find(item => item.id === shopId);
   if (!shop) return;
+  const membership = partnerState.memberships.find(item => item.partner_id === shop.partner_id);
+  if (!membership || !membership.business_type || membership.business_type !== shop.business_type) {
+    console.error("Partner shop business type could not be verified against the authenticated identity.");
+    return;
+  }
 
   if (partnerState.shopId !== shop.id) {
     partnerState.orderListRequestId += 1;
@@ -366,6 +369,8 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
     closePartnerOrderDetail();
     renderPartnerOrders();
   }
+  partnerState.businessType = membership.business_type;
+  applyPartnerBusinessLabels(partnerState.businessType);
   partnerState.shopId = shop.id;
   partnerState.name = shop.partner_name || "Partner";
   partnerState.label = shop.name || "Partner shop";
@@ -373,11 +378,13 @@ async function openPartnerDesk(shopId = document.getElementById("partnerShopSele
 
   document.getElementById("partnerShopSelect").value = shop.id;
   document.getElementById("partnerWelcomeTitle").textContent = shop.name;
+  document.getElementById("partnerHeaderSubtitle").textContent = shop.name;
   document.getElementById("partnerDeskTitle").textContent = `${shop.name} orders`;
   document.getElementById("partnerSettingsShop").textContent = shop.name;
   document.getElementById("partnerApp").classList.remove("sidebar-open");
   document.getElementById("partnerSidebarScrim").hidden = true;
   renderPartnerShopStatus();
+  await loadPartnerProductCategories();
   await loadPartnerProfile();
   navigatePartnerSection(null, "dashboard");
   startPartnerOrderRefresh();
@@ -399,6 +406,8 @@ function closePartnerDesk() {
   partnerState.productUnsubscribe?.();
   partnerState.productUnsubscribe = null;
   partnerState.shopId = "";
+  partnerState.businessType = "";
+  applyPartnerBusinessLabels("");
   document.getElementById("partnerApp").hidden = true;
   document.getElementById("partnerSetup").hidden = false;
 }
@@ -411,13 +420,47 @@ function switchPartnerView(view) {
 const partnerPageTitles = {
   dashboard: "Dashboard",
   orders: "Orders",
-  products: "Menu / Products",
+  products: "Products",
   inventory: "Inventory",
-  "restaurant-info": "Restaurant Info",
+  "restaurant-info": "Shop Info",
   reports: "Sales & Reports",
   reviews: "Ratings & Reviews",
   settings: "Settings"
 };
+
+function applyPartnerBusinessLabels(businessType) {
+  const isRestaurant = businessType === "RESTAURANT";
+  const partnerLabel = businessType === "MEAT"
+    ? "Meat partner"
+    : isRestaurant ? "Restaurant partner" : "Partner";
+  const shopLabel = isRestaurant ? "Restaurant" : "Shop";
+  const productsLabel = isRestaurant ? "Menu / Products" : "Products";
+  const productsHeading = isRestaurant ? "Menu & Products" : "Products";
+  const shopInfoLabel = isRestaurant ? "Restaurant Info" : "Shop Info";
+
+  document.getElementById("partnerSetupType").textContent = partnerLabel;
+  document.getElementById("partnerBrandType").textContent = partnerLabel;
+  document.getElementById("partnerIdentityLabel").textContent = partnerLabel;
+  document.getElementById("partnerShopSelectLabel").textContent = shopLabel;
+  document.getElementById("partnerShopSelect").setAttribute("aria-label", `Select an authorized ${shopLabel.toLowerCase()}`);
+  document.getElementById("partnerProductsNavLabel").textContent = productsLabel;
+  document.getElementById("partnerProductsHeading").textContent = productsHeading;
+  document.getElementById("partnerShopInfoNavLabel").textContent = shopInfoLabel;
+  document.getElementById("partnerQuickShopInfoLabel").textContent = shopInfoLabel;
+  document.getElementById("partnerManageProductsLabel").textContent = isRestaurant ? "Manage Menu" : "Manage Products";
+  document.getElementById("partnerShopInfoEyebrow").textContent = isRestaurant ? "RESTAURANT PROFILE" : "SHOP PROFILE";
+  document.getElementById("partnerShopInfoHeading").textContent = shopInfoLabel;
+  document.getElementById("partnerShopInfoDescription").textContent = `Keep your ${shopLabel.toLowerCase()} and pickup details current.`;
+  document.getElementById("partnerProfileNameLabel").textContent = `${shopLabel} name`;
+  document.getElementById("partnerSaveShopButton").textContent = `Save ${shopLabel.toLowerCase()} details`;
+
+  partnerPageTitles.products = isRestaurant ? "Menu / Products" : "Products";
+  partnerPageTitles["restaurant-info"] = shopInfoLabel;
+  const selectedSection = document.querySelector(".partner-nav-link.is-active[data-section]")?.dataset.section;
+  if (selectedSection && partnerPageTitles[selectedSection]) {
+    document.getElementById("partnerSectionTitle").textContent = partnerPageTitles[selectedSection];
+  }
+}
 
 function navigatePartnerSection(event, section) {
   event?.preventDefault();
@@ -555,6 +598,7 @@ async function savePartnerInventory(variantId) {
 function resetPartnerProductForm() {
   document.getElementById("partnerProductId").value = "";
   document.getElementById("partnerProductName").value = "";
+  document.getElementById("partnerProductBrand").value = "";
   document.getElementById("partnerProductDescription").value = "";
   document.getElementById("partnerProductVariantId").value = "";
   document.getElementById("partnerProductMode").value = "";
@@ -567,7 +611,7 @@ function resetPartnerProductForm() {
   document.getElementById("partnerProductUnitQuantity").value = "1";
   document.getElementById("partnerProductVariantActive").checked = true;
   document.getElementById("partnerProductImage").value = "";
-  ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
+  ["partnerProductName", "partnerProductCategory", "partnerProductBrand", "partnerProductDescription", "partnerProductImage"].forEach(id => {
     document.getElementById(id).disabled = false;
   });
   document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save product";
@@ -596,6 +640,7 @@ async function savePartnerProduct(event) {
   }
   const product = {
     name,
+    brand: document.getElementById("partnerProductBrand").value.trim() || null,
     description: document.getElementById("partnerProductDescription").value.trim() || null,
     category_id: document.getElementById("partnerProductCategory").value || null,
     image_url: imageUrl || null,
@@ -626,6 +671,7 @@ async function editPartnerProduct(productId) {
   resetPartnerProductForm();
   document.getElementById("partnerProductId").value = productId;
   document.getElementById("partnerProductName").value = product.name || "";
+  document.getElementById("partnerProductBrand").value = product.brand || "";
   document.getElementById("partnerProductDescription").value = product.description || "";
   document.getElementById("partnerProductCategory").value = product.category_id || "";
   document.getElementById("partnerProductVariantName").value = variant.name || "";
@@ -650,7 +696,7 @@ function preparePartnerVariantForm(productId) {
   document.getElementById("partnerProductId").value = product.id;
   document.getElementById("partnerProductName").value = product.name || "";
   document.getElementById("partnerProductMode").value = "add_variant";
-  ["partnerProductName", "partnerProductCategory", "partnerProductDescription", "partnerProductImage"].forEach(id => {
+  ["partnerProductName", "partnerProductCategory", "partnerProductBrand", "partnerProductDescription", "partnerProductImage"].forEach(id => {
     document.getElementById(id).disabled = true;
   });
   document.querySelector("#partnerProductsView form button[type='submit']").textContent = "Save variant";
@@ -754,8 +800,8 @@ async function loadPartnerProfile() {
     document.getElementById("partnerProfilePostal").value = shop.postal_code || "";
     document.getElementById("partnerProfilePhone").value = shop.phone_e164 || "";
     document.getElementById("partnerProfileEmail").value = shop.email || "";
-    document.getElementById("partnerSettingsShop").textContent = shop.name || "Restaurant";
-    document.getElementById("partnerWelcomeTitle").textContent = shop.name || "Restaurant dashboard";
+    document.getElementById("partnerSettingsShop").textContent = shop.name || "Shop";
+    document.getElementById("partnerWelcomeTitle").textContent = shop.name || "Shop";
     renderPartnerProducts(safeProducts);
     renderPartnerInventory(safeInventory);
     renderPartnerDashboard(dashboard);
@@ -920,7 +966,7 @@ function renderPartnerInventory(inventory) {
     container.innerHTML = '<p class="partner-empty">No inventory items yet</p>';
     return;
   }
-  container.innerHTML = `<table class="partner-inventory-table"><thead><tr><th>Product</th><th>Variant</th><th>On hand</th><th>Reserved</th><th>Update</th></tr></thead><tbody>${inventory.map(item => `<tr><td>${escapePartnerHtml(item.product_name)}</td><td>${escapePartnerHtml(item.variant_name || item.unit_label || "Default")}</td><td><input id="partnerStock_${escapePartnerHtml(item.variant_id)}" class="partner-stock-input" type="number" min="${Number(item.quantity_reserved) || 0}" step="1" value="${Number(item.quantity_on_hand) || 0}" aria-label="Quantity on hand for ${escapePartnerHtml(item.product_name)}"></td><td>${Number(item.quantity_reserved) || 0}</td><td><button type="button" class="partner-stock-save" onclick="savePartnerInventory('${escapePartnerHtml(item.variant_id)}')">Save</button></td></tr>`).join("")}</tbody></table>`;
+  container.innerHTML = `<table class="partner-inventory-table"><thead><tr><th>Product</th><th>Variant</th><th>On hand</th><th>Reserved</th><th>Update</th></tr></thead><tbody>${inventory.map(item => `<tr><td>${escapePartnerHtml(item.product_name)}</td><td>${escapePartnerHtml(item.variant_name || item.unit_label || "Default")}</td><td><input id="partnerStock_${escapePartnerHtml(item.variant_id)}" class="partner-stock-input" type="number" min="${Number(item.quantity_reserved) || 0}" step="0.001" value="${Number(item.quantity_on_hand) || 0}" aria-label="Quantity on hand for ${escapePartnerHtml(item.product_name)}"></td><td>${Number(item.quantity_reserved) || 0}</td><td><button type="button" class="partner-stock-save" onclick="savePartnerInventory('${escapePartnerHtml(item.variant_id)}')">Save</button></td></tr>`).join("")}</tbody></table>`;
 }
 
 async function savePartnerProfile(event) {
@@ -1057,7 +1103,7 @@ function buildPartnerOrdersCsv(orders) {
 function buildPartnerSalesReportCsv(dashboard, orders, shopName, generatedAt) {
   const summary = [
     ["Metric", "Value"],
-    ["Restaurant", shopName || ""],
+    ["Shop", shopName || ""],
     ["Report generated (IST)", formatPartnerNotificationTime(generatedAt)],
     ["Order records included (API limit 100)", orders.length],
     ["Pending orders", Number(dashboard.pending_orders) || 0],
@@ -1357,12 +1403,12 @@ async function requestPartnerPickupCode(orderId) {
   if (!partnerState.shopId || !orderId) return;
   if (button) button.disabled = true;
   if (button) button.textContent = "Sending...";
-  if (message) message.textContent = "Sending code to the restaurant contact...";
+  if (message) message.textContent = "Sending code to the shop contact...";
   try {
     await partnerApiRequest(`/orders/${encodeURIComponent(orderId)}/shops/${encodeURIComponent(partnerState.shopId)}/pickup-otp`, {
       method: "POST"
     });
-    if (message) message.textContent = "Pickup code sent to the restaurant's registered contact.";
+    if (message) message.textContent = "Pickup code sent to the shop's registered contact.";
   } catch (error) {
     if (message) message.textContent = error.message;
   } finally {
@@ -1393,7 +1439,6 @@ async function setPartnerStatus(orderId, status) {
 }
 
 document.addEventListener("DOMContentLoaded", loadPartnerRestaurants);
-document.addEventListener("DOMContentLoaded", loadPartnerProductCategories);
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("partnerNotificationPanel").addEventListener("click", event => {
     const notification = event.target.closest("[data-notification-id]");
