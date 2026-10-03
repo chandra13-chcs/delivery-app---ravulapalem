@@ -2895,6 +2895,57 @@ function stepHeroFeature(direction) {
   selectHeroFeature(customerHeroFeatureIndex + direction);
 }
 
+let customerServicePromoIndex = 0;
+let customerServicePromoTimer = null;
+
+function selectCustomerServicePromo(index) {
+  const track = document.getElementById("servicePromoTrack");
+  const indicators = document.getElementById("servicePromoIndicators");
+  if (!track) return;
+  const slides = [...track.children];
+  if (!slides.length) return;
+  customerServicePromoIndex = (index + slides.length) % slides.length;
+  track.style.transform = `translateX(-${customerServicePromoIndex * 100}%)`;
+  slides.forEach((slide, slideIndex) => {
+    slide.inert = slideIndex !== customerServicePromoIndex;
+    slide.setAttribute("aria-hidden", String(slideIndex !== customerServicePromoIndex));
+  });
+  indicators?.querySelectorAll("button").forEach((button, buttonIndex) => {
+    button.setAttribute("aria-current", String(buttonIndex === customerServicePromoIndex));
+  });
+}
+
+function startCustomerServicePromoCarousel() {
+  const carousel = document.getElementById("servicePromoCarousel");
+  const track = document.getElementById("servicePromoTrack");
+  const indicators = document.getElementById("servicePromoIndicators");
+  if (!carousel || !track || !indicators) return;
+  indicators.innerHTML = [...track.children].map((slide, index) =>
+    `<button type="button" onclick="selectCustomerServicePromo(${index})" aria-label="Show ${index + 1} featured service" aria-current="false"></button>`
+  ).join("");
+  selectCustomerServicePromo(0);
+  if (carousel.dataset.swipeReady !== "true") {
+    carousel.dataset.swipeReady = "true";
+    let touchStartX = null;
+    carousel.addEventListener("touchstart", event => {
+      touchStartX = event.changedTouches[0]?.clientX ?? null;
+    }, { passive: true });
+    carousel.addEventListener("touchend", event => {
+      if (touchStartX === null) return;
+      const swipeDistance = event.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(swipeDistance) > 40) {
+        selectCustomerServicePromo(customerServicePromoIndex + (swipeDistance < 0 ? 1 : -1));
+      }
+      touchStartX = null;
+    }, { passive: true });
+  }
+  if (!customerServicePromoTimer) {
+    customerServicePromoTimer = setInterval(() => {
+      selectCustomerServicePromo(customerServicePromoIndex + 1);
+    }, 5000);
+  }
+}
+
 function startHeroFeatureCarousel() {
   renderHeroFeatureCarousel();
   const carousel = document.getElementById('heroFeatureCarousel');
@@ -6443,6 +6494,7 @@ document.addEventListener(
 
     renderCustomerCategoryTiles();
     renderCustomerCategoryPreviews();
+    startCustomerServicePromoCarousel();
     setupCustomerOtpInputs();
     updateCustomerPhoneValidation();
 

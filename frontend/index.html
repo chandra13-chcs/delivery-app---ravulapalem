@@ -197,6 +197,21 @@
 
   <!-- CLIENT SERVICE DIRECTORY -->
   <section id="serviceDirectory" class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+    <div id="servicePromoCarousel" class="service-promo-carousel mb-4" role="region" aria-label="Featured services" aria-roledescription="carousel">
+      <div id="servicePromoTrack" class="service-promo-track">
+        <button type="button" class="service-promo-slide service-promo-slide--food" onclick="openServiceCategory('food-delivery', this)" aria-label="Browse restaurants">
+          <img src="../assets/food%20banner.jpeg" alt="" aria-hidden="true">
+        </button>
+        <button type="button" class="service-promo-slide service-promo-slide--groceries" onclick="openServiceCategory('groceries', this)" aria-label="Shop groceries">
+          <img src="../assets/grocery%20banner.jpeg" alt="" aria-hidden="true">
+        </button>
+        <button type="button" class="service-promo-slide service-promo-slide--parcel" onclick="openServiceCategory('parcel-delivery', this)" aria-label="Send a parcel">
+          <img src="../assets/parcel%20banner.jpeg" alt="" aria-hidden="true">
+        </button>
+      </div>
+      <div id="servicePromoIndicators" class="service-promo-indicators" aria-label="Featured service slides"></div>
+    </div>
+
     <div class="myshopzy-service-grid">
       <button type="button" onclick="openServiceCategory('groceries', this)" class="myshopzy-service-card">
         <img src="../assets/audio/categories/groceries.jpg" alt="Fresh Groceries" loading="eager">
