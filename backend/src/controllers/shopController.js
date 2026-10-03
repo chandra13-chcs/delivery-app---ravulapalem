@@ -1,7 +1,15 @@
 const db = require("../config/db");
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER", "LOCAL_STORE"]);
+
+function normalizeBusinessType(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/-/g, "_");
+  if (normalized === "LOCAL_STORE" || normalized === "LOCALSTORE") return "OTHER";
+  if (BUSINESS_TYPES.has(normalized)) return normalized;
+  return null;
+}
 
 function isValidUuid(value) {
   return typeof value === "string" && uuidPattern.test(value);
@@ -16,10 +24,8 @@ function invalidUuidResponse(res) {
 }
 
 async function listShops(req, res) {
-  const requestedBusinessType = typeof req.query.business_type === "string"
-    ? req.query.business_type.trim().toUpperCase()
-    : null;
-  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+  const requestedBusinessType = normalizeBusinessType(req.query.business_type);
+  if (req.query.business_type && !requestedBusinessType) {
     return res.status(400).json({
       success: false,
       message: "A supported business_type is required",

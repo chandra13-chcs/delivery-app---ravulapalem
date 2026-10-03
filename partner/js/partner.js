@@ -33,7 +33,8 @@ const partnerState = {
   notificationToastTimer: null,
   unsubscribe: null,
   productUnsubscribe: null,
-  profileAddress: ""
+  profileAddress: "",
+  shopProfileSnapshot: null
 };
 
 const PARTNER_API_ROOT = `http://${window.location.hostname || "localhost"}:5000/api`;
@@ -790,16 +791,24 @@ async function loadPartnerProfile() {
     partnerState.inventory = safeInventory;
     partnerState.allOrders = safeOrders;
     partnerState.orders = safeOrders.filter(order => ["PLACED", "ACCEPTED", "PREPARING", "READY_FOR_PICKUP", "PICKING_UP"].includes(order.order_status));
-    document.getElementById("partnerProfileName").value = shop.name || "";
-    document.getElementById("partnerProfileAddress").value = partnerState.profileAddress;
-    document.getElementById("partnerProfileDescription").value = shop.description || "";
-    document.getElementById("partnerProfileAddress2").value = shop.address_line2 || "";
-    document.getElementById("partnerProfileLocality").value = shop.locality || "";
-    document.getElementById("partnerProfileCity").value = shop.city || "";
-    document.getElementById("partnerProfileState").value = shop.state || "";
-    document.getElementById("partnerProfilePostal").value = shop.postal_code || "";
-    document.getElementById("partnerProfilePhone").value = shop.phone_e164 || "";
-    document.getElementById("partnerProfileEmail").value = shop.email || "";
+    partnerState.shopProfileSnapshot = {
+      name: shop.name || "",
+      description: shop.description || "",
+      address_line1: shop.address_line1 || "",
+      address_line2: shop.address_line2 || "",
+      locality: shop.locality || "",
+      city: shop.city || "",
+      state: shop.state || "",
+      postal_code: shop.postal_code || "",
+      phone_e164: shop.phone_e164 || "",
+      email: shop.email || ""
+    };
+    setPartnerProfileFormValues(partnerState.shopProfileSnapshot);
+    document.getElementById("partnerProfileBusinessType").textContent = formatPartnerBusinessType(shop.business_type || partnerState.businessType || shop.businessType || "");
+    document.getElementById("partnerProfileStatusValue").textContent = formatPartnerShopStatus(shop.status || partnerState.shopStatus);
+    document.getElementById("partnerProfileOpeningTime").textContent = "Not available";
+    document.getElementById("partnerProfileClosingTime").textContent = "Not available";
+    document.getElementById("partnerProfileFeedback").textContent = "";
     document.getElementById("partnerSettingsShop").textContent = shop.name || "Shop";
     document.getElementById("partnerWelcomeTitle").textContent = shop.name || "Shop";
     renderPartnerProducts(safeProducts);
@@ -969,22 +978,133 @@ function renderPartnerInventory(inventory) {
   container.innerHTML = `<table class="partner-inventory-table"><thead><tr><th>Product</th><th>Variant</th><th>On hand</th><th>Reserved</th><th>Update</th></tr></thead><tbody>${inventory.map(item => `<tr><td>${escapePartnerHtml(item.product_name)}</td><td>${escapePartnerHtml(item.variant_name || item.unit_label || "Default")}</td><td><input id="partnerStock_${escapePartnerHtml(item.variant_id)}" class="partner-stock-input" type="number" min="${Number(item.quantity_reserved) || 0}" step="0.001" value="${Number(item.quantity_on_hand) || 0}" aria-label="Quantity on hand for ${escapePartnerHtml(item.product_name)}"></td><td>${Number(item.quantity_reserved) || 0}</td><td><button type="button" class="partner-stock-save" onclick="savePartnerInventory('${escapePartnerHtml(item.variant_id)}')">Save</button></td></tr>`).join("")}</tbody></table>`;
 }
 
-async function savePartnerProfile(event) {
-  event.preventDefault();
-  const name = document.getElementById("partnerProfileName").value.trim() || partnerState.label;
-  const address = document.getElementById("partnerProfileAddress").value.trim();
-  const body = {
-    name,
-    description: document.getElementById("partnerProfileDescription").value.trim() || null,
-    address_line1: address,
-    address_line2: document.getElementById("partnerProfileAddress2").value.trim() || null,
-    locality: document.getElementById("partnerProfileLocality").value.trim() || null,
+function formatPartnerBusinessType(value) {
+  switch (value) {
+    case "RESTAURANT": return "Restaurant";
+    case "MEAT": return "Meat";
+    case "GROCERY":
+    case "OTHER": return "Local Store";
+    default: return value ? String(value).replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase()) : "Not available";
+  }
+}
+
+function formatPartnerShopStatus(value) {
+  if (!value) return "Not available";
+  if (value === "ACTIVE") return "Open";
+  if (value === "PAUSED") return "Paused";
+  if (value === "SUSPENDED") return "Suspended";
+  if (value === "CLOSED") return "Closed";
+  return String(value).replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function showPartnerProfileFeedback(message, isError = false) {
+  const feedback = document.getElementById("partnerProfileFeedback");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.classList.toggle("is-error", isError);
+  feedback.classList.toggle("is-success", !isError);
+}
+
+function getPartnerProfileFormValues() {
+  return {
+    name: document.getElementById("partnerProfileName").value.trim(),
+    description: document.getElementById("partnerProfileDescription").value.trim(),
+    address_line1: document.getElementById("partnerProfileAddress").value.trim(),
+    address_line2: document.getElementById("partnerProfileAddress2").value.trim(),
+    locality: document.getElementById("partnerProfileLocality").value.trim(),
     city: document.getElementById("partnerProfileCity").value.trim(),
     state: document.getElementById("partnerProfileState").value.trim(),
     postal_code: document.getElementById("partnerProfilePostal").value.trim(),
-    phone_e164: document.getElementById("partnerProfilePhone").value.trim() || null,
-    email: document.getElementById("partnerProfileEmail").value.trim() || null
+    phone_e164: document.getElementById("partnerProfilePhone").value.trim(),
+    email: document.getElementById("partnerProfileEmail").value.trim()
   };
+}
+
+function setPartnerProfileFormValues(values = {}) {
+  document.getElementById("partnerProfileName").value = values.name || "";
+  document.getElementById("partnerProfileDescription").value = values.description || "";
+  document.getElementById("partnerProfileAddress").value = values.address_line1 || "";
+  document.getElementById("partnerProfileAddress2").value = values.address_line2 || "";
+  document.getElementById("partnerProfileLocality").value = values.locality || "";
+  document.getElementById("partnerProfileCity").value = values.city || "";
+  document.getElementById("partnerProfileState").value = values.state || "";
+  document.getElementById("partnerProfilePostal").value = values.postal_code || "";
+  document.getElementById("partnerProfilePhone").value = values.phone_e164 || "";
+  document.getElementById("partnerProfileEmail").value = values.email || "";
+}
+
+function restorePartnerProfileSnapshot() {
+  setPartnerProfileFormValues(partnerState.shopProfileSnapshot || {});
+  showPartnerProfileFeedback("");
+  document.getElementById("partnerCancelShopEditButton").hidden = true;
+}
+
+function cancelPartnerProfileEdits() {
+  restorePartnerProfileSnapshot();
+}
+
+function resetPartnerProfileForm() {
+  const shop = partnerState.shops.find(item => item.id === partnerState.shopId) || {};
+  const values = {
+    name: shop.name || "",
+    description: shop.description || "",
+    address_line1: shop.address_line1 || "",
+    address_line2: shop.address_line2 || "",
+    locality: shop.locality || "",
+    city: shop.city || "",
+    state: shop.state || "",
+    postal_code: shop.postal_code || "",
+    phone_e164: shop.phone_e164 || "",
+    email: shop.email || ""
+  };
+  partnerState.shopProfileSnapshot = values;
+  setPartnerProfileFormValues(values);
+  showPartnerProfileFeedback("Edit form reset to the last saved shop values.");
+  document.getElementById("partnerCancelShopEditButton").hidden = false;
+}
+
+async function savePartnerProfile(event) {
+  event.preventDefault();
+  const values = getPartnerProfileFormValues();
+  const name = values.name || partnerState.label;
+  const address = values.address_line1;
+  const phone = values.phone_e164 || "";
+  const postalCode = values.postal_code || "";
+
+  if (!name || !address || !values.city || !values.state || !postalCode) {
+    showPartnerProfileFeedback("Name, address, city, state, and postal code are required.", true);
+    return;
+  }
+  if (phone && !/^\+[1-9][0-9]{7,14}$/.test(phone)) {
+    showPartnerProfileFeedback("Phone must use international format, such as +919999999999.", true);
+    return;
+  }
+  if (postalCode.length > 16) {
+    showPartnerProfileFeedback("Postal code is too long.", true);
+    return;
+  }
+  if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+    showPartnerProfileFeedback("Email format is invalid.", true);
+    return;
+  }
+
+  const body = {
+    name,
+    description: values.description || null,
+    address_line1: address,
+    address_line2: values.address_line2 || null,
+    locality: values.locality || null,
+    city: values.city,
+    state: values.state,
+    postal_code: postalCode,
+    phone_e164: phone || null,
+    email: values.email || null
+  };
+
+  const saveButton = document.getElementById("partnerSaveShopButton");
+  saveButton.disabled = true;
+  saveButton.textContent = "Saving...";
+  showPartnerProfileFeedback("Saving shop details...");
   try {
     const updatedShop = await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}`, {
       method: "PATCH",
@@ -993,15 +1113,33 @@ async function savePartnerProfile(event) {
     partnerState.label = name;
     partnerState.shops = partnerState.shops.map(shop => shop.id === updatedShop.id ? { ...shop, ...updatedShop } : shop);
     partnerState.profileAddress = address;
+    partnerState.shopProfileSnapshot = {
+      name: updatedShop.name || "",
+      description: updatedShop.description || "",
+      address_line1: updatedShop.address_line1 || "",
+      address_line2: updatedShop.address_line2 || "",
+      locality: updatedShop.locality || "",
+      city: updatedShop.city || "",
+      state: updatedShop.state || "",
+      postal_code: updatedShop.postal_code || "",
+      phone_e164: updatedShop.phone_e164 || "",
+      email: updatedShop.email || ""
+    };
+    setPartnerProfileFormValues(partnerState.shopProfileSnapshot);
     const selectedOption = document.getElementById("partnerShopSelect").selectedOptions[0];
     if (selectedOption) selectedOption.textContent = `${updatedShop.name} · ${updatedShop.city}`;
     document.getElementById("partnerDeskTitle").textContent = `${name} orders`;
     document.getElementById("partnerWelcomeTitle").textContent = name;
     document.getElementById("partnerHeaderSubtitle").textContent = name;
-    alert("Location details saved.");
+    document.getElementById("partnerSettingsShop").textContent = name;
+    showPartnerProfileFeedback("Shop details saved successfully.");
+    document.getElementById("partnerCancelShopEditButton").hidden = true;
   } catch (error) {
     console.error("Partner shop profile save failed:", error);
-    alert(`Unable to save location: ${error.message}`);
+    showPartnerProfileFeedback(error.message || "Unable to save shop details.", true);
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = "Save shop details";
   }
 }
 
@@ -1013,12 +1151,18 @@ function renderPartnerShopStatus() {
   button.disabled = !canManageStatus || !["ACTIVE", "PAUSED"].includes(partnerState.shopStatus);
   button.title = button.disabled ? "Only a partner owner or manager can change shop status." : `Current status: ${partnerState.shopStatus}`;
   const badge = document.getElementById("partnerShopStatusLabel");
-  badge.textContent = partnerState.shopStatus || "Unknown";
+  badge.textContent = formatPartnerShopStatus(partnerState.shopStatus);
   badge.classList.toggle("is-paused", partnerState.shopStatus === "PAUSED");
   badge.classList.toggle("is-closed", ["SUSPENDED", "CLOSED"].includes(partnerState.shopStatus));
+  const infoValue = document.getElementById("partnerProfileStatusValue");
+  if (infoValue) infoValue.textContent = formatPartnerShopStatus(partnerState.shopStatus);
 }
 
 async function togglePartnerShopStatus() {
+  if (!["ACTIVE", "PAUSED"].includes(partnerState.shopStatus)) {
+    showPartnerProfileFeedback("This shop status cannot be changed by the partner console.", true);
+    return;
+  }
   const status = partnerState.shopStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
   try {
     const result = await partnerApiRequest(`/shops/${encodeURIComponent(partnerState.shopId)}/status`, {
@@ -1028,9 +1172,10 @@ async function togglePartnerShopStatus() {
     partnerState.shopStatus = result.status;
     partnerState.shops = partnerState.shops.map(shop => shop.id === partnerState.shopId ? { ...shop, status: result.status } : shop);
     renderPartnerShopStatus();
+    showPartnerProfileFeedback(`Shop status updated to ${formatPartnerShopStatus(result.status)}.`);
   } catch (error) {
     console.error("Partner shop status update failed:", error);
-    alert(`Unable to update shop status: ${error.message}`);
+    showPartnerProfileFeedback(error.message || "Unable to update shop status.", true);
   }
 }
 
@@ -1210,6 +1355,33 @@ function formatPartnerOrderCurrency(value) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(value) || 0);
 }
 
+function maskPartnerRiderPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits || digits.length < 4) return "Not available";
+  const lastFour = digits.slice(-4);
+  const masked = digits.length > 10 ? `••••••${lastFour}` : `•••••${lastFour}`;
+  return digits.length > 10 ? `+${digits.slice(0, 2)}${masked}` : `+91${masked}`;
+}
+
+function renderPartnerRiderDetails(order) {
+  const riderAssigned = Boolean(order.assigned_rider_id || order.assigned_rider || order.rider_id || order.rider_phone);
+  if (!riderAssigned) {
+    return `<div class="partner-rider-card"><p class="partner-order-detail-empty">Rider not assigned yet</p></div>`;
+  }
+
+  const riderName = order.assigned_rider || order.rider_name || "Not available";
+  const riderPhone = order.rider_phone ? maskPartnerRiderPhone(order.rider_phone) : "Not available";
+  const vehicleType = order.rider_vehicle_type || order.vehicle_type || "Not available";
+  const vehicleNumber = order.rider_vehicle_number || order.vehicle_registration || order.vehicle_number || "Not available";
+  const assignmentStatus = order.assignment_status || "Not available";
+  const pickupStatus = Array.isArray(order.fulfillments) && order.fulfillments.some(item => item && item.status)
+    ? order.fulfillments.find(item => item && item.status)?.status || "Not available"
+    : "Not available";
+  const deliveryStatus = order.assignment_status || (typeof order.status === "string" ? order.status : "Not available");
+
+  return `<div class="partner-rider-card"><div class="partner-rider-grid"><div class="partner-rider-metric"><span>Rider name</span><strong>${escapePartnerHtml(riderName)}</strong></div><div class="partner-rider-metric"><span>Masked phone</span><strong>${escapePartnerHtml(riderPhone)}</strong></div><div class="partner-rider-metric"><span>Vehicle type</span><strong>${escapePartnerHtml(vehicleType)}</strong></div><div class="partner-rider-metric"><span>Vehicle number</span><strong>${escapePartnerHtml(vehicleNumber)}</strong></div><div class="partner-rider-metric"><span>Assignment status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(assignmentStatus))}</strong></div><div class="partner-rider-metric"><span>Assigned time</span><strong>${escapePartnerHtml(order.assigned_at ? formatPartnerNotificationTime(order.assigned_at) : "Not available")}</strong></div><div class="partner-rider-metric"><span>Pickup status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(pickupStatus))}</strong></div><div class="partner-rider-metric"><span>Delivery status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(deliveryStatus))}</strong></div></div></div>`;
+}
+
 function matchesPartnerOrderStatus(order) {
   const status = getPartnerStatus(order);
   switch (partnerState.orderStatusFilter) {
@@ -1290,6 +1462,7 @@ function renderPartnerOrderDetail(order) {
     ? `<section class="partner-order-detail-section"><h3>Delivery address</h3><p>${escapePartnerHtml(order.delivery_address)}</p></section>`
     : "";
   return `<div class="partner-order-detail-summary"><div><span>Order type</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.order_type))}</strong></div><div><span>Order status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.order_status))}</strong></div><div><span>Fulfillment status</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.status))}</strong></div><div><span>Payment</span><strong>${escapePartnerHtml(formatPartnerOrderStatus(order.payment_method))} · ${escapePartnerHtml(formatPartnerOrderStatus(order.payment_status))}</strong></div><div><span>Placed date</span><strong>${escapePartnerHtml(placedAt.date)}</strong></div><div><span>Placed time (IST)</span><strong>${escapePartnerHtml(placedAt.time)}</strong></div></div>
+    <section class="partner-order-detail-section"><h3>Delivery</h3>${renderPartnerRiderDetails(order)}</section>
     <section class="partner-order-detail-section"><h3>Items</h3><div class="partner-order-detail-items">${itemRows}</div></section>
     <section class="partner-order-detail-section"><h3>Payment summary</h3><dl class="partner-order-totals"><div><dt>Subtotal</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.subtotal))}</dd></div><div><dt>Delivery charge</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.delivery_fee))}</dd></div><div><dt>Discount</dt><dd>−${escapePartnerHtml(formatPartnerOrderCurrency(order.discount_amount))}</dd></div><div><dt>Tax</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.tax_amount))}</dd></div><div class="is-total"><dt>Total</dt><dd>${escapePartnerHtml(formatPartnerOrderCurrency(order.total_amount))}</dd></div></dl></section>
     <section class="partner-order-detail-section"><h3>Shop pickup</h3><p>${escapePartnerHtml(order.pickup_address || "Pickup location unavailable")}</p></section>${optionalAddress}`;

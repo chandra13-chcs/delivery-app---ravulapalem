@@ -208,6 +208,12 @@
         <section id="partnerProfileView" class="partner-page" hidden>
           <div class="partner-page-heading"><div><span id="partnerShopInfoEyebrow" class="eyebrow">SHOP PROFILE</span><h2 id="partnerShopInfoHeading">Shop Info</h2><p id="partnerShopInfoDescription" class="partner-muted">Keep your shop and pickup details current.</p></div></div>
           <form onsubmit="savePartnerProfile(event)" class="partner-panel partner-profile-form">
+            <div class="partner-profile-meta form-wide">
+              <div><span>Business type</span><strong id="partnerProfileBusinessType">Not available</strong></div>
+              <div><span>Current status</span><strong id="partnerProfileStatusValue">Not available</strong></div>
+              <div><span>Opening time</span><strong id="partnerProfileOpeningTime">Not available</strong></div>
+              <div><span>Closing time</span><strong id="partnerProfileClosingTime">Not available</strong></div>
+            </div>
             <label><span id="partnerProfileNameLabel">Shop name</span><input id="partnerProfileName" required></label>
             <label>Description<textarea id="partnerProfileDescription" rows="3"></textarea></label>
             <label class="form-wide">Pickup address<input id="partnerProfileAddress" required></label>
@@ -218,7 +224,12 @@
             <label>Postal code<input id="partnerProfilePostal" required></label>
             <label>Phone<input id="partnerProfilePhone" type="tel" placeholder="+91"></label>
             <label>Email<input id="partnerProfileEmail" type="email"></label>
-            <button id="partnerSaveShopButton" type="submit" class="partner-button partner-button-primary form-wide">Save shop details</button>
+            <div id="partnerProfileFeedback" class="partner-form-feedback form-wide" role="status" aria-live="polite"></div>
+            <div class="partner-form-actions form-wide">
+              <button id="partnerEditShopButton" type="button" class="partner-button partner-button-outline" onclick="resetPartnerProfileForm()">Edit shop details</button>
+              <button id="partnerCancelShopEditButton" type="button" class="partner-button partner-button-outline" hidden onclick="cancelPartnerProfileEdits()">Cancel</button>
+              <button id="partnerSaveShopButton" type="submit" class="partner-button partner-button-primary">Save shop details</button>
+            </div>
           </form>
         </section>
 

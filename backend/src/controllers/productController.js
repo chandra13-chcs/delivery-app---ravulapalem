@@ -1,24 +1,31 @@
 const db = require("../config/db");
 
 const categorySlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER", "LOCAL_STORE"]);
+
+function normalizeBusinessType(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/-/g, "_");
+  if (normalized === "LOCAL_STORE" || normalized === "LOCALSTORE") return "OTHER";
+  if (normalized === "OTHER") return "OTHER";
+  if (BUSINESS_TYPES.has(normalized)) return normalized;
+  return null;
+}
 
 async function listProductsByCategory(req, res) {
-  const categorySlug = typeof req.query.category === "string"
-    ? req.query.category.trim().toLowerCase()
-    : "";
-  const requestedBusinessType = typeof req.query.business_type === "string"
-    ? req.query.business_type.trim().toUpperCase()
-    : null;
+  const suppliedCategory = typeof req.query.category === "string" ? req.query.category.trim() : "";
+  const categorySlug = suppliedCategory ? suppliedCategory.toLowerCase() : "";
+  const requestedBusinessType = normalizeBusinessType(req.query.business_type);
 
-  if (categorySlug && !categorySlugPattern.test(categorySlug)) {
+  if (categorySlug && !categorySlugPattern.test(categorySlug) && !uuidPattern.test(categorySlug)) {
     return res.status(400).json({
       success: false,
-      message: "A valid category slug is required",
+      message: "A valid category slug or category id is required",
       data: null
     });
   }
-  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+  if (req.query.business_type && !requestedBusinessType) {
     return res.status(400).json({
       success: false,
       message: "A supported business_type is required",
@@ -74,7 +81,7 @@ async function listProductsByCategory(req, res) {
        ) image ON true
        WHERE p.status = 'ACTIVE'
          AND p.deleted_at IS NULL
-         AND ($1::text IS NULL OR c.slug = $1)
+         AND ($1::text IS NULL OR c.slug = $1 OR c.id::text = $1)
          AND ($2::text IS NULL OR partner.business_type = $2)
        ORDER BY p.name ASC`,
       [categorySlug || null, requestedBusinessType]

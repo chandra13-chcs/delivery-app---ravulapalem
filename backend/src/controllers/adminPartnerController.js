@@ -4,7 +4,15 @@ const db = require("../config/db");
 const { writeAuditLog } = require("../services/auditService");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER", "LOCAL_STORE"]);
+
+function normalizeBusinessType(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/-/g, "_");
+  if (normalized === "LOCAL_STORE" || normalized === "LOCALSTORE") return "OTHER";
+  if (BUSINESS_TYPES.has(normalized)) return normalized;
+  return null;
+}
 const PARTNER_STATUSES = new Set(["PENDING", "ACTIVE", "SUSPENDED", "CLOSED"]);
 const SHOP_STATUSES = new Set(["PENDING", "ACTIVE", "PAUSED", "SUSPENDED", "CLOSED"]);
 const MEMBER_ROLES = new Set(["OWNER", "MANAGER", "STAFF"]);
@@ -58,8 +66,9 @@ function validatePartner(body, creating) {
     value[field] = body[field].trim();
   }
   if (body.business_type !== undefined) {
-    if (typeof body.business_type !== "string" || !BUSINESS_TYPES.has(body.business_type)) return { error: "Unsupported business type." };
-    value.business_type = body.business_type;
+    const normalizedBusinessType = normalizeBusinessType(body.business_type);
+    if (body.business_type === null || !normalizedBusinessType) return { error: "Unsupported business type." };
+    value.business_type = normalizedBusinessType;
   }
   if (body.tax_identifier !== undefined) {
     if (body.tax_identifier !== null && (typeof body.tax_identifier !== "string" || body.tax_identifier.trim().length > 100)) {

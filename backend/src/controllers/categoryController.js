@@ -4,8 +4,16 @@ const { writeAuditLog } = require("../services/auditService");
 const CATEGORY_COLUMNS = `id, name, slug, description, parent_id, business_type, sort_order,
                          is_active, created_at, updated_at, deleted_at`;
 const CATEGORY_FIELDS = new Set(["name", "slug", "description", "parent_id", "business_type", "sort_order", "is_active"]);
-const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER"]);
+const BUSINESS_TYPES = new Set(["RESTAURANT", "GROCERY", "MEAT", "OTHER", "LOCAL_STORE"]);
 const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+function normalizeBusinessType(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/-/g, "_");
+  if (normalized === "LOCAL_STORE" || normalized === "LOCALSTORE") return "OTHER";
+  if (BUSINESS_TYPES.has(normalized)) return normalized;
+  return null;
+}
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 60;
 const MAX_SLUG_LENGTH = 120;
@@ -72,11 +80,11 @@ function validateCategoryBody(body, creating) {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "business_type")) {
-    if (body.business_type !== null
-        && (typeof body.business_type !== "string" || !BUSINESS_TYPES.has(body.business_type))) {
+    const normalizedBusinessType = normalizeBusinessType(body.business_type);
+    if (body.business_type !== null && !normalizedBusinessType) {
       return { error: "business_type must be a supported business type or null." };
     }
-    value.business_type = body.business_type;
+    value.business_type = body.business_type === null ? null : normalizedBusinessType;
   } else if (creating) {
     value.business_type = null;
   }
@@ -168,7 +176,8 @@ async function listCategories(req, res) {
   const requestedBusinessType = typeof req.query.business_type === "string"
     ? req.query.business_type.trim().toUpperCase()
     : null;
-  if (requestedBusinessType && !BUSINESS_TYPES.has(requestedBusinessType)) {
+  const normalizedBusinessType = normalizeBusinessType(requestedBusinessType);
+  if (requestedBusinessType && !normalizedBusinessType) {
     return responseError(res, 400, "business_type must be a supported business type.");
   }
 
@@ -183,7 +192,7 @@ async function listCategories(req, res) {
            OR ($1::text IS NOT NULL AND (business_type IS NULL OR business_type = $1))
          )
          ORDER BY sort_order ASC, name ASC`,
-      [requestedBusinessType]
+      [normalizedBusinessType]
     );
 
     return res.json({
