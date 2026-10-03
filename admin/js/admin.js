@@ -604,7 +604,7 @@ function switchView(tab) {
   const viewTitles = {
     home: 'Dashboard', orders: 'Orders', deliveryOps: 'Deliveries', analytics: 'Sales & Reports',
     riderVerification: 'Riders', expenses: 'Expenses', deliveryPricing: 'Settings', settings: 'Settings',
-    inventory: 'Inventory', partners: 'Partners', shops: 'Restaurants & Shops', banners: 'Banners',
+    inventory: 'Inventory', partners: 'Partners', banners: 'Banners',
     offers: 'Offers & Promotions', categories: 'Categories', notifications: 'Notifications',
     customers: 'Customers', payments: 'Payments', support: 'Support', auditLogs: 'Audit Logs'
   };
@@ -614,7 +614,7 @@ function switchView(tab) {
   [homeSec, ordersSec, deliverySec, analyticsSec, riderSec, expensesSec, pricingSec, invSec, partnersSec, banSec, categoriesSec, notificationsSec, unavailableSec].forEach(el => el && el.classList.add('hidden'));
   navbarButtons.forEach((item) => {
     const itemTab = String(item.dataset.tab || '');
-    const active = itemTab === selectedTab || (selectedTab === 'shops' && itemTab === 'partners');
+    const active = itemTab === selectedTab;
     item.classList.toggle('active', active);
     item.setAttribute('aria-current', active ? 'page' : 'false');
   });
@@ -647,7 +647,7 @@ function switchView(tab) {
     loadAdminInventory();
     loadCategoryManager();
     loadAdminPostgresCatalog();
-  } else if (selectedTab === 'partners' || selectedTab === 'shops') {
+  } else if (selectedTab === 'partners') {
     if (partnersSec) partnersSec.classList.remove('hidden');
     loadAdminPartnerAccounts();
   } else if (selectedTab === 'banners' || selectedTab === 'offers') {
@@ -739,11 +739,11 @@ function renderAdminDeliveries(orders = [], loaded = true, errorMessage = '') {
   const tbody = document.getElementById('adminDeliveriesTableBody');
   if (!tbody) return;
   if (!loaded) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty-cell">Loading deliveries...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="empty-cell">Loading deliveries...</td></tr>';
     return;
   }
   if (errorMessage) {
-    tbody.innerHTML = `<tr><td colspan="13" class="empty-cell">Unable to load deliveries: ${escapeAdminHtml(errorMessage)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="empty-cell">Unable to load deliveries: ${escapeAdminHtml(errorMessage)}</td></tr>`;
     return;
   }
   const rows = Array.isArray(orders) ? orders : [];
@@ -761,20 +761,24 @@ function renderAdminDeliveries(orders = [], loaded = true, errorMessage = '') {
   count('deliveryCountFailed', rows.filter(order => ['DELIVERY_FAILED', 'CANCELLED', 'REJECTED'].includes(String(order.status || '').toUpperCase())).length);
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty-cell">No deliveries yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="empty-cell">No deliveries yet.</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(order => {
     const shops = (order.fulfillments || []).map(item => item.shop_name).filter(Boolean).join(', ') || 'Not available yet';
     const assignmentId = order.assignment_id ? encodeURIComponent(order.assignment_id) : '';
-    const canTrack = assignmentId && ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(String(order.assignment_status || '').toUpperCase());
-    const actions = `<button type="button" class="table-action" onclick="openAdminOrderDetails('${encodeURIComponent(order.id)}')">View details</button>${canTrack ? ` <button type="button" class="table-action" onclick="openAdminRiderTracker('${assignmentId}')">Track</button>` : ''}`;
+    const assignmentStatus = String(order.assignment_status || '').toUpperCase();
+    const locationField = assignmentId
+      ? `<button type="button" class="table-action" onclick="openAdminRiderTracker('${assignmentId}')">View location</button><span class="block mt-1 text-[10px] text-slate-500">${assignmentStatus === 'OFFERED' ? 'Waiting for rider to accept' : 'Live location when shared'}</span>`
+      : 'Not assigned';
+    const actions = `<button type="button" class="table-action" onclick="openAdminOrderDetails('${encodeURIComponent(order.id)}')">View details</button>`;
     return `<tr>
       <td>${escapeAdminHtml(order.assignment_id || 'Not assigned')}</td>
       <td><strong>${escapeAdminHtml(order.order_number || order.id)}</strong></td>
       <td>${escapeAdminHtml(order.customer_name || 'Not available yet')}</td>
       <td>${escapeAdminHtml(shops)}</td>
       <td>${escapeAdminHtml(order.assigned_rider || 'Not assigned')}</td>
+      <td>${locationField}</td>
       <td>${escapeAdminHtml(order.assignment_status || 'Not available yet')}</td>
       <td>${escapeAdminHtml(order.status || 'Not available yet')}</td>
       <td>Not available yet</td>
@@ -945,6 +949,36 @@ function loadAdminRestaurants() {
   }, error => console.error('Restaurant listener error:', error));
 }
 
+function dedupePartnerShops(shops) {
+  const uniqueShops = new Map();
+  for (const shop of Array.isArray(shops) ? shops : []) {
+    const key = String(shop?.id || shop?.name || '').trim();
+    if (!key) continue;
+    if (!uniqueShops.has(key.toLowerCase())) uniqueShops.set(key.toLowerCase(), shop);
+  }
+  return Array.from(uniqueShops.values());
+}
+
+function dedupePartnerRecords(partnerRecords) {
+  const uniqueRecords = new Map();
+  for (const partner of Array.isArray(partnerRecords) ? partnerRecords : []) {
+    const partnerKey = String(partner?.id || partner?.display_name || partner?.legal_name || '').trim();
+    if (!partnerKey) continue;
+    const normalizedKey = partnerKey.toLowerCase();
+    if (!uniqueRecords.has(normalizedKey)) {
+      uniqueRecords.set(normalizedKey, { ...partner, shops: dedupePartnerShops(partner?.shops) });
+      continue;
+    }
+    const existing = uniqueRecords.get(normalizedKey);
+    const existingStamp = Date.parse(existing?.updated_at || existing?.created_at || '1970-01-01T00:00:00Z') || 0;
+    const incomingStamp = Date.parse(partner?.updated_at || partner?.created_at || '1970-01-01T00:00:00Z') || 0;
+    if (incomingStamp > existingStamp) {
+      uniqueRecords.set(normalizedKey, { ...partner, shops: dedupePartnerShops(partner?.shops) });
+    }
+  }
+  return Array.from(uniqueRecords.values());
+}
+
 async function createAdminPartnerAccount(event) {
   event.preventDefault();
   try {
@@ -965,24 +999,35 @@ async function createAdminPartnerAccount(event) {
   }
 }
 
-function getAdminPartnerConsoleUrl(partnerId) {
+function getAdminPartnerConsoleUrl(partnerId, inviteToken) {
   const url = new URL('../partner/partner.html', window.location.href);
-  url.searchParams.set('partnerId', partnerId);
+  url.hash = new URLSearchParams({ partnerId, invite: inviteToken }).toString();
   return url.href;
 }
 
-async function copyAdminPartnerConsoleLink(partnerId) {
-  const url = getAdminPartnerConsoleUrl(decodeURIComponent(partnerId));
+async function copyAdminPartnerMemberInvite(partnerId, userId) {
   try {
-    await navigator.clipboard.writeText(url);
-    alert('Partner console link copied.');
+    const invite = await adminPartnerApiRequest(
+      `/${encodeURIComponent(partnerId)}/members/${encodeURIComponent(userId)}/invite`,
+      { method: 'POST' }
+    );
+    const url = getAdminPartnerConsoleUrl(partnerId, invite.invite_token);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      if (window.prompt('Copy this one-time partner invitation link. Treat it as a password reset link:', url) === null) {
+        alert('The invite was created, but its link was not copied. Issue a fresh invite to generate another link.');
+        return;
+      }
+    }
+    alert(`One-time ${invite.purpose.toLowerCase()} link is ready. It expires at ${new Date(invite.expires_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}.`);
   } catch (error) {
-    window.prompt('Copy this partner console link:', url);
+    alert(`Unable to create partner invite: ${error.message}`);
   }
 }
 
 function renderAdminPartnerCard(partner) {
-  const shops = Array.isArray(partner.shops) ? partner.shops : [];
+  const shops = dedupePartnerShops(Array.isArray(partner.shops) ? partner.shops : []);
   const members = Array.isArray(partner.members) ? partner.members : [];
   const id = escapeAdminHtml(partner.id);
   const typeOptions = ['RESTAURANT', 'GROCERY', 'MEAT', 'OTHER'].map(type =>
@@ -990,12 +1035,12 @@ function renderAdminPartnerCard(partner) {
   ).join('');
   return `<article id="adminPartnerCard_${id}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
     <form onsubmit="saveAdminPartner(event,'${id}')" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      <input name="legal_name" aria-label="Legal name" value="${escapeAdminHtml(partner.legal_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
-      <input name="display_name" aria-label="Display name" value="${escapeAdminHtml(partner.display_name)}" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
-      <select name="business_type" aria-label="Business type" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">${typeOptions}</select>
-      <input name="tax_identifier" aria-label="Tax identifier" value="${escapeAdminHtml(partner.tax_identifier || '')}" maxlength="100" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Tax identifier">
+      <input name="legal_name" aria-label="Legal name" value="${escapeAdminHtml(partner.legal_name)}" oninput="markAdminPartnerFormDirty(this.form)" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
+      <input name="display_name" aria-label="Display name" value="${escapeAdminHtml(partner.display_name)}" oninput="markAdminPartnerFormDirty(this.form)" required maxlength="200" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">
+      <select name="business_type" aria-label="Business type" onchange="markAdminPartnerFormDirty(this.form)" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs">${typeOptions}</select>
+      <input name="tax_identifier" aria-label="Tax identifier" value="${escapeAdminHtml(partner.tax_identifier || '')}" oninput="markAdminPartnerFormDirty(this.form)" maxlength="100" class="px-2.5 py-2 border border-slate-200 rounded-lg text-xs" placeholder="Tax identifier">
       <div class="flex flex-wrap items-center gap-2 sm:col-span-2"><strong data-admin-partner-display-name class="text-sm text-slate-900">${escapeAdminHtml(partner.display_name)}</strong><span class="rounded-full px-2 py-1 text-[10px] font-black ${partner.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${escapeAdminHtml(partner.status)}</span><span class="text-[10px] text-slate-500">${shops.length} shops · ${partner.product_count} products · ${partner.active_product_count} active · ${partner.member_count} members</span></div>
-      <button type="submit" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black">Save partner</button>
+      <button type="submit" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black" disabled>Saved</button>
       <span id="adminPartnerSaveStatus_${id}" class="text-[10px] text-emerald-700" role="status" aria-live="polite"></span>
       <button type="button" onclick="setAdminPartnerStatus('${id}','${partner.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}')" class="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-[10px] font-black">${partner.status === 'ACTIVE' ? 'Suspend' : 'Activate'}</button>
     </form>
@@ -1004,8 +1049,18 @@ function renderAdminPartnerCard(partner) {
       <input name="name" required maxlength="200" placeholder="Shop name" class="col-span-2 px-2.5 py-2 border rounded-lg text-xs"><input name="address_line1" required maxlength="500" placeholder="Address" class="col-span-2 px-2.5 py-2 border rounded-lg text-xs"><input name="city" required placeholder="City" class="px-2.5 py-2 border rounded-lg text-xs"><input name="state" required placeholder="State" class="px-2.5 py-2 border rounded-lg text-xs"><input name="postal_code" required maxlength="16" placeholder="Postal code" class="px-2.5 py-2 border rounded-lg text-xs"><input name="phone_e164" placeholder="+91 phone" class="px-2.5 py-2 border rounded-lg text-xs"><button class="col-span-2 px-3 py-2 rounded-lg bg-[#0B132B] text-white text-[10px] font-black">Create shop</button>
     </form>
     <div class="space-y-2">${shops.map(shop => renderAdminPartnerShop(partner, shop)).join('') || '<p class="text-[11px] text-slate-500">No shops yet.</p>'}</div>
-    <div class="border-t border-slate-200 pt-2"><strong class="text-xs text-slate-800">Members</strong><form onsubmit="addAdminPartnerMember(event,'${id}')" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2"><input name="user_id" required placeholder="Existing user UUID" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><select name="member_role" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><option>STAFF</option><option>MANAGER</option><option>OWNER</option></select><button class="px-3 py-2 rounded-lg bg-slate-800 text-white text-[10px] font-black">Add member</button></form><div class="mt-2 space-y-1">${members.map(member => `<form onsubmit="updateAdminPartnerMember(event,'${id}','${escapeAdminHtml(member.user_id)}')" class="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 text-[10px]"><span class="truncate">${escapeAdminHtml(member.display_name || member.user_id)}</span><select name="member_role" class="px-2 py-1 border rounded"><option ${member.member_role === 'OWNER' ? 'selected' : ''}>OWNER</option><option ${member.member_role === 'MANAGER' ? 'selected' : ''}>MANAGER</option><option ${member.member_role === 'STAFF' ? 'selected' : ''}>STAFF</option></select><select name="status" class="px-2 py-1 border rounded"><option ${member.status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option><option ${member.status === 'SUSPENDED' ? 'selected' : ''}>SUSPENDED</option><option ${member.status === 'REMOVED' ? 'selected' : ''}>REMOVED</option></select><button class="px-2 py-1 rounded bg-slate-100 font-bold">Save</button></form>`).join('')}</div></div>
+    <div class="border-t border-slate-200 pt-2"><strong class="text-xs text-slate-800">Members</strong><form onsubmit="addAdminPartnerMember(event,'${id}')" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2"><input name="phone_e164" type="tel" required inputmode="tel" placeholder="+91 mobile number" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><select name="member_role" class="px-2.5 py-2 border border-slate-200 rounded-lg text-[10px]"><option selected>OWNER</option><option>MANAGER</option><option>STAFF</option></select><button class="px-3 py-2 rounded-lg bg-slate-800 text-white text-[10px] font-black">Add member by phone</button><p class="sm:col-span-3 text-[10px] text-slate-500">A login account is created if needed. Generate a one-time invite below; only that invite and its linked phone can start setup.</p></form><div class="mt-2 space-y-1">${members.map(member => `<form onsubmit="updateAdminPartnerMember(event,'${id}','${escapeAdminHtml(member.user_id)}')" class="grid grid-cols-1 sm:grid-cols-5 items-center gap-2 text-[10px]"><span class="truncate">${escapeAdminHtml(member.display_name || member.user_id)} · ${escapeAdminHtml(member.phone_e164 || '')}</span><select name="member_role" class="px-2 py-1 border rounded"><option ${member.member_role === 'OWNER' ? 'selected' : ''}>OWNER</option><option ${member.member_role === 'MANAGER' ? 'selected' : ''}>MANAGER</option><option ${member.member_role === 'STAFF' ? 'selected' : ''}>STAFF</option></select><select name="status" class="px-2 py-1 border rounded"><option ${member.status === 'ACTIVE' ? 'selected' : ''}>ACTIVE</option><option ${member.status === 'SUSPENDED' ? 'selected' : ''}>SUSPENDED</option><option ${member.status === 'REMOVED' ? 'selected' : ''}>REMOVED</option></select><button class="px-2 py-1 rounded bg-slate-100 font-bold">Save</button><button type="button" onclick="copyAdminPartnerMemberInvite('${id}','${escapeAdminHtml(member.user_id)}')" class="px-2 py-1 rounded bg-cyan-50 text-cyan-900 font-bold">Issue one-time invite</button></form>`).join('')}</div></div>
   </article>`;
+}
+
+function markAdminPartnerFormDirty(form) {
+  const button = form?.querySelector('button[type="submit"]');
+  if (button) {
+    button.disabled = false;
+    button.textContent = form.querySelector('[name="legal_name"]') ? 'Save partner' : 'Save shop';
+  }
+  const status = form?.querySelector('[role="status"]');
+  if (status) status.textContent = '';
 }
 
 function renderAdminPartnerShop(partner, shop) {
@@ -1013,7 +1068,7 @@ function renderAdminPartnerShop(partner, shop) {
   const shopId = escapeAdminHtml(shop.id);
   return `<details class="rounded-xl border border-slate-200 bg-white p-3"><summary class="flex cursor-pointer list-none items-center justify-between gap-2"><span class="text-xs font-bold text-slate-800">${escapeAdminHtml(shop.name)}</span><span class="text-[10px] text-slate-500">${escapeAdminHtml(shop.status)} · ${shop.active_product_count}/${shop.product_count} active · ${Number(shop.stock_quantity || 0)} stock</span></summary>
     <form onsubmit="saveAdminPartnerShop(event,'${partnerId}','${shopId}')" class="mt-3 grid grid-cols-2 gap-2">
-      <input name="name" required value="${escapeAdminHtml(shop.name)}" placeholder="Shop name" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><textarea name="description" placeholder="Description" class="col-span-2 px-2 py-1.5 border rounded text-[10px]">${escapeAdminHtml(shop.description || '')}</textarea><input name="phone_e164" value="${escapeAdminHtml(shop.phone_e164 || '')}" placeholder="Phone" class="px-2 py-1.5 border rounded text-[10px]"><input name="email" type="email" value="${escapeAdminHtml(shop.email || '')}" placeholder="Email" class="px-2 py-1.5 border rounded text-[10px]"><input name="address_line1" required value="${escapeAdminHtml(shop.address_line1)}" placeholder="Address" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><input name="address_line2" value="${escapeAdminHtml(shop.address_line2 || '')}" placeholder="Address line 2" class="px-2 py-1.5 border rounded text-[10px]"><input name="locality" value="${escapeAdminHtml(shop.locality || '')}" placeholder="Locality" class="px-2 py-1.5 border rounded text-[10px]"><input name="city" required value="${escapeAdminHtml(shop.city)}" placeholder="City" class="px-2 py-1.5 border rounded text-[10px]"><input name="state" required value="${escapeAdminHtml(shop.state)}" placeholder="State" class="px-2 py-1.5 border rounded text-[10px]"><input name="postal_code" required value="${escapeAdminHtml(shop.postal_code)}" placeholder="Postal code" class="px-2 py-1.5 border rounded text-[10px]"><button class="px-2 py-1.5 rounded bg-slate-900 text-white text-[10px] font-bold">Save shop</button><button type="button" onclick="setAdminShopStatus('${partnerId}','${shopId}','${shop.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'}')" class="px-2 py-1.5 rounded bg-amber-50 text-amber-900 text-[10px] font-bold">${shop.status === 'ACTIVE' ? 'Pause shop' : 'Activate shop'}</button>
+      <input name="name" required value="${escapeAdminHtml(shop.name)}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Shop name" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><textarea name="description" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Description" class="col-span-2 px-2 py-1.5 border rounded text-[10px]">${escapeAdminHtml(shop.description || '')}</textarea><input name="phone_e164" value="${escapeAdminHtml(shop.phone_e164 || '')}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Phone" class="px-2 py-1.5 border rounded text-[10px]"><input name="email" type="email" value="${escapeAdminHtml(shop.email || '')}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Email" class="px-2 py-1.5 border rounded text-[10px]"><input name="address_line1" required value="${escapeAdminHtml(shop.address_line1)}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Address" class="col-span-2 px-2 py-1.5 border rounded text-[10px]"><input name="address_line2" value="${escapeAdminHtml(shop.address_line2 || '')}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Address line 2" class="px-2 py-1.5 border rounded text-[10px]"><input name="locality" value="${escapeAdminHtml(shop.locality || '')}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Locality" class="px-2 py-1.5 border rounded text-[10px]"><input name="city" required value="${escapeAdminHtml(shop.city)}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="City" class="px-2 py-1.5 border rounded text-[10px]"><input name="state" required value="${escapeAdminHtml(shop.state)}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="State" class="px-2 py-1.5 border rounded text-[10px]"><input name="postal_code" required value="${escapeAdminHtml(shop.postal_code)}" oninput="markAdminPartnerFormDirty(this.form)" placeholder="Postal code" class="px-2 py-1.5 border rounded text-[10px]"><button type="submit" class="px-2 py-1.5 rounded bg-slate-900 text-white text-[10px] font-bold" disabled>Saved</button><span class="col-span-2 text-[10px] text-emerald-700" role="status" aria-live="polite"></span><button type="button" onclick="setAdminShopStatus('${partnerId}','${shopId}','${shop.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'}')" class="px-2 py-1.5 rounded bg-amber-50 text-amber-900 text-[10px] font-bold">${shop.status === 'ACTIVE' ? 'Pause shop' : 'Activate shop'}</button>
     </form><div class="mt-2 flex gap-2"><button type="button" onclick="loadAdminShopCatalog('${partnerId}','${shopId}')" class="px-2 py-1 rounded bg-cyan-50 text-cyan-900 text-[10px] font-bold">View products and inventory</button></div><div id="adminShopCatalog_${shopId}" class="mt-2"></div></details>`;
 }
 
@@ -1035,14 +1090,14 @@ async function loadAdminPartnerAccounts() {
     const details = await Promise.all((Array.isArray(partners) ? partners : []).map(partner =>
       adminPartnerApiRequest(`/${encodeURIComponent(partner.id)}`)
     ));
-    const partnerDetails = details.sort((left, right) => String(left.display_name).localeCompare(String(right.display_name)));
+    const partnerDetails = dedupePartnerRecords(details).sort((left, right) => String(left.display_name).localeCompare(String(right.display_name)));
     const setPartnerCount = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = String(value); };
     setPartnerCount('adminPartnerCountAll', partnerDetails.length);
     setPartnerCount('adminPartnerCountActive', partnerDetails.filter(partner => partner.status === 'ACTIVE').length);
     setPartnerCount('adminPartnerCountPending', partnerDetails.filter(partner => partner.status === 'PENDING').length);
     setPartnerCount('adminPartnerCountSuspended', partnerDetails.filter(partner => partner.status === 'SUSPENDED').length);
     adminPartnerRecords = partnerDetails;
-    adminPartnerAccounts = partnerDetails.flatMap(partner => partner.shops.map(shop => ({
+    adminPartnerAccounts = partnerDetails.flatMap(partner => dedupePartnerShops(partner.shops).map(shop => ({
       id: shop.id,
       partner_id: partner.id,
       name: `${partner.display_name} · ${shop.name}`,
@@ -1071,7 +1126,10 @@ async function saveAdminPartner(event, partnerId) {
   const data = new FormData(form);
   const button = form.querySelector('button[type="submit"]');
   const status = document.getElementById(`adminPartnerSaveStatus_${partnerId}`);
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Saving...';
+  }
   if (status) status.textContent = 'Saving...';
   try {
     await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}`, {
@@ -1084,7 +1142,7 @@ async function saveAdminPartner(event, partnerId) {
       partner.display_name = data.get('display_name');
       partner.business_type = data.get('business_type');
       partner.tax_identifier = data.get('tax_identifier') || null;
-      adminPartnerAccounts = adminPartnerRecords.flatMap(record => record.shops.map(shop => ({
+      adminPartnerAccounts = adminPartnerRecords.flatMap(record => dedupePartnerShops(record.shops).map(shop => ({
         id: shop.id,
         partner_id: record.id,
         name: `${record.display_name} · ${shop.name}`,
@@ -1098,11 +1156,13 @@ async function saveAdminPartner(event, partnerId) {
     const displayName = card?.querySelector('[data-admin-partner-display-name]');
     if (displayName) displayName.textContent = data.get('display_name');
     if (status) status.textContent = 'Partner saved.';
+    if (button) button.textContent = 'Saved';
   } catch (error) {
     if (status) status.textContent = '';
+    if (button) button.textContent = 'Save partner';
     alert(`Unable to save partner: ${error.message}`);
   } finally {
-    if (button) button.disabled = false;
+    if (button) button.disabled = !status || status.textContent === 'Partner saved.';
   }
 }
 
@@ -1128,11 +1188,31 @@ async function createAdminPartnerShop(event, partnerId) {
 
 async function saveAdminPartnerShop(event, partnerId, shopId) {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const button = form.querySelector('button[type="submit"]');
+  const status = form.querySelector('[role="status"]');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Saving...';
+  }
+  if (status) status.textContent = 'Saving...';
   try {
-    await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}`, { method: 'PATCH', body: JSON.stringify(data) });
-    await loadAdminPartnerAccounts();
-  } catch (error) { alert(`Unable to save shop: ${error.message}`); }
+    const updatedShop = await adminPartnerApiRequest(`/${encodeURIComponent(partnerId)}/shops/${encodeURIComponent(shopId)}`, { method: 'PATCH', body: JSON.stringify(data) });
+    const partner = adminPartnerRecords.find(record => String(record.id) === String(partnerId));
+    const shop = partner?.shops.find(item => String(item.id) === String(shopId));
+    if (shop && updatedShop) Object.assign(shop, updatedShop);
+    const summaryName = form.closest('details')?.querySelector('summary span');
+    if (summaryName && updatedShop?.name) summaryName.textContent = updatedShop.name;
+    if (status) status.textContent = 'Shop saved.';
+    if (button) button.textContent = 'Saved';
+  } catch (error) {
+    if (status) status.textContent = '';
+    if (button) button.textContent = 'Save shop';
+    alert(`Unable to save shop: ${error.message}`);
+  } finally {
+    if (button) button.disabled = Boolean(status && status.textContent === 'Shop saved.');
+  }
 }
 
 async function setAdminShopStatus(partnerId, shopId, status) {
@@ -2816,6 +2896,7 @@ let riderLiveMarker = null;
 
 function openAdminRiderTracker(assignmentId) {
   const mapModal = document.getElementById('adminMapModal');
+  const details = document.getElementById('adminRiderTrackingDetails');
   if (mapModal) {
     mapModal.classList.remove('hidden');
   } else {
@@ -2840,13 +2921,36 @@ function openAdminRiderTracker(assignmentId) {
   const refresh = async () => {
     try {
       const result = await adminRiderApiRequest(`/api/admin/deliveries/assignments/${encodeURIComponent(assignmentId)}/tracking`);
-      const location = result?.data?.location;
-      if (!location) return;
+      const tracking = result?.data || {};
+      const location = tracking.location;
+      const recordedAt = location?.recorded_at
+        ? new Date(location.recorded_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })
+        : '';
+      const accuracy = location?.accuracy_m == null ? null : Number(location.accuracy_m);
+      const locationStatus = location
+        ? `Last update: ${escapeAdminHtml(recordedAt)}${Number.isFinite(accuracy) ? ` · Accuracy ±${escapeAdminHtml(accuracy)} m` : ''}`
+        : String(tracking.assignment_status).toUpperCase() === 'OFFERED'
+          ? 'Waiting for the rider to accept. Live location becomes available when the rider starts the delivery.'
+          : 'No recent rider location received. Check that location sharing is enabled on the rider device.';
+      if (details) {
+        details.innerHTML = `<strong>${escapeAdminHtml(tracking.rider_name || 'Assigned rider')}</strong>
+          <span class="block mt-1">Phone: ${escapeAdminHtml(tracking.rider_phone_e164 || 'Not available')} · Vehicle: ${escapeAdminHtml(tracking.rider_vehicle_type || 'Not available')}</span>
+          <span class="block mt-1">Order: ${escapeAdminHtml(tracking.order_number || 'Not available')} (${escapeAdminHtml(tracking.order_type || 'Order')}) · Assignment: ${escapeAdminHtml(tracking.assignment_status || 'Unknown')}</span>
+          <span class="block mt-1">${locationStatus}</span>`;
+      }
+      if (!location) {
+        if (riderLiveMarker) {
+          adminMap.removeLayer(riderLiveMarker);
+          riderLiveMarker = null;
+        }
+        return;
+      }
       const latitude = Number(location.latitude);
       const longitude = Number(location.longitude);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
       if (riderLiveMarker) {
         riderLiveMarker.setLatLng([latitude, longitude]);
+        riderLiveMarker.setPopupContent(`<b>${escapeAdminHtml(tracking.rider_name || 'Rider')}</b> (${escapeAdminHtml(tracking.assignment_status || 'Unknown')})`);
       } else {
         riderLiveMarker = L.marker([latitude, longitude], {
           icon: L.divIcon({
@@ -2854,11 +2958,12 @@ function openAdminRiderTracker(assignmentId) {
             html: '<div style="font-size: 24px;">🛵</div>',
             iconSize: [30, 30]
           })
-        }).addTo(adminMap).bindPopup(`<b>${escapeAdminHtml(result.data.rider_name || 'Rider')}</b> (${escapeAdminHtml(result.data.assignment_status)})`).openPopup();
+        }).addTo(adminMap).bindPopup(`<b>${escapeAdminHtml(tracking.rider_name || 'Rider')}</b> (${escapeAdminHtml(tracking.assignment_status || 'Unknown')})`).openPopup();
       }
       adminMap.setView([latitude, longitude], 16);
     } catch (error) {
       console.error('Admin delivery tracking failed:', error);
+      if (details) details.textContent = `Unable to load rider tracking: ${error.message}`;
     }
   };
   refresh();

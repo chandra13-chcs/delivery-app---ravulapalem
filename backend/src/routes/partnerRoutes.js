@@ -25,7 +25,14 @@ const {
   updatePartnerOrderStatus
 } = require("../controllers/partnerOrderController");
 const { issuePickupOtp } = require("../controllers/deliveryController");
-const { requirePartner } = require("../middleware/requirePartner");
+const { requirePartner, requirePartnerPassword } = require("../middleware/requirePartner");
+const {
+  requestPartnerInviteOtp,
+  verifyPartnerInviteOtp,
+  loginPartnerWithPassword,
+  setPartnerPassword,
+  logoutPartner
+} = require("../controllers/partnerAuthController");
 const {
   listPartnerNotifications,
   markPartnerNotificationRead,
@@ -34,8 +41,14 @@ const {
 
 const router = express.Router();
 
+router.post("/auth/invites/otp/request", requestPartnerInviteOtp);
+router.post("/auth/invites/otp/verify", verifyPartnerInviteOtp);
+router.post("/auth/password/login", loginPartnerWithPassword);
 router.use(requirePartner);
+router.post("/auth/logout", logoutPartner);
 router.get("/me", getPartnerProfile);
+router.post("/password", setPartnerPassword);
+router.use(requirePartnerPassword);
 router.get("/notifications", listPartnerNotifications);
 router.patch("/notifications/read-all", markAllPartnerNotificationsRead);
 router.patch("/notifications/:notificationId/read", markPartnerNotificationRead);

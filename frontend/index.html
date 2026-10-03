@@ -209,6 +209,8 @@
           <img src="../assets/parcel%20banner.jpeg" alt="" aria-hidden="true">
         </button>
       </div>
+      <button type="button" class="service-promo-arrow service-promo-arrow--previous" onclick="selectCustomerServicePromo(customerServicePromoIndex - 1)" aria-label="Previous banner">‹</button>
+      <button type="button" class="service-promo-arrow service-promo-arrow--next" onclick="selectCustomerServicePromo(customerServicePromoIndex + 1)" aria-label="Next banner">›</button>
       <div id="servicePromoIndicators" class="service-promo-indicators" aria-label="Featured service slides"></div>
     </div>
 
@@ -231,6 +233,23 @@
       <button type="button" onclick="openServiceCategory('local-stores', this)" class="myshopzy-service-card">
         <img src="../assets/audio/categories/local-stores.jpg" alt="Local Stores" loading="lazy">
       </button>
+    </div>
+
+    <div id="categoryPromoCarousel" class="service-promo-carousel category-promo-carousel mt-4" role="region" aria-label="Shop fresh categories" aria-roledescription="carousel">
+      <div id="categoryPromoTrack" class="service-promo-track">
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('meat-chicken', this)" aria-label="Shop fresh meat and chicken">
+          <img src="../assets/meat%20%20%20aa.jpeg" alt="Fresh meat and chicken banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('fruits-vegetables', this)" aria-label="Shop fresh fruits and vegetables">
+          <img src="../assets/veges.jpeg" alt="Fresh fruits and vegetables banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openCategoryPage('bakery', 'Bakery & Biscuits', this)" aria-label="Shop bakery and biscuits">
+          <img src="../assets/bakery.jpeg" alt="Freshly baked bakery banner" loading="lazy">
+        </button>
+      </div>
+      <button type="button" class="service-promo-arrow service-promo-arrow--previous" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex - 1)" aria-label="Previous category banner">‹</button>
+      <button type="button" class="service-promo-arrow service-promo-arrow--next" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex + 1)" aria-label="Next category banner">›</button>
+      <div id="categoryPromoIndicators" class="service-promo-indicators" aria-label="Category banner slides"></div>
     </div>
 
     <div id="serviceRestaurantPanel" class="hidden mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">

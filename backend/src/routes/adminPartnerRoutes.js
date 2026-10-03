@@ -11,6 +11,7 @@ const {
   listAdminPartnerMembers,
   addAdminPartnerMember,
   updateAdminPartnerMember,
+  createAdminPartnerMemberInvite,
   createAdminShop,
   updateAdminShop,
   getAdminShopProducts,
@@ -39,6 +40,7 @@ router.patch("/:partnerId", updateAdminPartner);
 router.patch("/:partnerId/status", updateAdminPartnerStatus);
 router.get("/:partnerId/members", listAdminPartnerMembers);
 router.post("/:partnerId/members", addAdminPartnerMember);
+router.post("/:partnerId/members/:userId/invite", createAdminPartnerMemberInvite);
 router.patch("/:partnerId/members/:userId", updateAdminPartnerMember);
 router.post("/:partnerId/shops", createAdminShop);
 router.patch("/:partnerId/shops/:shopId", updateAdminShop);

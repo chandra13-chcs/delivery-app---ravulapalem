@@ -37,8 +37,16 @@ const partnerState = {
   shopProfileSnapshot: null
 };
 
-const PARTNER_API_ROOT = `http://${window.location.hostname || "localhost"}:5000/api`;
+const isLocalPartnerHost = window.location.protocol === "file:"
+  || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const PARTNER_API_ROOT = window.MYSHOPZY_API_BASE_URL || (isLocalPartnerHost
+  ? `http://${window.location.hostname || "localhost"}:5000/api`
+  : `${window.location.origin}/api`);
 const PARTNER_API_BASE_URL = `${PARTNER_API_ROOT}/partner`;
+const partnerInviteParams = new URLSearchParams(window.location.hash.slice(1));
+const PARTNER_INVITED_PARTNER_ID = partnerInviteParams.get("partnerId") || "";
+const PARTNER_INVITE_TOKEN = partnerInviteParams.get("invite") || "";
+let partnerOtpPasswordResetRequested = false;
 
 function getPartnerAccessToken() {
   return sessionStorage.getItem("partner_user_access_token") || "";
@@ -49,7 +57,7 @@ async function partnerAuthRequest(path, options = {}) {
   if (options.body) headers["Content-Type"] = "application/json";
   const token = getPartnerAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${PARTNER_API_ROOT}/auth${path}`, {
+  const response = await fetch(`${PARTNER_API_BASE_URL}/auth${path}`, {
     ...options,
     headers,
     cache: "no-store"
@@ -67,19 +75,46 @@ function showPartnerAuthMessage(message, isError = false) {
   element.classList.toggle("text-slate-500", !isError);
 }
 
+function showPartnerOtpLogin() {
+  if (!PARTNER_INVITE_TOKEN) {
+    showPartnerAuthMessage("Ask your administrator for a one-time invite link to set up or reset your password.", true);
+    return;
+  }
+  partnerOtpPasswordResetRequested = true;
+  document.getElementById("partnerOtpActions").hidden = false;
+  document.getElementById("partnerShowOtpButton").hidden = true;
+  document.getElementById("partnerLoginPassword").required = false;
+  document.getElementById("partnerRequestOtpButton").hidden = false;
+  document.getElementById("partnerVerifyOtpButton").hidden = true;
+}
+
+function hidePartnerOtpLogin() {
+  partnerOtpPasswordResetRequested = false;
+  document.getElementById("partnerOtpActions").hidden = true;
+  document.getElementById("partnerShowOtpButton").hidden = false;
+  document.getElementById("partnerLoginPassword").required = false;
+  document.getElementById("partnerLoginOtp").value = "";
+  showPartnerAuthMessage("");
+}
+
 async function requestPartnerLoginCode(event) {
-  event.preventDefault();
+  event?.preventDefault();
+  if (!PARTNER_INVITE_TOKEN) {
+    showPartnerAuthMessage("A current one-time administrator invitation is required.", true);
+    return;
+  }
   const phone = document.getElementById("partnerLoginPhone").value.trim();
   try {
-    const result = await partnerAuthRequest("/otp/request", {
+    const result = await partnerAuthRequest("/invites/otp/request", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: phone })
+      body: JSON.stringify({ phone_e164: phone, invite_token: PARTNER_INVITE_TOKEN })
     });
     document.getElementById("partnerOtpField").hidden = false;
+    document.getElementById("partnerRequestOtpButton").hidden = true;
     document.getElementById("partnerVerifyOtpButton").hidden = false;
     if (result.development_otp) {
       document.getElementById("partnerLoginOtp").value = result.development_otp;
-      showPartnerAuthMessage("Development verification code filled in.");
+      showPartnerAuthMessage("Development verification code filled in. Keep this invitation private.");
     } else {
       showPartnerAuthMessage("If the account is eligible, a verification code will be sent.");
     }
@@ -88,18 +123,72 @@ async function requestPartnerLoginCode(event) {
   }
 }
 
-async function verifyPartnerLoginCode() {
+async function signInPartnerWithPassword() {
   const phone = document.getElementById("partnerLoginPhone").value.trim();
-  const otp = document.getElementById("partnerLoginOtp").value.trim();
+  const password = document.getElementById("partnerLoginPassword").value;
+  if (!phone || !password) {
+    showPartnerAuthMessage("Enter your mobile number and password.", true);
+    return;
+  }
   try {
-    const result = await partnerAuthRequest("/otp/verify", {
+    const result = await partnerAuthRequest("/password/login", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: phone, purpose: "LOGIN", otp })
+      body: JSON.stringify({ phone, password })
     });
     sessionStorage.setItem("partner_user_access_token", result.access_token);
     await loadPartnerRestaurants();
   } catch (error) {
     showPartnerAuthMessage(error.message, true);
+  }
+}
+
+async function verifyPartnerLoginCode() {
+  if (!PARTNER_INVITE_TOKEN) {
+    showPartnerAuthMessage("A current one-time administrator invitation is required.", true);
+    return;
+  }
+  const phone = document.getElementById("partnerLoginPhone").value.trim();
+  const otp = document.getElementById("partnerLoginOtp").value.trim();
+  try {
+    const result = await partnerAuthRequest("/invites/otp/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: phone, invite_token: PARTNER_INVITE_TOKEN, otp })
+    });
+    sessionStorage.setItem("partner_user_access_token", result.access_token);
+    await loadPartnerRestaurants();
+  } catch (error) {
+    showPartnerAuthMessage(error.message, true);
+  }
+}
+
+async function savePartnerPassword(event) {
+  event.preventDefault();
+  const password = document.getElementById("partnerNewPassword").value;
+  const confirmation = document.getElementById("partnerConfirmPassword").value;
+  const button = document.getElementById("partnerSavePasswordButton");
+  if (password !== confirmation) {
+    showPartnerAuthMessage("Passwords do not match.", true);
+    document.getElementById("partnerConfirmPassword").focus();
+    return;
+  }
+  if (button) button.disabled = true;
+  try {
+    await partnerApiRequest("/password", {
+      method: "POST",
+      body: JSON.stringify({ password })
+    });
+    partnerOtpPasswordResetRequested = false;
+    document.getElementById("partnerPasswordSetupDialog").close();
+    document.getElementById("partnerPasswordSetupForm").reset();
+    await loadPartnerRestaurants();
+  } catch (error) {
+    const message = document.getElementById("partnerPasswordSetupMessage");
+    if (message) {
+      message.textContent = error.message;
+      message.classList.add("text-rose-600");
+    }
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -110,6 +199,7 @@ async function signOutPartner() {
     console.warn("Partner sign-out request failed:", error.message);
   }
   sessionStorage.removeItem("partner_user_access_token");
+  partnerOtpPasswordResetRequested = false;
   closePartnerDesk();
   partnerState.user = null;
   partnerState.memberships = [];
@@ -294,6 +384,8 @@ async function loadPartnerRestaurants() {
   if (!token) {
     loginScreen.hidden = false;
     app.hidden = true;
+    document.getElementById("partnerShowOtpButton").hidden = !PARTNER_INVITE_TOKEN;
+    if (PARTNER_INVITE_TOKEN) showPartnerOtpLogin();
     showPartnerAuthMessage("Sign in with an active partner account.");
     return;
   }
@@ -303,7 +395,24 @@ async function loadPartnerRestaurants() {
     partnerState.user = identity?.user || null;
     partnerState.memberships = Array.isArray(identity?.partners) ? identity.partners : [];
     if (!partnerState.memberships.length) throw new Error("Active partner membership required.");
-    const shops = await partnerApiRequest("/shops");
+    if (PARTNER_INVITED_PARTNER_ID
+        && !partnerState.memberships.some(partner => partner.partner_id === PARTNER_INVITED_PARTNER_ID)) {
+      throw new Error("This invite link is not for an active partner account linked to your mobile.");
+    }
+    if (!partnerState.user?.has_password || partnerOtpPasswordResetRequested) {
+      loginScreen.hidden = true;
+      app.hidden = true;
+      const dialog = document.getElementById("partnerPasswordSetupDialog");
+      document.getElementById("partnerPasswordSetupTitle").textContent = partnerState.user?.has_password
+        ? "Reset your partner password"
+        : "Create your partner password";
+      if (!dialog.open) dialog.showModal();
+      return;
+    }
+    const shopsPath = PARTNER_INVITED_PARTNER_ID
+      ? `/shops?partner_id=${encodeURIComponent(PARTNER_INVITED_PARTNER_ID)}`
+      : "/shops";
+    const shops = await partnerApiRequest(shopsPath);
     partnerState.shops = Array.isArray(shops) ? shops : [];
     if (!partnerState.shops.length) throw new Error("No active shops are linked to this partner account.");
     const partnerNames = partnerState.memberships.map(partner => partner.display_name).join(", ");

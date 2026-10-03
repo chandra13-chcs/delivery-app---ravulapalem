@@ -1127,7 +1127,9 @@ async function getAdminAssignmentTracking(req, res) {
   try {
     const result = await db.query(
       `SELECT da.id AS assignment_id, da.order_id, da.status AS assignment_status,
-              o.status AS order_status, u.display_name AS rider_name,
+              o.status AS order_status, o.order_number, o.order_type,
+              u.display_name AS rider_name, u.phone_e164 AS rider_phone_e164,
+              r.vehicle_type AS rider_vehicle_type,
               loc.latitude, loc.longitude, loc.accuracy_m, loc.heading_degrees,
               loc.speed_mps, loc.recorded_at
        FROM delivery_assignments da
@@ -1149,9 +1151,13 @@ async function getAdminAssignmentTracking(req, res) {
     return res.json({ success: true, data: {
       assignment_id: row.assignment_id,
       order_id: row.order_id,
+      order_number: row.order_number,
+      order_type: row.order_type,
       assignment_status: row.assignment_status,
       order_status: row.order_status,
       rider_name: row.rider_name,
+      rider_phone_e164: row.rider_phone_e164,
+      rider_vehicle_type: row.rider_vehicle_type,
       location: row.latitude == null ? null : {
         latitude: Number(row.latitude), longitude: Number(row.longitude),
         accuracy_m: row.accuracy_m == null ? null : Number(row.accuracy_m),

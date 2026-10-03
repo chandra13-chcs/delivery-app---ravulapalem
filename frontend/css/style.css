@@ -171,17 +171,26 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .myshopzy-service-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .service-promo-carousel { position: relative; overflow: hidden; border-radius: 1rem; }
 .service-promo-track { display: flex; transition: transform 520ms cubic-bezier(0.22, 0.68, 0, 1); will-change: transform; }
-.service-promo-slide { position: relative; display: flex; flex: 0 0 100%; align-items: center; aspect-ratio: 2.8 / 1; height: auto; overflow: hidden; padding: 0; border: 0; background: var(--promo-background); color: #123821; cursor: pointer; text-align: left; }
+.service-promo-slide { position: relative; display: flex; flex: 0 0 100%; align-items: center; aspect-ratio: 4.2 / 1; height: auto; overflow: hidden; padding: 0; border: 0; background: var(--promo-background); color: #123821; cursor: pointer; text-align: left; }
 .service-promo-slide--food { --promo-background: #fff0d8; --promo-accent: #08753c; }
 .service-promo-slide--groceries { --promo-background: #e8f7d8; --promo-accent: #08753c; }
 .service-promo-slide--parcel { --promo-background: #dff4ff; --promo-accent: #1456a0; }
 .service-promo-slide > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 20% center; }
 .service-promo-slide--groceries > img { object-position: center 40%; }
 .service-promo-slide--food > img, .service-promo-slide--parcel > img { object-fit: contain; object-position: center; }
+.category-promo-slide { background: #fff; }
+.category-promo-slide > img { object-fit: contain; object-position: center; }
 .service-promo-indicators { position: absolute; z-index: 2; right: 0.7rem; bottom: 0.55rem; display: flex; gap: 0.35rem; }
 .service-promo-indicators button { width: 0.45rem; height: 0.45rem; border: 1px solid #fff; border-radius: 999px; background: rgba(255, 255, 255, 0.65); padding: 0; }
 .service-promo-indicators button[aria-current="true"] { background: var(--promo-accent, #08753c); }
-.service-promo-slide:focus-visible, .service-promo-indicators button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+.service-promo-arrow { position: absolute; z-index: 3; top: 50%; display: grid; width: 1.65rem; height: 1.65rem; place-items: center; transform: translateY(-50%); border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 999px; background: rgba(15, 23, 42, 0.55); color: #fff; font-size: 1.25rem; font-weight: 800; line-height: 1; cursor: pointer; backdrop-filter: blur(4px); }
+.service-promo-arrow--previous { left: 0.55rem; }
+.service-promo-arrow--next { right: 0.55rem; }
+.service-promo-slide:focus-visible, .service-promo-indicators button:focus-visible, .service-promo-arrow:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+@media (max-width: 640px) {
+  .service-promo-slide { aspect-ratio: 2 / 1; }
+  .category-promo-slide { aspect-ratio: 2.7 / 1; }
+}
 .category-product-card {
   border: 1px solid #e2e8f0;
   animation: categoryProductBounce 460ms cubic-bezier(0.2, 0.8, 0.25, 1) both;

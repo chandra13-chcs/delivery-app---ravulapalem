@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const db = require("../config/db");
 const { writeAuditLog } = require("../services/auditService");
 
@@ -302,27 +303,67 @@ async function listAdminPartnerMembers(req, res) {
 
 async function addAdminPartnerMember(req, res) {
   const { partnerId } = req.params;
-  const { user_id: userId, member_role: memberRole = "STAFF" } = req.body || {};
-  if (!isUuid(partnerId) || !isUuid(userId)) return respondError(res, 400, "Valid partner id and user_id are required.");
+  const { user_id: suppliedUserId, phone_e164: suppliedPhone, member_role: memberRole = "OWNER" } = req.body || {};
+  const phone = typeof suppliedPhone === "string" ? suppliedPhone.trim() : "";
+  const phoneDigits = phone.replace(/\D/g, "");
+  const normalizedPhone = /^\+[1-9][0-9]{7,14}$/.test(phone)
+    ? phone
+    : phoneDigits.length === 10
+      ? `+91${phoneDigits}`
+      : phoneDigits.length === 12 && phoneDigits.startsWith("91")
+        ? `+${phoneDigits}`
+        : "";
+  const userId = typeof suppliedUserId === "string" ? suppliedUserId.trim() : "";
+  const validUserId = isUuid(userId);
+  if (!isUuid(partnerId) || (!validUserId && !normalizedPhone)) {
+    return respondError(res, 400, "A valid partner id and an existing user_id or mobile number are required.");
+  }
   if (!MEMBER_ROLES.has(memberRole)) return respondError(res, 400, "Unsupported member role.");
   let client;
   try {
     client = await db.connect();
     await client.query("BEGIN");
     const partner = await client.query("SELECT id FROM partners WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [partnerId]);
-    const user = await client.query("SELECT id FROM users WHERE id = $1 AND status = 'ACTIVE' AND deleted_at IS NULL", [userId]);
-    if (!partner.rows[0] || !user.rows[0]) {
+    let user = await client.query(
+      `SELECT id, status FROM users
+       WHERE ${validUserId ? "id = $1" : "phone_e164 = $1"}
+         AND deleted_at IS NULL
+       FOR UPDATE`,
+      [validUserId ? userId : normalizedPhone]
+    );
+    if (!partner.rows[0]) {
       await client.query("ROLLBACK");
-      return respondError(res, 404, !partner.rows[0] ? "Partner not found." : "Active user not found.");
+      return respondError(res, 404, "Partner not found.");
     }
-    const before = await client.query("SELECT * FROM partner_members WHERE partner_id = $1 AND user_id = $2 FOR UPDATE", [partnerId, userId]);
+    if (user.rows[0] && !["ACTIVE", "PENDING"].includes(user.rows[0].status)) {
+      await client.query("ROLLBACK");
+      return respondError(res, 409, "This mobile number belongs to an inactive account. Reactivate that account before adding it as a partner member.");
+    }
+    if (!user.rows[0] && !normalizedPhone) {
+      await client.query("ROLLBACK");
+      return respondError(res, 404, "Active user not found.");
+    }
+    if (!user.rows[0] && normalizedPhone) {
+      user = await client.query(
+        `INSERT INTO users (phone_e164, display_name, status)
+         VALUES ($1, 'Partner member', 'PENDING')
+         RETURNING id, status`,
+        [normalizedPhone]
+      );
+      await writeAuditLog(client, req, "partner.member_account_created", "users", user.rows[0].id, null, {
+        phone_e164: normalizedPhone,
+        status: user.rows[0].status
+      });
+    }
+    const resolvedUserId = user.rows[0].id;
+    const before = await client.query("SELECT * FROM partner_members WHERE partner_id = $1 AND user_id = $2 FOR UPDATE", [partnerId, resolvedUserId]);
     const result = await client.query(
       `INSERT INTO partner_members (partner_id, user_id, member_role, status)
        VALUES ($1, $2, $3, 'ACTIVE')
        ON CONFLICT (partner_id, user_id) DO UPDATE
        SET member_role = EXCLUDED.member_role, status = 'ACTIVE', updated_at = now()
        RETURNING id, partner_id, user_id, member_role, status, created_at, updated_at`,
-      [partnerId, userId, memberRole]
+      [partnerId, resolvedUserId, memberRole]
     );
     await writeAuditLog(client, req, "partner.member_changed", "partner_members", result.rows[0].id, before.rows[0] || null, result.rows[0]);
     await client.query("COMMIT");
@@ -364,6 +405,69 @@ async function updateAdminPartnerMember(req, res) {
     if (client) await client.query("ROLLBACK").catch(() => {});
     console.error("Admin partner member update failed:", error.message);
     return respondError(res, 500, "Unable to update partner member.");
+  } finally {
+    client?.release();
+  }
+}
+
+async function createAdminPartnerMemberInvite(req, res) {
+  const { partnerId, userId } = req.params;
+  if (!isUuid(partnerId) || !isUuid(userId)) return respondError(res, 400, "Invalid partner or user id.");
+  const inviteToken = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = crypto.createHash("sha256").update(inviteToken, "utf8").digest();
+  let client;
+  try {
+    client = await db.connect();
+    await client.query("BEGIN");
+    const memberResult = await client.query(
+      `SELECT p.id AS partner_id, p.status AS partner_status,
+              pm.status AS member_status, u.id AS user_id, u.status AS user_status,
+              pc.password_hash
+       FROM partners p
+       JOIN partner_members pm ON pm.partner_id = p.id
+       JOIN users u ON u.id = pm.user_id
+       LEFT JOIN partner_credentials pc ON pc.user_id = u.id
+       WHERE p.id = $1 AND u.id = $2
+         AND p.deleted_at IS NULL AND u.deleted_at IS NULL
+       FOR UPDATE OF p, pm, u`,
+      [partnerId, userId]
+    );
+    const member = memberResult.rows[0];
+    if (!member || member.partner_status !== "ACTIVE" || member.member_status !== "ACTIVE"
+        || !["ACTIVE", "PENDING"].includes(member.user_status)) {
+      await client.query("ROLLBACK");
+      return respondError(res, 409, "An active partner, member, and user are required to issue an invite.");
+    }
+    const purpose = member.password_hash ? "RESET" : "SETUP";
+    await client.query(
+      `UPDATE partner_invites SET consumed_at = now()
+       WHERE partner_id = $1 AND user_id = $2 AND consumed_at IS NULL`,
+      [partnerId, userId]
+    );
+    const inviteResult = await client.query(
+      `INSERT INTO partner_invites
+         (partner_id, user_id, token_hash, purpose, expires_at, created_by_user_id)
+       VALUES ($1, $2, $3, $4, now() + interval '30 minutes', $5)
+       RETURNING id, expires_at`,
+      [partnerId, userId, tokenHash, purpose, req.admin.id]
+    );
+    await writeAuditLog(client, req, "partner.member_invite_issued", "partner_members",
+      inviteResult.rows[0].id, null, { partner_id: partnerId, user_id: userId, purpose, expires_at: inviteResult.rows[0].expires_at });
+    await client.query("COMMIT");
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      success: true,
+      data: {
+        invite_token: inviteToken,
+        invite_id: inviteResult.rows[0].id,
+        purpose,
+        expires_at: inviteResult.rows[0].expires_at
+      }
+    });
+  } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    console.error("Partner member invite creation failed:", error.message);
+    return respondError(res, 500, "Unable to create partner member invite.");
   } finally {
     client?.release();
   }
@@ -944,6 +1048,7 @@ module.exports = {
   listAdminPartnerMembers,
   addAdminPartnerMember,
   updateAdminPartnerMember,
+  createAdminPartnerMemberInvite,
   createAdminShop,
   updateAdminShop,
   getAdminShopProducts,

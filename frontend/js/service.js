@@ -702,7 +702,6 @@ async function loadMeatDirectory() {
       category.id !== parent?.id && (parent ? category.parent_id === parent.id : Boolean(category.parent_id))
     );
     if (!subcategories.length) throw new Error("Meat categories are not available.");
-    renderMeatTypeChoices(subcategories);
 
     const requestedCategory = subcategories.find(category => category.slug === categoryId);
     const requestedShop = selectedShopId
@@ -713,6 +712,7 @@ async function loadMeatDirectory() {
       || (requestedShop && subcategories.find(category => requestedShop.categories?.some(item => item.id === category.id)))
       || null;
 
+    renderMeatTypeChoices(subcategories);
     choices.removeAttribute("aria-busy");
     if (selectedShopId && selectedMeatCategory) {
       await loadMeatShopMenu(selectedShopId);
@@ -731,10 +731,13 @@ async function loadMeatDirectory() {
 function renderMeatTypeChoices(categories) {
   const choices = document.getElementById("meatTypeChoices");
   if (!choices) return;
+  const hasSelectedCategory = Boolean(selectedMeatCategory);
+  choices.classList.toggle("hidden", hasSelectedCategory);
+  document.getElementById("meatCategoryBackButton")?.classList.toggle("hidden", !hasSelectedCategory);
+  if (hasSelectedCategory) return;
   choices.innerHTML = categories.map(category => {
-    const selected = selectedMeatCategory?.id === category.id;
     const icon = category.slug === "chicken" ? "🐔" : category.slug === "mutton" ? "🐐" : "🥩";
-    return `<button type="button" onclick="selectMeatCategory('${serviceEscape(category.slug)}')" class="flex min-h-20 items-center gap-3 rounded-2xl border px-4 py-4 text-left shadow-sm transition ${selected ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white hover:border-emerald-300"}" aria-pressed="${selected}"><span class="text-3xl" aria-hidden="true">${icon}</span><span class="text-sm font-black">${serviceEscape(category.name)}</span></button>`;
+    return `<button type="button" onclick="selectMeatCategory('${serviceEscape(category.slug)}')" class="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-emerald-300"><span class="text-3xl" aria-hidden="true">${icon}</span><span class="text-sm font-black">${serviceEscape(category.name)}</span></button>`;
   }).join("");
 }
 
@@ -756,8 +759,28 @@ function selectMeatCategory(slug) {
   document.getElementById("meatShopBrowse")?.classList.remove("hidden");
   document.getElementById("serviceTitle").innerText = selectedMeatCategory.name;
   document.getElementById("serviceDescription").innerText = "Choose a shop to view its products.";
-  renderMeatTypeChoices(meatCategories.filter(category => category.parent_id === selectedMeatCategory.parent_id));
+  renderMeatTypeChoices(meatCategories);
   renderMeatShops();
+}
+
+function backToMeatCategories() {
+  meatRequestToken += 1;
+  selectedMeatCategory = null;
+  selectedMeatShop = null;
+  selectedMeatProductCategory = "";
+  meatShopSearchTerm = "";
+  meatProductSearchTerm = "";
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete("categorySlug");
+  nextUrl.searchParams.delete("shopId");
+  window.history.replaceState({}, "", nextUrl);
+  document.getElementById("meatShopSearch").value = "";
+  document.getElementById("meatProductSearch").value = "";
+  document.getElementById("meatShopMenuView")?.classList.add("hidden");
+  document.getElementById("meatShopBrowse")?.classList.add("hidden");
+  document.getElementById("serviceTitle").innerText = "Choose Chicken or Mutton";
+  document.getElementById("serviceDescription").innerText = "Choose a meat category to browse its partner shops.";
+  renderMeatTypeChoices(meatCategories.filter(category => category.parent_id));
 }
 
 function renderMeatShops() {

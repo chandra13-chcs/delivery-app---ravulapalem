@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <title>MyShopzy | Partner Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,22 +26,44 @@
       <p class="partner-login-footnote">Secure sign-in with your registered mobile number.</p>
     </div>
     <div class="partner-login-content">
-      <form id="partnerLoginForm" class="partner-login-form" onsubmit="requestPartnerLoginCode(event)">
+      <form id="partnerLoginForm" class="partner-login-form" onsubmit="event.preventDefault()">
         <span class="eyebrow">WELCOME BACK</span>
         <h2>Sign in to your console</h2>
-        <p class="partner-muted">Enter the mobile number linked to your partner account.</p>
+        <p class="partner-muted">Sign in with your mobile number and password. First setup or password recovery requires a one-time invitation from your administrator.</p>
         <label for="partnerLoginPhone">Mobile number</label>
         <input id="partnerLoginPhone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+91 mobile number">
-        <div id="partnerOtpField" class="partner-form-row" hidden>
+        <label for="partnerLoginPassword">Password</label>
+        <input id="partnerLoginPassword" type="password" autocomplete="current-password" placeholder="Your partner password">
+        <button type="button" class="partner-button partner-button-primary" onclick="signInPartnerWithPassword()">Sign in with password</button>
+        <button id="partnerShowOtpButton" type="button" class="partner-button partner-button-outline" onclick="showPartnerOtpLogin()" hidden>Continue with administrator invitation</button>
+        <div id="partnerOtpActions" hidden>
+        <div id="partnerOtpField" class="partner-form-row">
           <label for="partnerLoginOtp">Verification code</label>
           <input id="partnerLoginOtp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code">
         </div>
-        <button id="partnerRequestOtpButton" type="submit" class="partner-button partner-button-primary">Send verification code</button>
-        <button id="partnerVerifyOtpButton" type="button" onclick="verifyPartnerLoginCode()" class="partner-button partner-button-green" hidden>Sign in</button>
+        <button id="partnerRequestOtpButton" type="button" onclick="requestPartnerLoginCode()" class="partner-button partner-button-primary">Send verification code</button>
+        <button id="partnerVerifyOtpButton" type="button" onclick="verifyPartnerLoginCode()" class="partner-button partner-button-green" hidden>Verify code</button>
+        <button type="button" class="partner-button partner-button-outline" onclick="hidePartnerOtpLogin()">Back to password sign in</button>
+        </div>
         <p id="partnerAuthMessage" class="partner-auth-message" role="status" aria-live="polite"></p>
       </form>
     </div>
   </section>
+
+  <dialog id="partnerPasswordSetupDialog" class="partner-modal" aria-labelledby="partnerPasswordSetupTitle" oncancel="event.preventDefault()">
+    <div class="partner-modal-panel">
+      <div class="partner-modal-heading"><div><span class="eyebrow">SECURE YOUR ACCOUNT</span><h2 id="partnerPasswordSetupTitle">Create your partner password</h2></div></div>
+      <p class="partner-muted">SMS verification succeeded. Create a private password to finish setting up this partner account.</p>
+      <form id="partnerPasswordSetupForm" onsubmit="savePartnerPassword(event)" class="partner-profile-form">
+        <label for="partnerNewPassword">New password</label>
+        <input id="partnerNewPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <label for="partnerConfirmPassword">Confirm password</label>
+        <input id="partnerConfirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <button id="partnerSavePasswordButton" type="submit" class="partner-button partner-button-primary">Save password</button>
+        <p id="partnerPasswordSetupMessage" class="partner-auth-message" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </dialog>
 
   <div id="partnerApp" class="partner-app" hidden>
     <div id="partnerSidebarScrim" class="partner-sidebar-scrim" onclick="closePartnerSidebar()"></div>

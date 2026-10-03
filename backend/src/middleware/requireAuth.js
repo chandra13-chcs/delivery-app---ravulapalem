@@ -46,7 +46,7 @@ async function requireAuth(req, res, next, allowedTokenUses = ACCESS_TOKEN_USES)
 
   try {
     const result = await db.query(
-      `SELECT id, display_name
+      `SELECT id, display_name, password_hash IS NOT NULL AS has_password
        FROM users
        WHERE id = $1
          AND status = 'ACTIVE'
@@ -58,7 +58,7 @@ async function requireAuth(req, res, next, allowedTokenUses = ACCESS_TOKEN_USES)
       return res.status(401).json({ success: false, message: "Invalid or expired access token." });
     }
 
-    if (verification.claims.token_use === "user_access") {
+    if (["user_access", "partner_access"].includes(verification.claims.token_use)) {
       if (typeof verification.claims.sid !== "string" || !UUID_PATTERN.test(verification.claims.sid)) {
         return res.status(401).json({ success: false, message: "Invalid or expired access token." });
       }
@@ -79,8 +79,12 @@ async function requireAuth(req, res, next, allowedTokenUses = ACCESS_TOKEN_USES)
     req.user = {
       id: user.id,
       display_name: user.display_name,
-      ...(verification.claims.token_use === "user_access" ? { session_id: verification.claims.sid } : {})
+      has_password: user.has_password,
+      ...(["user_access", "partner_access"].includes(verification.claims.token_use)
+        ? { session_id: verification.claims.sid }
+        : {})
     };
+    req.authClaims = verification.claims;
     return next();
   } catch (error) {
     console.error("Authentication failed:", error.message);

@@ -99,11 +99,12 @@
       width: 34px;
       height: 34px;
       border-radius: 12px;
-      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      background: #fff;
       display: grid;
       place-items: center;
       box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
       font-size: 18px;
+      object-fit: cover;
     }
 
     .brand-name {
@@ -742,7 +743,7 @@
         repeating-linear-gradient(135deg, transparent 0 34px, rgba(255, 255, 255, .025) 35px 36px);
     }
     .admin-login-brand-head { display: flex; align-items: center; gap: 11px; }
-    .admin-login-brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: #13233a; background: #f2ad58; font-size: 19px; font-weight: 800; }
+    .admin-login-brand-mark { display: block; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 8px; background: #fff; object-fit: cover; }
     .admin-login-brand-name strong, .admin-login-brand-name small { display: block; }
     .admin-login-brand-name strong { font-size: 15px; font-weight: 800; }
     .admin-login-brand-name small { margin-top: 2px; color: #aebbd0; font-size: 10px; }
@@ -811,7 +812,7 @@
     <aside class="dashboard-sidebar" aria-label="Admin sidebar">
       <div class="brand-block">
         <div class="brand-wrap">
-          <div class="brand-icon">🛒</div>
+          <img class="brand-icon" src="../assets/audio/categories/logo.png" alt="MyShopzy logo">
           <div class="brand-name">MYSHOPZY <span>STORE HUB</span></div>
         </div>
         <p class="brand-sub">Managed Operations Console</p>
@@ -822,7 +823,6 @@
         <button type="button" class="nav-item active" data-tab="home" onclick="switchView('home')"><span class="icon-wrap">⌂</span><span>Dashboard</span></button>
         <button type="button" class="nav-item" data-tab="orders" onclick="switchView('orders')"><span class="icon-wrap">▤</span><span>Orders</span></button>
         <button type="button" class="nav-item" data-tab="partners" onclick="switchView('partners')"><span class="icon-wrap">♧</span><span>Partners</span></button>
-        <button type="button" class="nav-item" data-tab="shops" onclick="switchView('shops')"><span class="icon-wrap">⌂</span><span>Restaurants &amp; Shops</span></button>
         <button type="button" class="nav-item" data-tab="customers" onclick="switchView('customers')"><span class="icon-wrap">◉</span><span>Customers</span></button>
         <button type="button" class="nav-item" data-tab="riderVerification" onclick="switchView('riderVerification')"><span class="icon-wrap">♧</span><span>Riders</span></button>
         <div class="nav-group-label">Operations</div>
@@ -877,7 +877,7 @@
     <section class="admin-login-shell">
       <div class="admin-login-brand">
         <div class="admin-login-brand-head">
-          <span class="admin-login-brand-mark" aria-hidden="true">M</span>
+          <img class="admin-login-brand-mark" src="../assets/audio/categories/logo.png" alt="MyShopzy logo">
           <span class="admin-login-brand-name"><strong>MyShopzy</strong><small>Super Admin Portal</small></span>
         </div>
         <div class="admin-login-brand-copy">
@@ -1077,7 +1077,7 @@
     </section>
     <section class="admin-data-section">
       <div class="admin-data-section-head"><h2>Delivery activity</h2><p>ETA, assignment and pickup timestamps, and OTP status are not provided by the current admin delivery API.</p></div>
-      <div class="dashboard-table-wrap"><table class="admin-table" style="min-width:1480px"><thead><tr><th>Delivery ID</th><th>Order ID</th><th>Customer</th><th>Restaurant / shop</th><th>Assigned rider</th><th>Rider status</th><th>Delivery status</th><th>ETA</th><th>Assigned time</th><th>Pickup time</th><th>Delivered time</th><th>OTP status</th><th>Tracking / details</th></tr></thead><tbody id="adminDeliveriesTableBody"><tr><td colspan="13" class="empty-cell">Loading deliveries...</td></tr></tbody></table></div>
+      <div class="dashboard-table-wrap"><table class="admin-table" style="min-width:1600px"><thead><tr><th>Delivery ID</th><th>Order ID</th><th>Customer</th><th>Restaurant / shop</th><th>Assigned rider</th><th>Rider location</th><th>Rider status</th><th>Delivery status</th><th>ETA</th><th>Assigned time</th><th>Pickup time</th><th>Delivered time</th><th>OTP status</th><th>Tracking / details</th></tr></thead><tbody id="adminDeliveriesTableBody"><tr><td colspan="14" class="empty-cell">Loading deliveries...</td></tr></tbody></table></div>
     </section>
     <section id="adminDispatchSection" class="rounded-[28px] border border-slate-200 bg-white shadow-sm p-5 sm:p-6">
       <div class="mb-4">
@@ -1623,6 +1623,7 @@
       <h3 class="text-sm font-bold text-slate-900">🛵 Live Rider Tracking</h3>
       <button onclick="closeAdminRiderTracker()" class="text-slate-500 hover:text-red-600 font-bold text-sm cursor-pointer">✕ Close</button>
     </div>
+    <div id="adminRiderTrackingDetails" class="rounded-xl bg-slate-50 p-3 text-xs text-slate-700" role="status" aria-live="polite">Loading rider and location details...</div>
     <!-- Leaflet Map Div -->
     <div id="adminMapContainer" class="w-full h-96 rounded-xl z-10"></div>
   </div>
