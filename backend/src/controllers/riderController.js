@@ -21,7 +21,7 @@ const VALID_DOCUMENT_TYPES = new Set([
   "PASSPORT",
   "VEHICLE_RC"
 ]);
-const UPLOAD_DOCUMENT_TYPES = new Set(["SELFIE", "AADHAAR", "PAN"]);
+const UPLOAD_DOCUMENT_TYPES = new Set(["SELFIE", "AADHAAR", "PAN", "PROFILE_PHOTO"]);
 const UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const UPLOAD_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -102,11 +102,25 @@ async function getRiderUserProfile(userId) {
 async function createRiderApplication(req, res) {
   const userId = req.user.id;
   const body = req.body || {};
+  const file = req.file || null;
+  const mimeType = String(file?.mimetype || "").toLowerCase();
+  const originalName = typeof file?.originalname === "string" ? file.originalname : "profile-photo";
+  const extension = (originalName.split(".").pop() || "").toLowerCase();
 
   const vehicleType = valueText(body.vehicle_type || body.vehicleType);
   const vehicleRegistration = valueText(body.vehicle_registration || body.vehicle_number || body.vehicleRegistration);
   const licenseLast4 = valueText(body.license_last4 || body.license_number_last4 || body.licenseLast4);
 
+  if (!file || !UPLOAD_MIME_TYPES.has(mimeType) || !UPLOAD_EXTENSIONS.has(extension)) {
+    return res.status(400).json({
+      success: false,
+      code: "PROFILE_PHOTO_REQUIRED",
+      message: "A JPG, PNG, or WEBP profile photo is required."
+    });
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return res.status(400).json({ success: false, message: "Profile photo must be 10 MB or smaller." });
+  }
   if (vehicleType && vehicleType.length > 64) {
     return res.status(400).json({ success: false, message: "Vehicle type is too long." });
   }
@@ -119,6 +133,8 @@ async function createRiderApplication(req, res) {
     return res.status(400).json({ success: false, message: "License last 4 digits must be exactly 4 numbers." });
   }
 
+  let client;
+  let uploadedObjectKey = "";
   try {
     const existingRider = await getRiderByUserId(userId);
     if (existingRider) {
@@ -129,24 +145,69 @@ async function createRiderApplication(req, res) {
       });
     }
 
-    const insertResult = await db.query(
+    if (!objectStorageService.isObjectStorageConfigured()) {
+      return res.status(503).json({
+        success: false,
+        code: "OBJECT_STORAGE_NOT_CONFIGURED",
+        message: "Secure profile photo storage is not configured yet."
+      });
+    }
+
+    const riderId = crypto.randomUUID();
+    uploadedObjectKey = `riders/${riderId}/documents/PROFILE_PHOTO/${crypto.randomUUID()}.${extension}`;
+    const uploadResult = await objectStorageService.uploadFile({
+      key: uploadedObjectKey,
+      fileBuffer: file.buffer,
+      contentType: mimeType,
+      metadata: {
+        rider_id: riderId,
+        document_type: "PROFILE_PHOTO",
+        original_filename: originalName
+      }
+    });
+    if (!uploadResult?.success) {
+      return res.status(503).json({
+        success: false,
+        code: uploadResult?.code || "OBJECT_STORAGE_UNAVAILABLE",
+        message: uploadResult?.message || "Secure profile photo storage is unavailable."
+      });
+    }
+
+    client = await db.connect();
+    await client.query("BEGIN");
+    const insertResult = await client.query(
       `INSERT INTO riders (user_id, verification_status, vehicle_type, vehicle_registration, license_number_last4)
        VALUES ($1, 'PENDING', $2, $3, $4)
        RETURNING *`,
       [userId, vehicleType || null, vehicleRegistration || null, licenseLast4 || null]
     );
-
+    const rider = insertResult.rows[0];
+    await client.query(
+      `INSERT INTO rider_documents (rider_id, document_type, object_key, original_filename, content_type, verification_status)
+       VALUES ($1, 'PROFILE_PHOTO', $2, $3, $4, 'PENDING')`,
+      [rider.id, uploadedObjectKey, originalName || null, mimeType]
+    );
+    await client.query("COMMIT");
     return res.status(201).json({
       success: true,
       message: "Rider application submitted.",
-      data: safeRiderRow(insertResult.rows[0])
+      data: safeRiderRow(rider)
     });
   } catch (error) {
+    if (client) await client.query("ROLLBACK").catch(() => {});
+    if (uploadedObjectKey) {
+      const cleanupResult = await objectStorageService.deleteFile(uploadedObjectKey);
+      if (!cleanupResult?.success) {
+        console.warn("Unable to remove failed rider profile photo upload:", cleanupResult?.message || "Storage deletion failed.");
+      }
+    }
     if (error.code === "23505") {
       return res.status(409).json({ success: false, message: "A rider application already exists for this user.", data: null });
     }
     console.error("Rider application creation failed:", error.message);
     return res.status(500).json({ success: false, message: "Unable to create rider application.", data: null });
+  } finally {
+    client?.release();
   }
 }
 
@@ -156,10 +217,21 @@ async function getRiderProfile(req, res) {
     if (!rider) {
       return res.status(404).json({ success: false, message: "Rider profile not found.", data: null });
     }
+    const photoResult = await db.query(
+      `SELECT object_key
+       FROM rider_documents
+       WHERE rider_id = $1 AND document_type = 'PROFILE_PHOTO'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [rider.id]
+    );
+    const profilePhotoUrl = photoResult.rows[0]?.object_key
+      ? await objectStorageService.getSignedFileUrl(photoResult.rows[0].object_key, { expiresIn: 3600 })
+      : null;
     return res.json({
       success: true,
       data: {
-        rider: safeRiderRow(rider),
+        rider: { ...safeRiderRow(rider), profile_photo_url: profilePhotoUrl },
         user: await getRiderUserProfile(req.user.id)
       }
     });
@@ -343,7 +415,7 @@ async function uploadRiderDocument(req, res) {
     return res.status(400).json({
       success: false,
       code: "UPLOAD_VALIDATION_ERROR",
-      message: "Unsupported document type. Use SELFIE, AADHAAR, or PAN."
+      message: "Unsupported document type. Use SELFIE, AADHAAR, PAN, or PROFILE_PHOTO."
     });
   }
 
@@ -413,6 +485,25 @@ async function uploadRiderDocument(req, res) {
          RETURNING *`,
         [rider.id, documentType, objectKey, originalName || null, mimeType || null]
       );
+
+      if (documentType === "PROFILE_PHOTO") {
+        try {
+          const previousPhotos = await db.query(
+            `DELETE FROM rider_documents
+             WHERE rider_id = $1 AND document_type = 'PROFILE_PHOTO' AND id <> $2
+             RETURNING object_key`,
+            [rider.id, result.rows[0].id]
+          );
+          for (const previousPhoto of previousPhotos.rows) {
+            const deleteResult = await objectStorageService.deleteFile(previousPhoto.object_key);
+            if (!deleteResult?.success) {
+              console.warn("Unable to remove replaced rider profile photo:", deleteResult?.message || "Storage deletion failed.");
+            }
+          }
+        } catch (cleanupError) {
+          console.warn("Unable to clean up replaced rider profile photo metadata:", cleanupError.message);
+        }
+      }
 
       return res.status(201).json({
         success: true,

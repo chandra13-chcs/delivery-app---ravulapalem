@@ -17,11 +17,13 @@ let pendingRiderRegistration = null;
 let riderNotifications = [];
 let riderEarnings = null;
 let riderAuthMode = 'login';
+let riderAvailabilityUpdating = false;
 let riderOtpPurpose = '';
 let riderOtpPhone = '';
 let riderOtpCountdownTimer = null;
 let riderOtpSecondsRemaining = 45;
 let riderSelectedVehicleType = 'BIKE';
+let riderProfilePhotoFile = null;
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const RIDER_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
@@ -69,6 +71,7 @@ function persistRiderAccessToken(token) {
 function clearRiderAuthState() {
   riderProfile = null;
   currentActiveRider = '';
+  riderProfilePhotoFile = null;
   riderIsAvailable = false;
   riderAuthMode = 'login';
   pendingRiderRegistration = null;
@@ -163,7 +166,8 @@ async function hydrateRiderSession() {
       is_available: Boolean(rider.is_available),
       vehicle_type: rider.vehicle_type || '',
       vehicle_registration: rider.vehicle_registration || '',
-      license_number_last4: rider.license_number_last4 || ''
+      license_number_last4: rider.license_number_last4 || '',
+      profile_photo_url: rider.profile_photo_url || ''
     };
 
     riderProfile = mergedProfile;
@@ -214,16 +218,25 @@ function showRiderSection(section) {
   const sections = {
     home: document.getElementById('riderHomeSection'),
     orders: document.getElementById('riderOrdersSection'),
+    earnings: document.getElementById('riderEarningsSection'),
     account: document.getElementById('riderAccountSection')
   };
   Object.entries(sections).forEach(([name, element]) => {
     if (element) element.classList.toggle('hidden', name !== section);
   });
+  document.querySelectorAll('[data-rider-section]').forEach((button) => {
+    const isActive = button.dataset.riderSection === section;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
   if (section === 'orders') renderRiderOrders();
+  if (section === 'home') {
+    loadRiderEarnings();
+  }
+  if (section === 'earnings') loadRiderEarnings();
   if (section === 'account') {
     syncRiderAccount();
     loadRiderNotifications();
-    loadRiderEarnings();
   }
 }
 
@@ -324,6 +337,10 @@ async function requestRiderRegistrationOtp() {
     setRiderAuthError('riderRegisterError', 'Enter your name, a valid mobile number, email, and a password of at least 6 characters.');
     return;
   }
+  if (!riderProfilePhotoFile) {
+    setRiderAuthError('riderRegisterError', 'Select a profile photo before creating your rider account.');
+    return;
+  }
   if (referral) {
     setRiderAuthError('riderRegisterError', 'Referral codes are not supported by the current account API. Clear this field to continue.');
     return;
@@ -393,20 +410,140 @@ async function submitRiderApplication(accessToken) {
   const vehicleType = pendingRiderRegistration?.vehicle_type
     || localStorage.getItem('rider_registration_pending')
     || riderSelectedVehicleType;
+  const formData = new FormData();
+  formData.append('vehicle_type', vehicleType);
+  if (riderProfilePhotoFile) formData.append('file', riderProfilePhotoFile);
   try {
-    await riderApiRequest('/api/rider/applications', {
+    const response = await fetch(`${RIDER_API_BASE_URL}/api/rider/applications`, {
       method: 'POST',
-      body: JSON.stringify({ vehicle_type: vehicleType }),
-      authToken: accessToken
+      headers: buildRiderApiHeaders({ Accept: 'application/json' }, accessToken),
+      body: formData
     });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(payload?.message || `Request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
   } catch (error) {
     if (error.status !== 409) throw error;
     await riderApiRequest('/api/rider/me', { authToken: accessToken });
   }
-  const profile = await hydrateRiderSession();
+  let profile = await hydrateRiderSession();
   if (!profile || profile.needsApplication) throw new Error('The rider application could not be confirmed.');
+  if (riderProfilePhotoFile && !profile.profile_photo_url) {
+    await uploadRiderProfilePhoto(riderProfilePhotoFile, accessToken);
+    profile = await hydrateRiderSession();
+  }
+  if (!profile?.profile_photo_url) {
+    throw new Error('A profile photo is required. Select your photo and retry your application.');
+  }
+  riderProfilePhotoFile = null;
+  const registrationPhotoInput = document.getElementById('riderRegistrationPhotoInput');
+  if (registrationPhotoInput) registrationPhotoInput.value = '';
   pendingRiderRegistration = null;
   await routeAuthenticatedRider(profile);
+}
+
+function validateRiderProfilePhoto(file) {
+  if (!file) return 'Choose a profile photo.';
+  const extension = String(file.name || '').split('.').pop().toLowerCase();
+  const mimeType = String(file.type || '').toLowerCase();
+  if (!RIDER_DOCUMENT_EXTENSIONS.has(extension)
+    || (mimeType && !RIDER_DOCUMENT_MIME_TYPES.has(mimeType))) {
+    return 'Use a JPG, PNG, or WEBP image.';
+  }
+  if (file.size > RIDER_DOCUMENT_MAX_BYTES) return 'Profile photo must be 10 MB or smaller.';
+  return '';
+}
+
+function setRiderPhotoPreview(image, placeholder, photoUrl) {
+  if (!image || !placeholder) return;
+  if (photoUrl) {
+    image.src = photoUrl;
+    image.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+  } else {
+    image.removeAttribute('src');
+    image.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+  }
+}
+
+function selectRiderRegistrationPhoto(input) {
+  const file = input.files?.[0] || null;
+  const status = document.getElementById('riderRegistrationPhotoStatus');
+  const preview = document.getElementById('riderRegistrationPhotoPreview');
+  const validationMessage = validateRiderProfilePhoto(file);
+  riderProfilePhotoFile = validationMessage ? null : file;
+  if (status) {
+    status.textContent = validationMessage || file.name;
+    status.classList.toggle('is-error', Boolean(validationMessage));
+  }
+  if (preview) {
+    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+    if (validationMessage) {
+      preview.removeAttribute('src');
+      delete preview.dataset.objectUrl;
+      preview.classList.add('hidden');
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      preview.dataset.objectUrl = objectUrl;
+      preview.src = objectUrl;
+      preview.classList.remove('hidden');
+    }
+  }
+  setRiderAuthError('riderRegisterError', validationMessage);
+}
+
+async function uploadRiderProfilePhoto(file, authToken = '') {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('document_type', 'PROFILE_PHOTO');
+  const response = await fetch(`${RIDER_API_BASE_URL}/api/rider/documents/upload`, {
+    method: 'POST',
+    headers: buildRiderApiHeaders({ Accept: 'application/json' }, authToken),
+    body: formData
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(payload?.message || 'Unable to upload your profile photo.');
+  }
+  return payload?.data || null;
+}
+
+async function saveRiderProfilePhoto(input) {
+  const file = input.files?.[0] || null;
+  const status = document.getElementById('riderProfilePhotoStatus');
+  const message = validateRiderProfilePhoto(file);
+  if (message) {
+    if (status) {
+      status.textContent = message;
+      status.classList.add('is-error');
+    }
+    input.value = '';
+    return;
+  }
+
+  if (status) {
+    status.textContent = 'Uploading profile photo…';
+    status.classList.remove('is-error');
+  }
+  input.disabled = true;
+  try {
+    await uploadRiderProfilePhoto(file);
+    const profile = await hydrateRiderSession();
+    if (!profile?.profile_photo_url) throw new Error('Photo uploaded, but the profile could not be refreshed.');
+    if (status) status.textContent = 'Profile photo updated.';
+  } catch (error) {
+    if (status) {
+      status.textContent = error.message || 'Unable to update profile photo.';
+      status.classList.add('is-error');
+    }
+  } finally {
+    input.disabled = false;
+    input.value = '';
+  }
 }
 
 async function loadRiderDocumentState() {
@@ -714,28 +851,48 @@ function syncRiderAccount() {
     riderAccountName: riderProfile?.name || currentActiveRider,
     riderAccountMobile: riderProfile?.mobile || '-',
     riderAccountEmail: riderProfile?.email || '-',
-    riderAccountAadhaar: riderProfile?.aadhaar_last4 ? `•••• ${riderProfile.aadhaar_last4}` : '-'
+    riderAccountAadhaar: riderProfile?.aadhaar_last4 ? `•••• ${riderProfile.aadhaar_last4}` : '-',
+    riderAccountVehicle: riderProfile?.vehicle_type
+      ? `${riderProfile.vehicle_type}${riderProfile.vehicle_registration ? ` · ${riderProfile.vehicle_registration}` : ''}`
+      : '-',
+    riderAccountVerification: riderProfile?.verification_status || '-'
   };
   Object.entries(fields).forEach(([id, value]) => {
     const element = document.getElementById(id);
     if (element) element.innerText = value;
   });
+  setRiderPhotoPreview(
+    document.getElementById('riderAccountPhoto'),
+    document.getElementById('riderAccountPhotoPlaceholder'),
+    riderProfile?.profile_photo_url
+  );
+  const photoStatus = document.getElementById('riderProfilePhotoStatus');
+  if (photoStatus && riderProfile?.profile_photo_url) {
+    photoStatus.textContent = 'Profile photo saved securely.';
+    photoStatus.classList.remove('is-error');
+  }
 }
 
 function renderRiderEarnings() {
   const summaryEl = document.getElementById('riderEarningsSummary');
   const listEl = document.getElementById('riderEarningsList');
+  const homeEarnings = document.getElementById('riderHomeEarnings');
+  const homeDeliveries = document.getElementById('riderHomeDeliveries');
   if (!summaryEl || !listEl) return;
 
   if (!getRiderAccessToken()) {
     summaryEl.innerHTML = '<p class="text-amber-700 font-bold">Sign in to view rider earnings.</p>';
     listEl.innerHTML = '';
+    if (homeEarnings) homeEarnings.textContent = '—';
+    if (homeDeliveries) homeDeliveries.textContent = '—';
     return;
   }
 
   if (!riderEarnings) {
     summaryEl.innerHTML = '<p class="text-slate-500">Loading earnings…</p>';
     listEl.innerHTML = '';
+    if (homeEarnings) homeEarnings.textContent = 'Loading…';
+    if (homeDeliveries) homeDeliveries.textContent = '—';
     return;
   }
 
@@ -743,12 +900,14 @@ function renderRiderEarnings() {
   const total = Number(riderEarnings.total_earnings_inr || 0);
   const count = Number(riderEarnings.completed_count || deliveries.length || 0);
   const currency = riderEarnings.currency || 'INR';
+  if (homeEarnings) homeEarnings.textContent = formatRiderCurrency(total);
+  if (homeDeliveries) homeDeliveries.textContent = String(count);
 
   summaryEl.innerHTML = `
     <div class="space-y-1">
       <p class="text-[10px] uppercase tracking-wider font-black text-slate-400">Total earnings</p>
       <p class="text-2xl font-black text-slate-900">${formatRiderCurrency(total)}</p>
-      <p class="text-[10px] text-slate-500">${count} completed delivery${count === 1 ? '' : 'ies'} · ${currency}</p>
+      <p class="text-[10px] text-slate-500">${count} completed ${count === 1 ? 'delivery' : 'deliveries'} · ${currency}</p>
     </div>
   `;
 
@@ -788,8 +947,12 @@ async function loadRiderEarnings() {
     riderEarnings = null;
     const summaryEl = document.getElementById('riderEarningsSummary');
     const listEl = document.getElementById('riderEarningsList');
+    const homeEarnings = document.getElementById('riderHomeEarnings');
+    const homeDeliveries = document.getElementById('riderHomeDeliveries');
     if (summaryEl) summaryEl.innerHTML = `<p class="text-rose-600 font-bold">${escapeRiderHtml(error.message)}</p>`;
     if (listEl) listEl.innerHTML = '';
+    if (homeEarnings) homeEarnings.textContent = 'Unavailable';
+    if (homeDeliveries) homeDeliveries.textContent = '—';
   }
 }
 
@@ -886,8 +1049,8 @@ async function markAllRiderNotificationsRead() {
 }
 
 function updateRiderIdentity() {
-  const titleEl = document.getElementById('currentRiderTitle');
-  if (titleEl) titleEl.innerText = currentActiveRider || 'Not registered';
+  const greetingEl = document.getElementById('riderDashboardGreeting');
+  if (greetingEl) greetingEl.textContent = `Hi, ${currentActiveRider || riderProfile?.name || 'Rider'}`;
   const authShell = document.getElementById('riderAuthShell');
   const dashboardHeader = document.getElementById('riderDashboardHeader');
   const appShell = document.getElementById('riderAppShell');
@@ -951,22 +1114,25 @@ function updateAvailabilityUi() {
   const button = document.getElementById('riderAvailabilityToggle');
   const status = document.getElementById('riderDutyStatus');
   if (button) {
-    button.innerText = riderIsAvailable ? 'Go offline' : 'Go online';
+    button.innerText = riderAvailabilityUpdating ? 'Updating…' : riderIsAvailable ? 'Go offline' : 'Go online';
+    button.disabled = riderAvailabilityUpdating;
     button.className = riderIsAvailable
-      ? 'px-3 py-1.5 rounded-xl bg-rose-100 text-rose-700 text-[10px] font-black'
-      : 'px-3 py-1.5 rounded-xl bg-slate-200 text-slate-700 text-[10px] font-black';
+      ? 'rider-availability-button is-available'
+      : 'rider-availability-button';
+    if (riderAvailabilityUpdating) button.classList.add('is-updating');
   }
   if (status) {
     status.innerHTML = riderIsAvailable
-      ? '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> On-duty (7 AM - 10 PM)'
-      : '<span class="w-2 h-2 rounded-full bg-slate-400"></span> Off-duty';
+      ? '<span></span> On-duty · 7 AM–10 PM'
+      : '<span></span> Off-duty';
     status.className = riderIsAvailable
-      ? 'text-[11px] text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5'
-      : 'text-[11px] text-slate-500 font-bold flex items-center gap-1.5 mt-0.5';
+      ? 'rider-duty-status is-available'
+      : 'rider-duty-status';
   }
 }
 
 async function toggleRiderAvailability() {
+  if (riderAvailabilityUpdating) return;
   if (!riderProfile?.name || !currentActiveRider) {
     alert('Register your rider profile before going online.');
     return;
@@ -977,26 +1143,24 @@ async function toggleRiderAvailability() {
     return;
   }
 
-  const token = getRiderAccessToken();
-  if (token) {
-    try {
-      const nextState = !riderIsAvailable;
-      const result = await riderApiRequest('/api/rider/availability', {
-        method: 'PUT',
-        body: JSON.stringify({ is_available: nextState })
-      });
-      riderIsAvailable = Boolean(result?.data?.is_available);
-      localStorage.setItem('rider_available', String(riderIsAvailable));
-      updateAvailabilityUi();
-      if (riderIsAvailable) startRiderOrdersListener();
-      else stopRiderGpsBroadcast();
-      return;
-    } catch (error) {
-      alert(error.message);
-      return;
-    }
+  riderAvailabilityUpdating = true;
+  updateAvailabilityUi();
+  try {
+    const nextState = !riderIsAvailable;
+    const result = await riderApiRequest('/api/rider/availability', {
+      method: 'PUT',
+      body: JSON.stringify({ is_available: nextState })
+    });
+    riderIsAvailable = Boolean(result?.data?.is_available);
+    localStorage.setItem('rider_available', String(riderIsAvailable));
+    if (riderIsAvailable) startRiderOrdersListener();
+    else stopRiderGpsBroadcast();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    riderAvailabilityUpdating = false;
+    updateAvailabilityUi();
   }
-
 }
 
 function toggleRiderTab(tab) {
@@ -1004,13 +1168,8 @@ function toggleRiderTab(tab) {
   const btnPending = document.getElementById('tabPendingBtn');
   const btnCompleted = document.getElementById('tabCompletedBtn');
 
-  if (tab === 'pending') {
-    btnPending.className = "flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition";
-    btnCompleted.className = "flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition";
-  } else {
-    btnPending.className = "flex-1 py-2 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-900 transition";
-    btnCompleted.className = "flex-1 py-2 rounded-lg text-xs font-bold bg-white text-slate-900 shadow-sm transition";
-  }
+  btnPending?.classList.toggle('is-active', tab === 'pending');
+  btnCompleted?.classList.toggle('is-active', tab === 'completed');
   renderRiderOrders();
 }
 
@@ -1208,7 +1367,15 @@ function renderPickupQueue() {
     .sort((a, b) => (a.created_at_ms || 0) - (b.created_at_ms || 0));
 
   if (!activeOrders.length) {
-    container.innerHTML = '<p class="text-center text-slate-400 py-8 text-xs">No active pickups. Stay online for new assignments.</p>';
+    container.innerHTML = `
+      <div class="rider-empty-queue">
+        <span class="rider-empty-queue__icon"><i data-lucide="package-search" aria-hidden="true"></i></span>
+        <strong>No active pickups</strong>
+        <p>Stay online and new assignments will appear here.</p>
+      </div>
+    `;
+    renderRiderCurrentDelivery();
+    if (window.lucide) window.lucide.createIcons();
     return;
   }
 
@@ -1222,6 +1389,51 @@ function renderPickupQueue() {
       <span class="text-[10px] font-black ${next ? 'text-amber-700' : 'text-emerald-600'}">${next ? 'Pickup' : 'Ready'}</span>
     </button>`;
   }).join('');
+  renderRiderCurrentDelivery();
+}
+
+function renderRiderCurrentDelivery() {
+  const content = document.getElementById('riderCurrentDeliveryContent');
+  const statusBadge = document.getElementById('riderCurrentDeliveryStatus');
+  if (!content || !statusBadge) return;
+
+  const current = allRiderOrders
+    .filter(order => ['OFFERED', 'ACCEPTED', 'PICKING_UP', 'OUT_FOR_DELIVERY'].includes(order.assignment_status))
+    .sort((a, b) => {
+      const priority = { OUT_FOR_DELIVERY: 0, PICKING_UP: 1, ACCEPTED: 2, OFFERED: 3 };
+      return priority[a.assignment_status] - priority[b.assignment_status]
+        || (a.created_at_ms || 0) - (b.created_at_ms || 0);
+    })[0];
+
+  if (!current) {
+    statusBadge.textContent = 'No active delivery';
+    content.innerHTML = '<div class="rider-current-delivery__empty">Your active delivery details will appear here.</div>';
+    return;
+  }
+
+  const isOutForDelivery = current.assignment_status === 'OUT_FOR_DELIVERY';
+  const pickup = getPickupGroups(current).find(group => !current.pickup_progress?.[group.key]);
+  const pickupName = pickup?.name || 'Pickup completed';
+  const pickupAddress = pickup?.address || '';
+  const customerName = isOutForDelivery ? current.recipient_name || 'Customer' : 'Customer details available after pickup';
+  const customerAddress = isOutForDelivery ? current.delivery_address || '' : '';
+  const currentStatus = String(current.assignment_status || '').replaceAll('_', ' ').toLowerCase();
+
+  statusBadge.textContent = currentStatus;
+  content.innerHTML = `
+    <article class="rider-current-delivery__card">
+      <div class="rider-current-delivery__top">
+        <span><i data-lucide="package" aria-hidden="true"></i> Order ${escapeRiderHtml(current.order_number || current.id)}</span>
+        <span class="rider-current-delivery__type">${escapeRiderHtml(current.order_type || 'Delivery')}</span>
+      </div>
+      <div class="rider-current-delivery__route">
+        <div><span class="rider-route-dot rider-route-dot--pickup"></span><div><small>Pickup</small><strong>${escapeRiderHtml(pickupName)}</strong>${pickupAddress ? `<p>${escapeRiderHtml(pickupAddress)}</p>` : ''}</div></div>
+        <div><span class="rider-route-dot rider-route-dot--drop"></span><div><small>Drop-off</small><strong>${escapeRiderHtml(customerName)}</strong>${customerAddress ? `<p>${escapeRiderHtml(customerAddress)}</p>` : ''}</div></div>
+      </div>
+      <button type="button" class="rider-current-delivery__action" onclick="showRiderSection('orders')">View delivery details <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+    </article>
+  `;
+  if (window.lucide) window.lucide.createIcons();
 }
 
 async function markPickupReached(orderId, sourceKey) {
