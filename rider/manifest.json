@@ -1,8 +1,8 @@
 {
   "name": "MyShopzy Rider - Mandapeta",
   "short_name": "MyShopzy Rider",
-  "start_url": "/rider/rider.html",
-  "scope": "/rider/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#F1F5F9",
   "theme_color": "#0B132B",

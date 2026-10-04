@@ -308,7 +308,7 @@ function localStoreProductCategory(product) {
 function localStoreProductCard(product) {
   const productId = String(product.id || "");
   const quantity = localStoreCart[productId] || 0;
-  const imageUrl = product.image_url || "../assets/audio/categories/logo.png";
+  const imageUrl = product.image_url || "/assets/myshopzy-logo.svg";
   const unit = product.qty_unit || product.unit || "";
   const canOrder = Boolean(product.variant_id || product.default_variant_id);
   return `<article class="restaurant-product">
@@ -317,7 +317,7 @@ function localStoreProductCard(product) {
       ${unit ? `<p class="local-store-product-unit">${serviceEscape(unit)}</p>` : ""}
       <strong class="restaurant-product-price">₹${Number(product.price || 0).toLocaleString("en-IN")}</strong>
     </div>
-    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='/assets/myshopzy-logo.svg';this.classList.add('is-fallback')"></div>
       <div class="restaurant-product-action">${quantity
         ? `<div class="restaurant-quantity-control"><button type="button" onclick="modifyLocalStoreCart('${serviceEscape(productId)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyLocalStoreCart('${serviceEscape(productId)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></div>`
         : canOrder
@@ -525,7 +525,7 @@ function restaurantFoodType(product, categoryName) {
 
 function restaurantProductCard(product) {
   const quantity = restaurantCart[product.id] || 0;
-  const imageUrl = product.image_url || "../assets/audio/categories/logo.png";
+  const imageUrl = product.image_url || "/assets/myshopzy-logo.svg";
   const foodType = restaurantFoodType(product, restaurantCategoryFor(product));
   const indicator = foodType ? `<span class="food-type-indicator ${foodType === "veg" ? "is-veg" : "is-non-veg"}" aria-label="${foodType === "veg" ? "Vegetarian" : "Non-vegetarian"}"><i></i></span>` : "";
   const productId = String(product.id || "");
@@ -539,7 +539,7 @@ function restaurantProductCard(product) {
         <button type="button" class="restaurant-item-action" data-product-id="${serviceEscape(productId)}" onclick="shareRestaurantProduct(this)" aria-label="Share ${serviceEscape(product.name || "product")}" title="Share product"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg></button>
       </div>
     </div>
-    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('is-fallback')"></div>
+    <div class="restaurant-product-visual"><div class="restaurant-product-image"><img class="${product.image_url ? "" : "is-fallback"}" src="${serviceEscape(imageUrl)}" alt="${serviceEscape(product.name || "Product")}" onerror="this.onerror=null;this.src='/assets/myshopzy-logo.svg';this.classList.add('is-fallback')"></div>
       <div class="restaurant-product-action">${quantity
         ? `<div class="restaurant-quantity-control"><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', -1)" aria-label="Remove one ${serviceEscape(product.name || "product")}">−</button><span>${quantity}</span><button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" aria-label="Add one ${serviceEscape(product.name || "product")}">+</button></div>`
         : `<button type="button" onclick="modifyRestaurantCart('${serviceEscape(product.id)}', 1)" class="restaurant-add-button">ADD <span>+</span></button>`}</div>

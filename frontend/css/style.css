@@ -128,7 +128,7 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .myshopzy-header-top, .myshopzy-location-row, .myshopzy-header-actions, .myshopzy-brand, .myshopzy-location-picker { display: flex; align-items: center; }
 .myshopzy-header-top { justify-content: space-between; gap: 0.75rem; }
 .myshopzy-brand { gap: 0.45rem; flex: 0 0 auto; color: #0f172a; }
-.myshopzy-brand-mark { display: block; width: 2rem; height: 2rem; border-radius: 0.7rem; object-fit: cover; box-shadow: 0 4px 10px rgba(15, 118, 110, 0.2); }
+.myshopzy-brand-mark { display: block; width: 2rem; height: 2rem; border-radius: 0.7rem; object-fit: contain; box-shadow: 0 4px 10px rgba(15, 118, 110, 0.2); }
 .myshopzy-brand-copy { line-height: 1; }
 .myshopzy-brand-name { display: block; color: #052e16; font-size: 1.1rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
 .myshopzy-brand-name span { color: #fbbf24; }
@@ -339,10 +339,15 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
   .myshopzy-brand {
     grid-column: 1;
     grid-row: 1;
-    gap: 0;
+    gap: 0.4rem;
   }
 
-  .myshopzy-brand-mark,
+  .myshopzy-brand-mark {
+    display: block;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
   .myshopzy-brand-hub {
     display: none;
   }

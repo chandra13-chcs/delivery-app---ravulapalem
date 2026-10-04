@@ -4324,10 +4324,10 @@ function renderCartScreen() {
   container.innerHTML = entries.length ? entries.map(([id, quantity]) => {
     const product = liveCatalog.find(item => String(item.id) === String(id));
     const unit = product.qty_value ? `${product.qty_value} ${product.qty_unit || "g"}` : product.qty_unit || product.unit_label || product.unit || "1 pc";
-    const image = product.image_url || product.image || "../assets/audio/categories/logo.png";
+    const image = product.image_url || product.image || "/assets/myshopzy-logo.svg";
     const lineTotal = getProductPrice(product) * quantity;
     return `<article class="flex min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-      <img src="${escapeAttribute(image)}" alt="${escapeAttribute(product.name || "Product")}" class="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-contain p-1" onerror="this.onerror=null;this.src='../assets/audio/categories/logo.png';this.classList.add('p-3')">
+      <img src="${escapeAttribute(image)}" alt="${escapeAttribute(product.name || "Product")}" class="h-20 w-20 shrink-0 rounded-lg bg-slate-50 object-contain p-1" onerror="this.onerror=null;this.src='/assets/myshopzy-logo.svg';this.classList.add('p-3')">
       <div class="min-w-0 flex-1"><h3 class="truncate text-sm font-extrabold text-slate-900">${escapeHtml(product.name || "Product")}</h3>
         <p class="mt-1 text-[11px] text-slate-500">${escapeHtml(unit)}</p><strong class="mt-1 block text-sm font-black text-slate-900">₹${lineTotal.toLocaleString("en-IN")}</strong>
       </div>

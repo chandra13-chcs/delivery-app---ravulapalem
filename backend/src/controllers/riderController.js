@@ -102,25 +102,11 @@ async function getRiderUserProfile(userId) {
 async function createRiderApplication(req, res) {
   const userId = req.user.id;
   const body = req.body || {};
-  const file = req.file || null;
-  const mimeType = String(file?.mimetype || "").toLowerCase();
-  const originalName = typeof file?.originalname === "string" ? file.originalname : "profile-photo";
-  const extension = (originalName.split(".").pop() || "").toLowerCase();
 
   const vehicleType = valueText(body.vehicle_type || body.vehicleType);
   const vehicleRegistration = valueText(body.vehicle_registration || body.vehicle_number || body.vehicleRegistration);
   const licenseLast4 = valueText(body.license_last4 || body.license_number_last4 || body.licenseLast4);
 
-  if (!file || !UPLOAD_MIME_TYPES.has(mimeType) || !UPLOAD_EXTENSIONS.has(extension)) {
-    return res.status(400).json({
-      success: false,
-      code: "PROFILE_PHOTO_REQUIRED",
-      message: "A JPG, PNG, or WEBP profile photo is required."
-    });
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return res.status(400).json({ success: false, message: "Profile photo must be 10 MB or smaller." });
-  }
   if (vehicleType && vehicleType.length > 64) {
     return res.status(400).json({ success: false, message: "Vehicle type is too long." });
   }
@@ -133,8 +119,6 @@ async function createRiderApplication(req, res) {
     return res.status(400).json({ success: false, message: "License last 4 digits must be exactly 4 numbers." });
   }
 
-  let client;
-  let uploadedObjectKey = "";
   try {
     const existingRider = await getRiderByUserId(userId);
     if (existingRider) {
@@ -145,69 +129,23 @@ async function createRiderApplication(req, res) {
       });
     }
 
-    if (!objectStorageService.isObjectStorageConfigured()) {
-      return res.status(503).json({
-        success: false,
-        code: "OBJECT_STORAGE_NOT_CONFIGURED",
-        message: "Secure profile photo storage is not configured yet."
-      });
-    }
-
-    const riderId = crypto.randomUUID();
-    uploadedObjectKey = `riders/${riderId}/documents/PROFILE_PHOTO/${crypto.randomUUID()}.${extension}`;
-    const uploadResult = await objectStorageService.uploadFile({
-      key: uploadedObjectKey,
-      fileBuffer: file.buffer,
-      contentType: mimeType,
-      metadata: {
-        rider_id: riderId,
-        document_type: "PROFILE_PHOTO",
-        original_filename: originalName
-      }
-    });
-    if (!uploadResult?.success) {
-      return res.status(503).json({
-        success: false,
-        code: uploadResult?.code || "OBJECT_STORAGE_UNAVAILABLE",
-        message: uploadResult?.message || "Secure profile photo storage is unavailable."
-      });
-    }
-
-    client = await db.connect();
-    await client.query("BEGIN");
-    const insertResult = await client.query(
+    const insertResult = await db.query(
       `INSERT INTO riders (user_id, verification_status, vehicle_type, vehicle_registration, license_number_last4)
        VALUES ($1, 'PENDING', $2, $3, $4)
        RETURNING *`,
       [userId, vehicleType || null, vehicleRegistration || null, licenseLast4 || null]
     );
-    const rider = insertResult.rows[0];
-    await client.query(
-      `INSERT INTO rider_documents (rider_id, document_type, object_key, original_filename, content_type, verification_status)
-       VALUES ($1, 'PROFILE_PHOTO', $2, $3, $4, 'PENDING')`,
-      [rider.id, uploadedObjectKey, originalName || null, mimeType]
-    );
-    await client.query("COMMIT");
     return res.status(201).json({
       success: true,
       message: "Rider application submitted.",
-      data: safeRiderRow(rider)
+      data: safeRiderRow(insertResult.rows[0])
     });
   } catch (error) {
-    if (client) await client.query("ROLLBACK").catch(() => {});
-    if (uploadedObjectKey) {
-      const cleanupResult = await objectStorageService.deleteFile(uploadedObjectKey);
-      if (!cleanupResult?.success) {
-        console.warn("Unable to remove failed rider profile photo upload:", cleanupResult?.message || "Storage deletion failed.");
-      }
-    }
     if (error.code === "23505") {
       return res.status(409).json({ success: false, message: "A rider application already exists for this user.", data: null });
     }
     console.error("Rider application creation failed:", error.message);
     return res.status(500).json({ success: false, message: "Unable to create rider application.", data: null });
-  } finally {
-    client?.release();
   }
 }
 

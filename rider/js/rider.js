@@ -23,7 +23,6 @@ let riderOtpPhone = '';
 let riderOtpCountdownTimer = null;
 let riderOtpSecondsRemaining = 45;
 let riderSelectedVehicleType = 'BIKE';
-let riderProfilePhotoFile = null;
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
 const RIDER_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
@@ -71,7 +70,6 @@ function persistRiderAccessToken(token) {
 function clearRiderAuthState() {
   riderProfile = null;
   currentActiveRider = '';
-  riderProfilePhotoFile = null;
   riderIsAvailable = false;
   riderAuthMode = 'login';
   pendingRiderRegistration = null;
@@ -337,10 +335,6 @@ async function requestRiderRegistrationOtp() {
     setRiderAuthError('riderRegisterError', 'Enter your name, a valid mobile number, email, and a password of at least 6 characters.');
     return;
   }
-  if (!riderProfilePhotoFile) {
-    setRiderAuthError('riderRegisterError', 'Select a profile photo before creating your rider account.');
-    return;
-  }
   if (referral) {
     setRiderAuthError('riderRegisterError', 'Referral codes are not supported by the current account API. Clear this field to continue.');
     return;
@@ -410,37 +404,18 @@ async function submitRiderApplication(accessToken) {
   const vehicleType = pendingRiderRegistration?.vehicle_type
     || localStorage.getItem('rider_registration_pending')
     || riderSelectedVehicleType;
-  const formData = new FormData();
-  formData.append('vehicle_type', vehicleType);
-  if (riderProfilePhotoFile) formData.append('file', riderProfilePhotoFile);
   try {
-    const response = await fetch(`${RIDER_API_BASE_URL}/api/rider/applications`, {
+    await riderApiRequest('/api/rider/applications', {
       method: 'POST',
-      headers: buildRiderApiHeaders({ Accept: 'application/json' }, accessToken),
-      body: formData
+      body: JSON.stringify({ vehicle_type: vehicleType }),
+      authToken: accessToken
     });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      const error = new Error(payload?.message || `Request failed with status ${response.status}`);
-      error.status = response.status;
-      throw error;
-    }
   } catch (error) {
     if (error.status !== 409) throw error;
     await riderApiRequest('/api/rider/me', { authToken: accessToken });
   }
-  let profile = await hydrateRiderSession();
+  const profile = await hydrateRiderSession();
   if (!profile || profile.needsApplication) throw new Error('The rider application could not be confirmed.');
-  if (riderProfilePhotoFile && !profile.profile_photo_url) {
-    await uploadRiderProfilePhoto(riderProfilePhotoFile, accessToken);
-    profile = await hydrateRiderSession();
-  }
-  if (!profile?.profile_photo_url) {
-    throw new Error('A profile photo is required. Select your photo and retry your application.');
-  }
-  riderProfilePhotoFile = null;
-  const registrationPhotoInput = document.getElementById('riderRegistrationPhotoInput');
-  if (registrationPhotoInput) registrationPhotoInput.value = '';
   pendingRiderRegistration = null;
   await routeAuthenticatedRider(profile);
 }
@@ -468,32 +443,6 @@ function setRiderPhotoPreview(image, placeholder, photoUrl) {
     image.classList.add('hidden');
     placeholder.classList.remove('hidden');
   }
-}
-
-function selectRiderRegistrationPhoto(input) {
-  const file = input.files?.[0] || null;
-  const status = document.getElementById('riderRegistrationPhotoStatus');
-  const preview = document.getElementById('riderRegistrationPhotoPreview');
-  const validationMessage = validateRiderProfilePhoto(file);
-  riderProfilePhotoFile = validationMessage ? null : file;
-  if (status) {
-    status.textContent = validationMessage || file.name;
-    status.classList.toggle('is-error', Boolean(validationMessage));
-  }
-  if (preview) {
-    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
-    if (validationMessage) {
-      preview.removeAttribute('src');
-      delete preview.dataset.objectUrl;
-      preview.classList.add('hidden');
-    } else {
-      const objectUrl = URL.createObjectURL(file);
-      preview.dataset.objectUrl = objectUrl;
-      preview.src = objectUrl;
-      preview.classList.remove('hidden');
-    }
-  }
-  setRiderAuthError('riderRegisterError', validationMessage);
 }
 
 async function uploadRiderProfilePhoto(file, authToken = '') {

@@ -41,18 +41,7 @@ router.use(requireUserAuth);
 router.get("/notifications", listRiderNotifications);
 router.patch("/notifications/read-all", markAllRiderNotificationsRead);
 router.patch("/notifications/:notificationId/read", markRiderNotificationRead);
-router.post("/applications", (req, res, next) => {
-  upload.single("file")(req, res, (error) => {
-    if (error) {
-      const code = error.code === "LIMIT_FILE_SIZE" ? "UPLOAD_FILE_TOO_LARGE" : "UPLOAD_VALIDATION_ERROR";
-      const message = error.code === "LIMIT_FILE_SIZE"
-        ? "Profile photo must be 10 MB or smaller."
-        : "Invalid profile photo upload payload.";
-      return res.status(400).json({ success: false, code, message });
-    }
-    return next();
-  });
-}, createRiderApplication);
+router.post("/applications", createRiderApplication);
 router.get("/me", getRiderProfile);
 router.patch("/me", updateRiderProfile);
 router.get("/documents", listRiderDocuments);

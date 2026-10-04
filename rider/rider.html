@@ -77,9 +77,6 @@
 
     <section id="riderOtpScreen" class="rider-auth-screen" aria-labelledby="riderOtpHeading" hidden>
       <button type="button" class="rider-back-button" onclick="backFromRiderOtp()" aria-label="Go back"><i data-lucide="arrow-left"></i></button>
-      <div class="rider-auth-brand rider-auth-brand--compact">
-        <img src="assets/rider-brand.png" alt="MyShopzy Rider" class="rider-brand-image">
-      </div>
       <div class="rider-auth-copy rider-auth-copy--center">
         <h1 id="riderOtpHeading">Verify Your Number</h1>
         <p>Enter the 6-digit OTP for</p>
@@ -131,12 +128,6 @@
             <i data-lucide="lock-keyhole" aria-hidden="true"></i>
             <span class="rider-input-content"><small>Create Password</small><input id="riderPasswordInput" type="password" autocomplete="new-password" minlength="6" maxlength="128" placeholder="At least 6 characters" required></span>
           </label>
-          <div class="rider-register-photo-field">
-            <label for="riderRegistrationPhotoInput">Profile photo <span>Required</span></label>
-            <input id="riderRegistrationPhotoInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange="selectRiderRegistrationPhoto(this)" required aria-describedby="riderRegistrationPhotoStatus">
-            <img id="riderRegistrationPhotoPreview" class="hidden rider-register-photo-preview" alt="Selected profile photo preview">
-            <p id="riderRegistrationPhotoStatus" role="status">Choose a clear photo of yourself.</p>
-          </div>
         </div>
         <fieldset class="rider-vehicle-picker">
           <legend>Vehicle Type</legend>
@@ -151,7 +142,7 @@
           <input id="riderReferralInput" type="text" autocomplete="off" maxlength="64" placeholder="Referral code (optional)" aria-label="Referral code (optional)">
         </label>
         <p id="riderRegisterError" class="rider-form-error hidden" role="alert"></p>
-        <button type="submit" class="rider-primary-button">Create Account <i data-lucide="arrow-right" aria-hidden="true"></i></button>
+        <button type="submit" class="rider-primary-button">Sign Up <i data-lucide="arrow-right" aria-hidden="true"></i></button>
       </form>
       <button type="button" id="riderApplicationRetry" class="rider-primary-button hidden" onclick="retryRiderApplication()">Submit Rider Application <i data-lucide="arrow-right" aria-hidden="true"></i></button>
       <p class="rider-auth-switch">Already have an account? <button type="button" onclick="showRiderAuthScreen('login')">Login</button></p>
@@ -294,7 +285,7 @@
           <div id="riderAccountPhotoPlaceholder" class="rider-account-photo__placeholder"><i data-lucide="user-round" aria-hidden="true"></i></div>
           <label for="riderProfilePhotoInput" class="rider-account-photo__button">Change photo</label>
           <input id="riderProfilePhotoInput" class="hidden" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange="saveRiderProfilePhoto(this)" aria-label="Change rider profile photo">
-          <p id="riderProfilePhotoStatus" role="status">Profile photo is required.</p>
+          <p id="riderProfilePhotoStatus" role="status">Add a profile photo whenever you're ready.</p>
         </div>
         <div class="rider-account-details">
           <p><strong>Name:</strong> <span id="riderAccountName">Not registered</span></p>
