@@ -5,14 +5,9 @@ const categoryId = new URLSearchParams(window.location.search).get("categorySlug
   || new URLSearchParams(window.location.search).get("categoryId")
   || "";
 const requestedCategoryName = new URLSearchParams(window.location.search).get("categoryName") || "";
-const serviceHostName = window.location.hostname;
-const isPrivateServiceIpv4Host = /^(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\./.test(serviceHostName);
-const isLocalServiceHost = window.location.protocol === "file:"
-  || ["localhost", "127.0.0.1"].includes(serviceHostName)
-  || isPrivateServiceIpv4Host;
-const serviceApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (isLocalServiceHost
-  ? `http://${serviceHostName || "localhost"}:5000/api`
-  : `${window.location.origin}/api`);
+const serviceApiBaseUrl = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://localhost:5000"
+  : "";
 let serviceRestaurants = [];
 let serviceProducts = [];
 let restaurantCart = {};
@@ -94,7 +89,7 @@ function renderRestaurantAvailabilityBadge(restaurant) {
 }
 
 async function getServiceApiData(path) {
-  const response = await fetch(`${serviceApiBaseUrl}${path}`);
+  const response = await fetch(`${serviceApiBaseUrl}/api${path}`);
   const result = await response.json().catch(() => null);
   if (!response.ok || !result?.success) {
     throw new Error(result?.message || "The service is temporarily unavailable.");

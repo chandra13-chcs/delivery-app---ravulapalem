@@ -49,17 +49,13 @@ let customerAddressSyncPromise = null;
 
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
-const customerHostName = window.location.hostname;
-const isPrivateIpv4Host = /^(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\./.test(customerHostName);
-const customerApiBaseUrl = window.MYSHOPZY_API_BASE_URL || (
-  window.location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(customerHostName) || isPrivateIpv4Host
-    ? `http://${customerHostName || "localhost"}:5000/api`
-    : `${window.location.origin}/api`
-);
-const CUSTOMER_ORDER_API_BASE_URL = `${customerApiBaseUrl}/orders`;
-const CUSTOMER_ADDRESS_API_BASE_URL = `${customerApiBaseUrl}/addresses`;
-const CUSTOMER_AUTH_API_BASE_URL = `${customerApiBaseUrl}/auth`;
-const CUSTOMER_NOTIFICATIONS_API_BASE_URL = `${customerApiBaseUrl}/notifications`;
+const customerApiBaseUrl = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://localhost:5000"
+  : "";
+const CUSTOMER_ORDER_API_BASE_URL = `${customerApiBaseUrl}/api/orders`;
+const CUSTOMER_ADDRESS_API_BASE_URL = `${customerApiBaseUrl}/api/addresses`;
+const CUSTOMER_AUTH_API_BASE_URL = `${customerApiBaseUrl}/api/auth`;
+const CUSTOMER_NOTIFICATIONS_API_BASE_URL = `${customerApiBaseUrl}/api/notifications`;
 const legacyCustomerDb = globalThis.db || null;
 
 function getCustomerAccessToken() {
@@ -2632,7 +2628,7 @@ const categories = [
 let customerDatabaseCategories = null;
 
 async function fetchCustomerContent(path) {
-  const response = await fetch(`${customerApiBaseUrl}${path}`, { cache: 'no-store' });
+  const response = await fetch(`${customerApiBaseUrl}/api${path}`, { cache: 'no-store' });
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload?.success) throw new Error(payload?.message || `Content request failed (${response.status}).`);
   return payload;

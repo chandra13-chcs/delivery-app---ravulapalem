@@ -8,7 +8,7 @@ const USER_ACCESS_ONLY = new Set(["user_access"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function verifyAccessToken(req, allowedTokenUses = ACCESS_TOKEN_USES) {
-  const secret = process.env.ADMIN_JWT_SECRET;
+  const secret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
   if (typeof secret !== "string" || Buffer.byteLength(secret, "utf8") < 32) {
     return { error: { status: 503, message: "Authentication is unavailable." } };
   }

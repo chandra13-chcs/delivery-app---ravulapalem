@@ -24,7 +24,9 @@ let riderOtpSecondsRemaining = 45;
 let riderSelectedVehicleType = 'BIKE';
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
-const RIDER_API_BASE_URL = 'http://localhost:5000';
+const RIDER_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://localhost:5000'
+  : '';
 const RIDER_REQUIRED_DOCUMENT_TYPES = ['SELFIE', 'AADHAAR', 'PAN'];
 const RIDER_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 const RIDER_DOCUMENT_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);

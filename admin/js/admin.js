@@ -24,7 +24,9 @@ let pendingAdminOrderAlerts = [];
 let adminAlertSoundStopped = false;
 const ADMIN_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const ADMIN_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
-const ADMIN_RIDER_API_BASE_URL = 'http://localhost:5000';
+const ADMIN_RIDER_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://localhost:5000'
+  : '';
 ADMIN_ORDER_SOUND.loop = true;
 
 async function adminRiderApiRequest(path, options = {}) {
@@ -1909,7 +1911,9 @@ const adminCategoryDefaults = [
 let adminCategoryItems = [];
 let adminCategoryImages = {};
 
-const ADMIN_CATEGORY_API_BASE_URL = 'http://localhost:5000';
+const ADMIN_CATEGORY_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://localhost:5000'
+  : '';
 
 function getAdminAccessToken() {
   return sessionStorage.getItem('admin_access_token')

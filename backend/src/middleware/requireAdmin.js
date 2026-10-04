@@ -5,7 +5,7 @@ const JWT_ISSUER = "myshopzy-api";
 const JWT_AUDIENCE = "myshopzy-admin";
 
 function getSigningSecret() {
-  const secret = process.env.ADMIN_JWT_SECRET;
+  const secret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
   return typeof secret === "string" && Buffer.byteLength(secret, "utf8") >= 32
     ? secret
     : null;

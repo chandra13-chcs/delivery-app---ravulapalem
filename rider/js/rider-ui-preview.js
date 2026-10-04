@@ -1,4 +1,6 @@
-const PREVIEW_API_BASE_URL = 'http://localhost:5000';
+const PREVIEW_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://localhost:5000'
+  : '';
 const previewState = {
   online: false,
   activeScreen: 'home',

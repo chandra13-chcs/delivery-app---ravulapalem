@@ -37,12 +37,10 @@ const partnerState = {
   shopProfileSnapshot: null
 };
 
-const isLocalPartnerHost = window.location.protocol === "file:"
-  || ["localhost", "127.0.0.1"].includes(window.location.hostname);
-const PARTNER_API_ROOT = window.MYSHOPZY_API_BASE_URL || (isLocalPartnerHost
-  ? `http://${window.location.hostname || "localhost"}:5000/api`
-  : `${window.location.origin}/api`);
-const PARTNER_API_BASE_URL = `${PARTNER_API_ROOT}/partner`;
+const PARTNER_API_ROOT = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://localhost:5000"
+  : "";
+const PARTNER_API_BASE_URL = `${PARTNER_API_ROOT}/api/partner`;
 const partnerInviteParams = new URLSearchParams(window.location.hash.slice(1));
 const PARTNER_INVITED_PARTNER_ID = partnerInviteParams.get("partnerId") || "";
 const PARTNER_INVITE_TOKEN = partnerInviteParams.get("invite") || "";

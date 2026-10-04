@@ -13,7 +13,7 @@ function generateOtp() {
 }
 
 function getOtpHmacSecret() {
-  const secret = process.env.OTP_HMAC_SECRET || process.env.ADMIN_JWT_SECRET;
+  const secret = process.env.OTP_HMAC_SECRET || process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
   if (typeof secret !== "string" || Buffer.byteLength(secret, "utf8") < 32) {
     throw new Error("OTP verification is unavailable.");
   }

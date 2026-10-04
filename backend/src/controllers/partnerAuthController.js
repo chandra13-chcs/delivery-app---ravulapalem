@@ -26,7 +26,7 @@ const INVITE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 let dummyPasswordHashPromise = null;
 
 function getSigningSecret() {
-  const secret = process.env.ADMIN_JWT_SECRET;
+  const secret = process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
   return typeof secret === "string" && Buffer.byteLength(secret, "utf8") >= 32 ? secret : null;
 }
 
