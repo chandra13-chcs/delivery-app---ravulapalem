@@ -119,9 +119,9 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 }
 
 .myshopzy-header {
-  background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
-  border-bottom: 1px solid rgba(120, 53, 15, 0.2);
-  box-shadow: 0 8px 20px rgba(120, 53, 15, 0.14);
+  background: linear-gradient(135deg, #ffffff 0%, #fef9c3 52%, #dcfce7 100%);
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.08);
 }
 
 .myshopzy-header-inner { padding-top: 0.75rem; padding-bottom: 0.9rem; }
@@ -247,9 +247,9 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 
 @media (min-width: 1024px) {
   .myshopzy-header {
-    background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
-    border-bottom-color: rgba(120, 53, 15, 0.2);
-    box-shadow: 0 5px 16px rgba(120, 53, 15, 0.14);
+    background: linear-gradient(135deg, #ffffff 0%, #fef9c3 52%, #dcfce7 100%);
+    border-bottom-color: #e2e8f0;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, 0.08);
   }
 
   .myshopzy-header .myshopzy-header-inner {
@@ -317,9 +317,9 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 
 @media (max-width: 639px) {
   .myshopzy-header {
-    background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
-    border-bottom-color: rgba(120, 53, 15, 0.2);
-    box-shadow: 0 5px 16px rgba(120, 53, 15, 0.14);
+    background: linear-gradient(135deg, #ffffff 0%, #fef9c3 52%, #dcfce7 100%);
+    border-bottom-color: #e2e8f0;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, 0.08);
   }
 
   .myshopzy-header-inner {
