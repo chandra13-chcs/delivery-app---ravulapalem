@@ -119,40 +119,39 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 }
 
 .myshopzy-header {
-  background: linear-gradient(135deg, #0b132b 0%, #121f3d 58%, #0f766e 150%);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 10px 24px rgba(11, 19, 43, 0.16);
+  background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
+  border-bottom: 1px solid rgba(120, 53, 15, 0.2);
+  box-shadow: 0 8px 20px rgba(120, 53, 15, 0.14);
 }
 
-.myshopzy-header-inner { padding-top: 0.65rem; padding-bottom: 0.8rem; }
+.myshopzy-header-inner { padding-top: 0.75rem; padding-bottom: 0.9rem; }
 .myshopzy-header-top, .myshopzy-location-row, .myshopzy-header-actions, .myshopzy-brand, .myshopzy-location-picker { display: flex; align-items: center; }
 .myshopzy-header-top { justify-content: space-between; gap: 0.75rem; }
-.myshopzy-brand { gap: 0.45rem; flex: 0 0 auto; color: white; }
+.myshopzy-brand { gap: 0.45rem; flex: 0 0 auto; color: #0f172a; }
 .myshopzy-brand-mark { display: block; width: 2rem; height: 2rem; border-radius: 0.7rem; object-fit: cover; box-shadow: 0 4px 10px rgba(15, 118, 110, 0.2); }
 .myshopzy-brand-copy { line-height: 1; }
-.myshopzy-brand-name { display: block; font-size: 1rem; font-weight: 900; letter-spacing: -0.02em; }
+.myshopzy-brand-name { display: block; color: #052e16; font-size: 1.1rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; }
 .myshopzy-brand-name span { color: #fbbf24; }
-.myshopzy-brand-hub { display: block; margin-top: 0.22rem; color: #67e8f9; font-size: 0.5rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.myshopzy-mobile-eta { display: none; }
+.myshopzy-brand-hub { display: block; margin-top: 0.22rem; color: #713f12; font-size: 0.5rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .myshopzy-laptop-account { display: none; }
 .myshopzy-welcome { flex: 1; min-width: 0; padding-left: 0.25rem; }
-.myshopzy-welcome-label { display: block; color: #94a3b8; font-size: 0.55rem; font-weight: 700; }
-.myshopzy-welcome strong { display: block; margin-top: 0.16rem; overflow: hidden; color: #f8fafc; font-size: 0.84rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.myshopzy-welcome-label { display: block; color: #713f12; font-size: 0.55rem; font-weight: 700; }
+.myshopzy-welcome strong { display: block; margin-top: 0.16rem; overflow: hidden; color: #052e16; font-size: 0.9rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
 .myshopzy-header-actions { gap: 0.3rem; flex: 0 0 auto; }
 .myshopzy-icon-button, .myshopzy-search-control, .myshopzy-search-submit { display: grid; place-items: center; border: 0; cursor: pointer; }
 .myshopzy-icon-button { width: 2rem; height: 2rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 0.7rem; background: rgba(28, 37, 65, 0.85); color: #e2e8f0; }
 .myshopzy-icon-button svg, .myshopzy-location-picker > svg, .myshopzy-search-wrap svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .myshopzy-text-action { align-items: center; gap: 0.3rem; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 0.65rem; background: rgba(28, 37, 65, 0.85); padding: 0.43rem 0.52rem; color: #e2e8f0; font-size: 0.62rem; font-weight: 800; }
-.myshopzy-login-button { display: flex; align-items: center; gap: 0.25rem; border: 0; border-radius: 0.65rem; background: #fbbf24; padding: 0.48rem 0.58rem; color: #0f172a; font-size: 0.62rem; font-weight: 900; }
+.myshopzy-login-button { display: flex; align-items: center; gap: 0.25rem; border: 0; border-radius: 0.65rem; background: #0b132b; padding: 0.48rem 0.58rem; color: #fff; font-size: 0.62rem; font-weight: 900; }
 .myshopzy-user-chip { align-items: center; gap: 0.25rem; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 0.65rem; background: rgba(28, 37, 65, 0.85); padding: 0.35rem 0.45rem; color: white; font-size: 0.62rem; font-weight: 800; }
 .myshopzy-user-chip button { border: 0; background: transparent; color: #94a3b8; cursor: pointer; }
 .myshopzy-location-row { gap: 0.55rem; margin-top: 0.7rem; }
 .myshopzy-location-picker { gap: 0.42rem; min-width: 7.35rem; cursor: pointer; }
-.myshopzy-location-picker > svg:first-child { flex: 0 0 auto; color: #fbbf24; }
+.myshopzy-location-picker > svg:first-child { flex: 0 0 auto; color: #92400e; }
 .myshopzy-location-picker span { display: flex; min-width: 0; flex-direction: column; }
-.myshopzy-location-picker small { color: #94a3b8; font-size: 0.52rem; font-weight: 700; }
-.myshopzy-location-picker strong { max-width: 7rem; overflow: hidden; color: #f8fafc; font-size: 0.72rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.myshopzy-location-picker .myshopzy-chevron { width: 0.75rem; color: #94a3b8; }
+.myshopzy-location-picker small { color: #713f12; font-size: 0.52rem; font-weight: 700; }
+.myshopzy-location-picker strong { max-width: 7rem; overflow: hidden; color: #052e16; font-size: 0.8rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.myshopzy-location-picker .myshopzy-chevron { width: 0.75rem; color: #713f12; }
 .myshopzy-search-wrap { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
 .myshopzy-search-wrap input { width: 100%; min-width: 0; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 0.8rem; background: #f8fafc; padding: 0.65rem 4.9rem 0.65rem 2.15rem; color: #0f172a; font-size: 0.68rem; outline: 0; }
 .myshopzy-search-wrap input::placeholder { color: #64748b; }
@@ -177,7 +176,7 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .service-promo-slide > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 20% center; }
 .service-promo-slide--groceries > img { object-position: center 40%; }
 .service-promo-slide--food > img, .service-promo-slide--parcel > img { object-fit: contain; object-position: center; }
-.category-promo-slide { background: #fff; }
+.category-promo-slide { aspect-ratio: 2.4 / 1; background: #fff; }
 .category-promo-slide > img { object-fit: contain; object-position: center; }
 .service-promo-indicators { position: absolute; z-index: 2; right: 0.7rem; bottom: 0.55rem; display: flex; gap: 0.35rem; }
 .service-promo-indicators button { width: 0.45rem; height: 0.45rem; border: 1px solid #fff; border-radius: 999px; background: rgba(255, 255, 255, 0.65); padding: 0; }
@@ -188,7 +187,10 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .service-promo-slide:focus-visible, .service-promo-indicators button:focus-visible, .service-promo-arrow:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
 @media (max-width: 640px) {
   .service-promo-slide { aspect-ratio: 2 / 1; }
-  .category-promo-slide { aspect-ratio: 2.7 / 1; }
+  .category-promo-slide { aspect-ratio: 2.4 / 1; }
+  .service-promo-arrow { width: 2.75rem; height: 2.75rem; font-size: 1.6rem; }
+  .service-promo-arrow--previous { left: 0.4rem; }
+  .service-promo-arrow--next { right: 0.4rem; }
 }
 .category-product-card {
   border: 1px solid #e2e8f0;
@@ -245,9 +247,9 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 
 @media (min-width: 1024px) {
   .myshopzy-header {
-    background: #0d3b54;
-    border-bottom-color: rgba(203, 213, 225, 0.18);
-    box-shadow: 0 5px 16px rgba(11, 19, 43, 0.14);
+    background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
+    border-bottom-color: rgba(120, 53, 15, 0.2);
+    box-shadow: 0 5px 16px rgba(120, 53, 15, 0.14);
   }
 
   .myshopzy-header .myshopzy-header-inner {
@@ -255,8 +257,8 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
     grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 0.55rem 0.65rem;
     align-items: center;
-    padding-top: 0.65rem;
-    padding-bottom: 0.7rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.8rem;
   }
 
   .myshopzy-header-top,
@@ -264,17 +266,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
   .myshopzy-brand { grid-column: 1; grid-row: 1; gap: 0.45rem; }
   .myshopzy-brand-mark { display: block; }
   .myshopzy-brand-hub { display: none; }
-  .myshopzy-brand-name { font-size: 0.82rem; }
-  .myshopzy-mobile-eta {
-    display: block;
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-    color: #fbbf24;
-    font-size: 1.15rem;
-    font-weight: 900;
-    white-space: nowrap;
-  }
+  .myshopzy-brand-name { font-size: 1.1rem; }
   .myshopzy-laptop-account {
     display: grid;
     grid-column: 3;
@@ -317,7 +309,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 }
 
 @media (min-width: 640px) {
-  .myshopzy-header-inner { padding-top: 0.8rem; padding-bottom: 0.9rem; }
+  .myshopzy-header-inner { padding-top: 0.9rem; padding-bottom: 1rem; }
   .myshopzy-brand-name { font-size: 1.15rem; }
   .myshopzy-welcome strong { font-size: 0.95rem; }
   .myshopzy-location-row { max-width: 42rem; }
@@ -325,9 +317,9 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 
 @media (max-width: 639px) {
   .myshopzy-header {
-    background: #0d3b54;
-    border-bottom-color: rgba(203, 213, 225, 0.18);
-    box-shadow: 0 5px 16px rgba(11, 19, 43, 0.14);
+    background: linear-gradient(135deg, #fde68a 0%, #a3e635 58%, #22c55e 100%);
+    border-bottom-color: rgba(120, 53, 15, 0.2);
+    box-shadow: 0 5px 16px rgba(120, 53, 15, 0.14);
   }
 
   .myshopzy-header-inner {
@@ -335,8 +327,8 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
     grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 0.55rem 0.65rem;
     align-items: center;
-    padding-top: 0.65rem;
-    padding-bottom: 0.7rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.8rem;
   }
 
   .myshopzy-header-top,
@@ -355,20 +347,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
     display: none;
   }
 
-  .myshopzy-brand-name {
-    font-size: 0.82rem;
-  }
-
-  .myshopzy-mobile-eta {
-    display: block;
-    grid-column: 2 / 4;
-    grid-row: 1;
-    justify-self: end;
-    color: #fbbf24;
-    font-size: 1.15rem;
-    font-weight: 900;
-    white-space: nowrap;
-  }
+  .myshopzy-brand-name { font-size: 1.1rem; }
 
   .myshopzy-welcome {
     grid-column: 1;
@@ -383,7 +362,7 @@ html[data-service-type="restaurant"][data-selected-shop="true"] #restaurantMenuV
 
   .myshopzy-welcome strong {
     margin-top: 0;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
   }
 
   .myshopzy-header-actions {

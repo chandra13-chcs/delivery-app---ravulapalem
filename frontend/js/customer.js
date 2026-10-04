@@ -2897,6 +2897,8 @@ let customerServicePromoIndex = 0;
 let customerServicePromoTimer = null;
 let customerCategoryPromoIndex = 0;
 let customerCategoryPromoTimer = null;
+let customerFreshCategoryPromoIndex = 0;
+let customerFreshCategoryPromoTimer = null;
 
 function selectCustomerServicePromo(index) {
   const track = document.getElementById("servicePromoTrack");
@@ -2990,6 +2992,54 @@ function startCustomerCategoryPromoCarousel() {
   if (!customerCategoryPromoTimer) {
     customerCategoryPromoTimer = setInterval(() => {
       selectCustomerCategoryPromo(customerCategoryPromoIndex + 1);
+    }, 5200);
+  }
+}
+
+function selectCustomerFreshCategoryPromo(index) {
+  const track = document.getElementById("freshCategoryPromoTrack");
+  const indicators = document.getElementById("freshCategoryPromoIndicators");
+  if (!track) return;
+  const slides = [...track.children];
+  if (!slides.length) return;
+  customerFreshCategoryPromoIndex = (index + slides.length) % slides.length;
+  track.style.transform = `translateX(-${customerFreshCategoryPromoIndex * 100}%)`;
+  slides.forEach((slide, slideIndex) => {
+    slide.inert = slideIndex !== customerFreshCategoryPromoIndex;
+    slide.setAttribute("aria-hidden", String(slideIndex !== customerFreshCategoryPromoIndex));
+  });
+  indicators?.querySelectorAll("button").forEach((button, buttonIndex) => {
+    button.setAttribute("aria-current", String(buttonIndex === customerFreshCategoryPromoIndex));
+  });
+}
+
+function startCustomerFreshCategoryPromoCarousel() {
+  const carousel = document.getElementById("freshCategoryPromoCarousel");
+  const track = document.getElementById("freshCategoryPromoTrack");
+  const indicators = document.getElementById("freshCategoryPromoIndicators");
+  if (!carousel || !track || !indicators) return;
+  indicators.innerHTML = [...track.children].map((slide, index) =>
+    `<button type="button" onclick="selectCustomerFreshCategoryPromo(${index})" aria-label="Show fresh category banner ${index + 1}" aria-current="false"></button>`
+  ).join("");
+  selectCustomerFreshCategoryPromo(0);
+  if (carousel.dataset.swipeReady !== "true") {
+    carousel.dataset.swipeReady = "true";
+    let touchStartX = null;
+    carousel.addEventListener("touchstart", event => {
+      touchStartX = event.changedTouches[0]?.clientX ?? null;
+    }, { passive: true });
+    carousel.addEventListener("touchend", event => {
+      if (touchStartX === null) return;
+      const swipeDistance = event.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(swipeDistance) > 40) {
+        selectCustomerFreshCategoryPromo(customerFreshCategoryPromoIndex + (swipeDistance < 0 ? 1 : -1));
+      }
+      touchStartX = null;
+    }, { passive: true });
+  }
+  if (!customerFreshCategoryPromoTimer) {
+    customerFreshCategoryPromoTimer = setInterval(() => {
+      selectCustomerFreshCategoryPromo(customerFreshCategoryPromoIndex + 1);
     }, 5200);
   }
 }
@@ -6530,6 +6580,7 @@ document.addEventListener(
     renderCustomerCategoryPreviews();
     startCustomerServicePromoCarousel();
     startCustomerCategoryPromoCarousel();
+    startCustomerFreshCategoryPromoCarousel();
     setupCustomerOtpInputs();
     updateCustomerPhoneValidation();
 

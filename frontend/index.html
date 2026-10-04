@@ -71,12 +71,11 @@
         <a href="index.html" class="myshopzy-brand" aria-label="MyShopzy home">
           <img class="myshopzy-brand-mark" src="../assets/audio/categories/logo.png" alt="MyShopzy logo">
           <span class="myshopzy-brand-copy">
-            <span class="myshopzy-brand-name">MyShopzy</span>
+            <span class="myshopzy-brand-name">30 Min Delivery</span>
             <span class="myshopzy-brand-hub">Mandapeta Hub</span>
           </span>
         </a>
 
-        <span class="myshopzy-mobile-eta">30 min</span>
         <button type="button" class="myshopzy-laptop-account" onclick="openCustomerAccountAccess()" aria-label="Login, register or open account" title="Login or register">👤</button>
 
         <div class="myshopzy-welcome">
@@ -197,6 +196,23 @@
 
   <!-- CLIENT SERVICE DIRECTORY -->
   <section id="serviceDirectory" class="max-w-7xl mx-auto px-3 sm:px-6 pt-6">
+    <div id="categoryPromoCarousel" class="service-promo-carousel category-promo-carousel mb-4" role="region" aria-label="Explore MyShopzy services" aria-roledescription="carousel">
+      <div id="categoryPromoTrack" class="service-promo-track">
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('groceries', this)" aria-label="Shop groceries">
+          <img src="../assets/grocery%20new%20banner.png" alt="Groceries banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('food-delivery', this)" aria-label="Explore restaurants">
+          <img src="../assets/rest%20new%20banner.png" alt="Restaurants banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('parcel-delivery', this)" aria-label="Send a parcel">
+          <img src="../assets/parcel%20new%20banner.png" alt="Parcel delivery banner" loading="lazy">
+        </button>
+      </div>
+      <button type="button" class="service-promo-arrow service-promo-arrow--previous" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex - 1)" aria-label="Previous category banner">‹</button>
+      <button type="button" class="service-promo-arrow service-promo-arrow--next" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex + 1)" aria-label="Next category banner">›</button>
+      <div id="categoryPromoIndicators" class="service-promo-indicators" aria-label="Service banner slides"></div>
+    </div>
+
     <div class="myshopzy-service-grid">
       <button type="button" onclick="openServiceCategory('groceries', this)" class="myshopzy-service-card">
         <img src="../assets/audio/categories/groceries.jpg" alt="Fresh Groceries" loading="eager">
@@ -218,21 +234,21 @@
       </button>
     </div>
 
-    <div id="categoryPromoCarousel" class="service-promo-carousel category-promo-carousel mt-4" role="region" aria-label="Shop fresh categories" aria-roledescription="carousel">
-      <div id="categoryPromoTrack" class="service-promo-track">
-        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('meat-chicken', this)" aria-label="Shop fresh meat and chicken">
-          <img src="../assets/meat%20%20%20aa.jpeg" alt="Fresh meat and chicken banner" loading="lazy">
-        </button>
-        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('fruits-vegetables', this)" aria-label="Shop fresh fruits and vegetables">
-          <img src="../assets/veges.jpeg" alt="Fresh fruits and vegetables banner" loading="lazy">
-        </button>
+    <div id="freshCategoryPromoCarousel" class="service-promo-carousel category-promo-carousel mt-4" role="region" aria-label="Fresh category banners" aria-roledescription="carousel">
+      <div id="freshCategoryPromoTrack" class="service-promo-track">
         <button type="button" class="service-promo-slide category-promo-slide" onclick="openCategoryPage('bakery', 'Bakery & Biscuits', this)" aria-label="Shop bakery and biscuits">
-          <img src="../assets/bakery.jpeg" alt="Freshly baked bakery banner" loading="lazy">
+          <img src="../assets/bakery%20banner%20new.png" alt="Bakery banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('meat-chicken', this)" aria-label="Shop meat and chicken">
+          <img src="../assets/meat%20ban%20new.png" alt="Meat banner" loading="lazy">
+        </button>
+        <button type="button" class="service-promo-slide category-promo-slide" onclick="openServiceCategory('fruits-vegetables', this)" aria-label="Shop vegetables">
+          <img src="../assets/vegetables%20new%20banner.png" alt="Vegetables banner" loading="lazy">
         </button>
       </div>
-      <button type="button" class="service-promo-arrow service-promo-arrow--previous" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex - 1)" aria-label="Previous category banner">‹</button>
-      <button type="button" class="service-promo-arrow service-promo-arrow--next" onclick="selectCustomerCategoryPromo(customerCategoryPromoIndex + 1)" aria-label="Next category banner">›</button>
-      <div id="categoryPromoIndicators" class="service-promo-indicators" aria-label="Category banner slides"></div>
+      <button type="button" class="service-promo-arrow service-promo-arrow--previous" onclick="selectCustomerFreshCategoryPromo(customerFreshCategoryPromoIndex - 1)" aria-label="Previous fresh category banner">‹</button>
+      <button type="button" class="service-promo-arrow service-promo-arrow--next" onclick="selectCustomerFreshCategoryPromo(customerFreshCategoryPromoIndex + 1)" aria-label="Next fresh category banner">›</button>
+      <div id="freshCategoryPromoIndicators" class="service-promo-indicators" aria-label="Fresh category banner slides"></div>
     </div>
 
     <div id="serviceRestaurantPanel" class="hidden mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
