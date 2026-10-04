@@ -10,6 +10,15 @@ const GEOJSON_RING_POSITION_LIMIT = 512;
 const GEOJSON_TOTAL_POSITION_LIMIT = 2048;
 const GEOJSON_DEPTH_LIMIT = 8;
 const EDGE_EPSILON = 1e-10;
+const DEFAULT_MANDAPETA_SERVICE_AREA = Object.freeze({
+  id: null,
+  name: "Mandapeta",
+  coverage_type: "RADIUS",
+  postal_codes: ["533308"],
+  center_latitude: 16.8675417,
+  center_longitude: 81.9272951,
+  radius_km: 25
+});
 
 function locationError(status, message) {
   const error = new Error(message);
@@ -270,7 +279,13 @@ async function evaluateDeliveryServiceability(input = {}, queryable = db) {
      WHERE is_active = true
      ORDER BY created_at ASC, id ASC`
   );
-  const areas = areasResult.rows;
+  let areas = areasResult.rows;
+  if (!areas.length) {
+    const configuredAreas = await queryable.query(
+      "SELECT EXISTS (SELECT 1 FROM serviceable_areas) AS has_configured_areas"
+    );
+    if (!configuredAreas.rows[0]?.has_configured_areas) areas = [DEFAULT_MANDAPETA_SERVICE_AREA];
+  }
   let closestRadiusDistanceKm = null;
   let matched = null;
   let matchedDistanceKm = null;
@@ -298,6 +313,13 @@ async function evaluateDeliveryServiceability(input = {}, queryable = db) {
         distanceSource = "RADIUS_CENTER";
         break;
       }
+    } else if (area.coverage_type === "RADIUS"
+        && postalCode
+        && Array.isArray(area.postal_codes)
+        && area.postal_codes.includes(postalCode)) {
+      matched = area;
+      distanceSource = "POSTAL_CODE";
+      break;
     } else if (area.coverage_type === "GEOJSON"
         && coordinates.latitude !== null && coordinates.longitude !== null
         && pointInGeoJSON(coordinates.latitude, coordinates.longitude, area.boundary_geojson)) {

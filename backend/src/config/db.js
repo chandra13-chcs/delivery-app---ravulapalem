@@ -1,19 +1,22 @@
 const path = require("path");
-const { Pool } = require("pg");
 require("dotenv").config({ path: path.resolve(__dirname, "..", "..", ".env") });
+const { Pool } = require("pg");
 
-const databaseUrl = process.env.DATABASE_URL;
-const databaseHost = databaseUrl ? new URL(databaseUrl).hostname.replace(/^\[|\]$/g, "") : "";
-const poolConfig = {
-  connectionString: databaseUrl,
-  max: 3,
-};
-
-if (databaseUrl && !["localhost", "127.0.0.1", "::1"].includes(databaseHost)) {
-  poolConfig.ssl = { rejectUnauthorized: false };
+const requiredDatabaseSettings = ["DB_USER", "DB_HOST", "DB_NAME", "DB_PASSWORD", "DB_PORT"];
+for (const setting of requiredDatabaseSettings) {
+  if (typeof process.env[setting] !== "string" || process.env[setting].length === 0) {
+    throw new Error(`Missing required database configuration: ${setting}`);
+  }
 }
 
-const pool = new Pool(poolConfig);
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: Number(process.env.DB_PORT),
+  max: 3,
+});
 
 pool.connect()
   .then((client) => {
