@@ -5376,7 +5376,6 @@ function openLoginModal() {
 function closeLoginModal() {
   document.getElementById("customerLoginModal")?.classList.add("hidden");
   document.body.classList.remove("customer-auth-active");
-  setCustomerDevelopmentOtp(null);
   clearInterval(customerOtpCountdownTimer);
   customerOtpCountdownTimer = null;
   pendingCustomerPhone = "";
@@ -5446,16 +5445,6 @@ function toggleCustomerPasswordVisibility() {
 function setCustomerAuthError(elementId, message) {
   const error = document.getElementById(elementId);
   if (error) error.textContent = message || "";
-}
-
-function setCustomerDevelopmentOtp(response) {
-  const container = document.getElementById("customerDevelopmentOtp");
-  const code = typeof response?.development_otp === "string" && /^\d{6}$/.test(response.development_otp)
-    ? response.development_otp
-    : "";
-  if (!container) return;
-  container.textContent = code ? `Development OTP: ${code}` : "";
-  container.classList.toggle("hidden", !code);
 }
 
 function customerAuthErrorMessage(error, fallback) {
@@ -5583,7 +5572,6 @@ function backToCustomerLogin() {
   clearInterval(customerOtpCountdownTimer);
   customerOtpCountdownTimer = null;
   setCustomerAuthError("customerOtpError", "");
-  setCustomerDevelopmentOtp(null);
   if (customerAuthState === "OTP_SIGNUP") {
     setCustomerAuthState("SIGNUP");
     document.getElementById("signupMobileInput").value = pendingCustomerPhone.slice(-10);
@@ -5673,10 +5661,9 @@ async function requestCustomerOtp(phoneValue, purpose, registration = null) {
   }
   setCustomerAuthError(errorId, "");
   try {
-    const result = await customerAuthApiRequest(requestPath, { method: "POST", body: JSON.stringify(requestBody) });
+    await customerAuthApiRequest(requestPath, { method: "POST", body: JSON.stringify(requestBody) });
     if (purpose === "REGISTER") pendingCustomerProfile = { ...registration, location: "" };
     setCustomerAuthState(purpose === "REGISTER" ? "OTP_SIGNUP" : "OTP_LOGIN");
-    setCustomerDevelopmentOtp(result);
     document.getElementById("customerOtpPhone").textContent = `+91 ${"•".repeat(6)}${phone.slice(-4)}`;
     setCustomerAuthError("customerOtpError", "");
     clearCustomerOtpFields();
@@ -5746,8 +5733,7 @@ async function resendCustomerLoginOtp() {
         password: pendingCustomerProfile?.password
       };
     }
-    const result = await customerAuthApiRequest(path, { method: "POST", body: JSON.stringify(body) });
-    setCustomerDevelopmentOtp(result);
+    await customerAuthApiRequest(path, { method: "POST", body: JSON.stringify(body) });
     clearCustomerOtpFields();
     startCustomerOtpCountdown();
   } catch (error) {

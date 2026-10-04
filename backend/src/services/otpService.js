@@ -7,8 +7,10 @@ const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_REQUEST_WINDOW_MS = 15 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
+let testModeActiveLogged = false;
 
 function generateOtp() {
+  if (isOtpTestModeEnabled()) return getTestOtpCode();
   return crypto.randomInt(0, 10 ** OTP_LENGTH).toString().padStart(OTP_LENGTH, "0");
 }
 
@@ -33,24 +35,47 @@ function matchesOtp(storedDigest, destination, purpose, code) {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
-function isDevelopmentOtpExposureEnabled() {
-  return process.env.NODE_ENV === "development" && process.env.DEV_OTP_EXPOSE === "true";
+function isOtpTestModeEnabled() {
+  return process.env.OTP_TEST_MODE === "true";
+}
+
+function getTestOtpCode() {
+  const code = process.env.OTP_TEST_CODE || "123456";
+  if (!/^\d{6}$/.test(code)) {
+    const error = new Error("OTP test code configuration is invalid.");
+    error.code = "OTP_TEST_CONFIGURATION_INVALID";
+    throw error;
+  }
+  return code;
 }
 
 function assertOtpDeliveryAvailable() {
-  if (isDevelopmentOtpExposureEnabled()) return;
+  if (isOtpTestModeEnabled()) {
+    getTestOtpCode();
+    return;
+  }
   const error = new Error("OTP delivery is not configured.");
   error.code = "OTP_DELIVERY_UNAVAILABLE";
   throw error;
 }
 
-async function sendOtp({ destination, purpose, code }) {
+async function sendOtp() {
   assertOtpDeliveryAvailable();
+
+  if (isOtpTestModeEnabled()) {
+    if (!testModeActiveLogged) {
+      console.log("OTP test mode is active.");
+      testModeActiveLogged = true;
+    }
+    return {
+      channel: "SMS",
+      delivered: true
+    };
+  }
 
   return {
     channel: "SMS",
-    delivered: false,
-    development_otp: code
+    delivered: false
   };
 }
 
@@ -64,5 +89,5 @@ module.exports = {
   matchesOtp,
   assertOtpDeliveryAvailable,
   sendOtp,
-  isDevelopmentOtpExposureEnabled
+  isOtpTestModeEnabled
 };

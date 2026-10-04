@@ -74,7 +74,6 @@ body.customer-auth-active > :not(#customerLoginModal):not(script) { display: non
 .customer-otp-logo { width: 86px; height: 86px; }
 .customer-otp-message { margin: 28px 0 6px; color: #174937; font-size: 15px; }
 .customer-otp-phone { margin: 0; color: #075b38; font-size: 17px; font-weight: 800; }
-.customer-development-otp { margin: 10px 0 0; border: 1px solid #b7dfc8; border-radius: 8px; background: #effaf3; padding: 7px 12px; color: #075b38; font-size: 13px; font-weight: 800; }
 .customer-otp-fields { display: grid; width: min(100%, 420px); grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(8px, 3vw, 14px); margin: clamp(46px, 8vh, 70px) 0 0; }
 .customer-otp-input { width: 100%; min-width: 0; aspect-ratio: 0.91; border: 1.5px solid #d1d9dd; border-radius: 12px; background: #fff; color: #075b38; font: inherit; font-size: 22px; font-weight: 700; text-align: center; }
 .customer-otp-input:focus { border-color: #075b38; outline: 2px solid rgba(7, 91, 56, 0.12); outline-offset: 1px; }

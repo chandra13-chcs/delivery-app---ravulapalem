@@ -14,8 +14,7 @@ const {
   hashOtp,
   matchesOtp,
   assertOtpDeliveryAvailable,
-  sendOtp,
-  isDevelopmentOtpExposureEnabled
+  sendOtp
 } = require("../services/otpService");
 
 const JWT_ISSUER = "myshopzy-api";
@@ -156,8 +155,7 @@ async function requestPartnerInviteOtp(req, res) {
     res.set("Cache-Control", "no-store");
     return res.status(202).json({
       success: true,
-      message: "If this invitation is valid, a verification code will be sent.",
-      ...(isDevelopmentOtpExposureEnabled() ? { development_otp: delivery.development_otp } : {})
+      message: "If this invitation is valid, a verification code has been requested."
     });
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});

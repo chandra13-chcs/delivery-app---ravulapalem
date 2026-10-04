@@ -253,16 +253,6 @@ function setRiderAuthError(elementId, message) {
   element.classList.toggle('hidden', !message);
 }
 
-function setRiderDevelopmentOtp(payload) {
-  const element = document.getElementById('riderDevelopmentOtp');
-  if (!element) return;
-  const code = typeof payload?.development_otp === 'string' && /^\d{6}$/.test(payload.development_otp)
-    ? payload.development_otp
-    : '';
-  element.textContent = code ? `Development OTP: ${code}` : '';
-  element.classList.toggle('hidden', !code);
-}
-
 function startRiderOtpCountdown() {
   window.clearInterval(riderOtpCountdownTimer);
   riderOtpSecondsRemaining = 45;
@@ -303,17 +293,15 @@ function clearRiderOtpInputs() {
 async function requestRiderLoginOtp() {
   const phone = normalizeRiderPhone(document.getElementById('riderLoginIdentityInput')?.value);
   setRiderAuthError('riderLoginError', '');
-  setRiderDevelopmentOtp(null);
   if (!phone) {
     setRiderAuthError('riderLoginError', 'Enter a valid 10-digit mobile number.');
     return;
   }
   try {
-    const result = await riderApiRequest('/api/auth/otp/request', {
+    await riderApiRequest('/api/auth/otp/request', {
       method: 'POST',
       body: JSON.stringify({ phone_e164: phone })
     });
-    setRiderDevelopmentOtp(result);
     riderOtpPurpose = 'LOGIN';
     riderOtpPhone = phone;
     document.getElementById('riderOtpPhone').textContent = maskRiderPhone(phone);
@@ -340,8 +328,6 @@ async function requestRiderRegistrationOtp() {
     setRiderAuthError('riderRegisterError', 'Referral codes are not supported by the current account API. Clear this field to continue.');
     return;
   }
-  setRiderDevelopmentOtp(null);
-
   const registration = {
     name,
     phone,
@@ -350,7 +336,7 @@ async function requestRiderRegistrationOtp() {
     vehicle_type: riderSelectedVehicleType
   };
   try {
-    const result = await riderApiRequest('/api/auth/register', {
+    await riderApiRequest('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         display_name: registration.name,
@@ -359,7 +345,6 @@ async function requestRiderRegistrationOtp() {
         password: registration.password
       })
     });
-    setRiderDevelopmentOtp(result);
     pendingRiderRegistration = registration;
     riderOtpPurpose = 'REGISTER';
     riderOtpPhone = phone;
@@ -373,12 +358,10 @@ async function requestRiderRegistrationOtp() {
 }
 
 async function resendRiderOtp() {
-  setRiderDevelopmentOtp(null);
   try {
-    let result;
     if (riderOtpPurpose === 'REGISTER') {
       if (!pendingRiderRegistration?.password) throw new Error('Please return to account creation and request a new code.');
-      result = await riderApiRequest('/api/auth/register', {
+      await riderApiRequest('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify({
           display_name: pendingRiderRegistration.name,
@@ -388,12 +371,11 @@ async function resendRiderOtp() {
         })
       });
     } else {
-      result = await riderApiRequest('/api/auth/otp/request', {
+      await riderApiRequest('/api/auth/otp/request', {
         method: 'POST',
         body: JSON.stringify({ phone_e164: riderOtpPhone })
       });
     }
-    setRiderDevelopmentOtp(result);
     clearRiderOtpInputs();
     startRiderOtpCountdown();
   } catch (error) {
@@ -404,7 +386,6 @@ async function resendRiderOtp() {
 function backFromRiderOtp() {
   window.clearInterval(riderOtpCountdownTimer);
   riderOtpCountdownTimer = null;
-  setRiderDevelopmentOtp(null);
   showRiderAuthScreen(riderOtpPurpose === 'REGISTER' ? 'register' : 'login');
 }
 
@@ -639,7 +620,6 @@ async function verifyRiderOtp() {
       body: JSON.stringify({ phone_e164: riderOtpPhone, purpose: riderOtpPurpose, otp: code })
     });
     if (!authResult?.access_token) throw new Error('Authentication response did not include an access token.');
-    setRiderDevelopmentOtp(null);
     window.clearInterval(riderOtpCountdownTimer);
     riderOtpCountdownTimer = null;
 

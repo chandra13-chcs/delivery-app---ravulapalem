@@ -3,3 +3,4 @@ delivery_app_test_backup.sql
 .env.*
 backend/.env
 backend/.env.*
+!backend/.env.example

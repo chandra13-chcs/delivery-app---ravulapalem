@@ -103,19 +103,14 @@ async function requestPartnerLoginCode(event) {
   }
   const phone = document.getElementById("partnerLoginPhone").value.trim();
   try {
-    const result = await partnerAuthRequest("/invites/otp/request", {
+    await partnerAuthRequest("/invites/otp/request", {
       method: "POST",
       body: JSON.stringify({ phone_e164: phone, invite_token: PARTNER_INVITE_TOKEN })
     });
     document.getElementById("partnerOtpField").hidden = false;
     document.getElementById("partnerRequestOtpButton").hidden = true;
     document.getElementById("partnerVerifyOtpButton").hidden = false;
-    if (result.development_otp) {
-      document.getElementById("partnerLoginOtp").value = result.development_otp;
-      showPartnerAuthMessage("Development verification code filled in. Keep this invitation private.");
-    } else {
-      showPartnerAuthMessage("If the account is eligible, a verification code will be sent.");
-    }
+    showPartnerAuthMessage("If the invitation is valid, a verification code has been requested.");
   } catch (error) {
     showPartnerAuthMessage(error.message, true);
   }

@@ -13,8 +13,7 @@ const {
   hashOtp,
   matchesOtp,
   assertOtpDeliveryAvailable,
-  sendOtp,
-  isDevelopmentOtpExposureEnabled
+  sendOtp
 } = require("../services/otpService");
 
 const JWT_ISSUER = "myshopzy-api";
@@ -100,12 +99,6 @@ async function createOtpChallenge(queryable, { userId, destination, purpose, req
   return code;
 }
 
-function developmentOtpResponse(delivery) {
-  return isDevelopmentOtpExposureEnabled()
-    ? { development_otp: delivery.development_otp }
-    : {};
-}
-
 async function registerCustomer(req, res) {
   const registration = validateRegistration(req.body);
   if (!registration) {
@@ -183,8 +176,7 @@ async function registerCustomer(req, res) {
     return res.status(202).json({
       success: true,
       message: "Verification code requested.",
-      ...(delivery.channel ? { channel: delivery.channel } : {}),
-      ...developmentOtpResponse(delivery)
+      ...(delivery.channel ? { channel: delivery.channel } : {})
     });
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});
@@ -240,9 +232,8 @@ async function requestLoginOtp(req, res) {
     res.set("Cache-Control", "no-store");
     return res.status(202).json({
       success: true,
-      message: "If the account is eligible, a verification code will be sent.",
-      ...(delivery.channel ? { channel: delivery.channel } : {}),
-      ...developmentOtpResponse(delivery)
+      message: "If the account is eligible, a verification code has been requested.",
+      ...(delivery.channel ? { channel: delivery.channel } : {})
     });
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});
