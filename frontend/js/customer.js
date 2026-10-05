@@ -49,9 +49,27 @@ let customerAddressSyncPromise = null;
 
 const CUSTOMER_ORDER_PLACED_SOUND = new Audio("../assets/audio/order-placed-user.mpeg");
 const CUSTOMER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
-const customerApiBaseUrl = ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ? "http://localhost:5000"
-  : "";
+
+function resolveCustomerApiBaseUrl() {
+  const config = typeof window !== 'undefined' ? (
+    window.__APP_CONFIG__
+    || window.__MYSHOPZY_CONFIG__
+    || window.CUSTOMER_APP_CONFIG
+    || {}
+  ) : {};
+  const configuredBaseUrl = (
+    config.apiBaseUrl
+    || config.backendApiBaseUrl
+    || config.customerApiBaseUrl
+    || ''
+  );
+
+  if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) return "http://localhost:5000";
+  return "";
+}
+
+const customerApiBaseUrl = resolveCustomerApiBaseUrl();
 const CUSTOMER_ORDER_API_BASE_URL = `${customerApiBaseUrl}/api/orders`;
 const CUSTOMER_ADDRESS_API_BASE_URL = `${customerApiBaseUrl}/api/addresses`;
 const CUSTOMER_AUTH_API_BASE_URL = `${customerApiBaseUrl}/api/auth`;
@@ -6097,18 +6115,14 @@ async function toggleOrdersView(preserveProfile = false) {
               <span data-order-countdown data-order-id="${escapeAttribute(order.id)}" data-order-status="${escapeAttribute(order.status || 'PLACED')}" data-delivery-deadline-ms="${Number(order.delivery_deadline_ms) || ""}" data-promise-min-minutes="${Number(order.delivery_promise_min_minutes) || ""}" data-promise-max-minutes="${Number(order.delivery_promise_max_minutes) || ""}">${getCustomerDeliveryPromiseText()}</span>
             </div>
 
-            <p class="text-[11px] text-slate-500">
-
-              OTP:
-
-              <strong class="text-amber-600">
-                ${escapeHtml(
-                  order.delivery_otp ||
-                  "----"
-                )}
-              </strong>
-
-            </p>
+            ${order.status === 'OUT_FOR_DELIVERY' || order.status === 'DELIVERED' ? `
+              <p class="text-[11px] text-slate-500">
+                Delivery code:
+                <strong class="text-amber-600">
+                  ${escapeHtml(order.delivery_code || "----")}
+                </strong>
+              </p>
+            ` : ''}
 
             <p class="text-[10px] text-slate-400 truncate">
 
@@ -6312,7 +6326,7 @@ function renderReceipt(
           <button onclick="openCustomerRiderTracker('${escapeAttribute(orderId)}')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2">
             <span>🛵</span> Track ${escapeHtml(targetOrder.assigned_rider || 'rider')} live
           </button>
-          ${currentStatus === 'OUT_FOR_DELIVERY' ? `<button onclick="requestCustomerDeliveryOtp('${escapeAttribute(orderId)}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black">Send delivery code</button>` : ''}
+          ${currentStatus === 'OUT_FOR_DELIVERY' ? `<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-center text-[11px] font-black text-emerald-800">Delivery code: ${escapeHtml(targetOrder.delivery_code || '----')}</div>` : ''}
         </div>
       `;
     } else {
@@ -6464,19 +6478,6 @@ function renderReceipt(
       () => window.print();
   }
 }
-
-async function requestCustomerDeliveryOtp(orderId) {
-  try {
-    await customerOrderApiRequest(`/${encodeURIComponent(orderId)}/delivery-otp`, {
-      method: "POST",
-      body: JSON.stringify({})
-    });
-    alert("Delivery code sent to the phone number on this order.");
-  } catch (error) {
-    alert(error.message || "Unable to send the delivery code.");
-  }
-}
-
 
 // ==========================================
 // 47. CLOSE RECEIPT

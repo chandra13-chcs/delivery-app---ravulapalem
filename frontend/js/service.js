@@ -5,9 +5,27 @@ const categoryId = new URLSearchParams(window.location.search).get("categorySlug
   || new URLSearchParams(window.location.search).get("categoryId")
   || "";
 const requestedCategoryName = new URLSearchParams(window.location.search).get("categoryName") || "";
-const serviceApiBaseUrl = ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ? "http://localhost:5000"
-  : "";
+
+function resolveServiceApiBaseUrl() {
+  const config = typeof window !== 'undefined' ? (
+    window.__APP_CONFIG__
+    || window.__MYSHOPZY_CONFIG__
+    || window.SERVICE_APP_CONFIG
+    || {}
+  ) : {};
+  const configuredBaseUrl = (
+    config.apiBaseUrl
+    || config.backendApiBaseUrl
+    || config.serviceApiBaseUrl
+    || ''
+  );
+
+  if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) return "http://localhost:5000";
+  return "";
+}
+
+const serviceApiBaseUrl = resolveServiceApiBaseUrl();
 let serviceRestaurants = [];
 let serviceProducts = [];
 let restaurantCart = {};

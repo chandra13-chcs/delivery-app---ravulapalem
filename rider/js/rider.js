@@ -25,9 +25,27 @@ let riderOtpSecondsRemaining = 45;
 let riderSelectedVehicleType = 'BIKE';
 const RIDER_ORDER_SOUND = new Audio("../assets/audio/admin-rider-order.mpeg");
 const RIDER_TAB_SOUND = new Audio("../assets/audio/tab-click.wav");
-const RIDER_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-  ? 'http://localhost:5000'
-  : '';
+
+function resolveRiderApiBaseUrl() {
+  const config = typeof window !== 'undefined' ? (
+    window.__APP_CONFIG__
+    || window.__MYSHOPZY_CONFIG__
+    || window.RIDER_APP_CONFIG
+    || {}
+  ) : {};
+  const configuredBaseUrl = (
+    config.apiBaseUrl
+    || config.backendApiBaseUrl
+    || config.riderApiBaseUrl
+    || ''
+  );
+
+  if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return 'http://localhost:5000';
+  return '';
+}
+
+const RIDER_API_BASE_URL = resolveRiderApiBaseUrl();
 const RIDER_REQUIRED_DOCUMENT_TYPES = ['SELFIE', 'AADHAAR', 'PAN'];
 const RIDER_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 const RIDER_DOCUMENT_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
@@ -1512,7 +1530,7 @@ function renderRiderOrders() {
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live GPS Streaming
             </div>
           ` : `<div class="flex-1 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 text-center">Accept delivery first</div>`}
-          ${o.assignment_status === 'OUT_FOR_DELIVERY' ? `<button onclick="openOtpModal('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">Verify OTP</button>` : ''}
+          ${o.assignment_status === 'OUT_FOR_DELIVERY' ? `<button onclick="openOtpModal('${escapeRiderHtml(o.id)}')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition">Enter Delivery Code</button>` : ''}
         </div>
       ` : ''}
     `;
@@ -1560,23 +1578,24 @@ function closeOtpModal() {
 
 async function confirmOtpAndDeliver() {
   const inputEl = document.getElementById('inputDeliveryOtp');
-  const enteredOtp = inputEl.value.trim();
+  const enteredCode = inputEl.value.trim();
 
   if (!currentVerifyingOrderId) {
-    alert("Session expired. Please click 'Verify OTP' again.");
+    alert("Session expired. Please click 'Enter Delivery Code' again.");
     return;
   }
 
-  if (!/^\d{6}$/.test(enteredOtp)) {
+  if (!/^\d{4}$/.test(enteredCode)) {
     document.getElementById('otpErrorMessage').classList.remove('hidden');
+    document.getElementById('otpErrorMessage').innerText = 'Enter a valid 4-digit delivery code.';
     return;
   }
   try {
     const order = allRiderOrders.find(item => item.id === currentVerifyingOrderId);
     if (!order) throw new Error('Delivery assignment is no longer available.');
-    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/complete`, {
+    await riderApiRequest(`/api/rider/deliveries/${encodeURIComponent(order.assignment_id)}/verify-delivery-code`, {
       method: 'POST',
-      body: JSON.stringify({ otp: enteredOtp })
+      body: JSON.stringify({ delivery_code: enteredCode })
     });
     const deliveredId = currentVerifyingOrderId;
     closeOtpModal();

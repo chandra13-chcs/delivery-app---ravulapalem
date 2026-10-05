@@ -322,26 +322,27 @@
     </div>
   </nav>
 
-  <!-- OTP VERIFICATION MODAL -->
+  <!-- DELIVERY CODE VERIFICATION MODAL -->
   <div id="otpModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-brand-border space-y-4">
       <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-xl font-bold">
-        🔑
+        🔒
       </div>
       <div>
-        <h3 class="text-base font-extrabold text-slate-900">Verify Delivery OTP</h3>
-        <p class="text-xs text-slate-500 mt-1">Ask customer for the 4-digit code shown on their tracking screen.</p>
+        <h3 class="text-base font-extrabold text-slate-900">Verify Delivery Code</h3>
+        <p class="text-xs text-slate-500 mt-1">Ask the customer for the 4-digit delivery code shown on their order.</p>
       </div>
 
-      <input 
-        id="inputDeliveryOtp" 
-        type="tel" 
-        maxlength="4" 
-        placeholder="••••" 
+      <input
+        id="inputDeliveryOtp"
+        type="tel"
+        inputmode="numeric"
+        maxlength="4"
+        placeholder="••••"
         class="w-full text-center tracking-[1em] text-2xl font-black py-3 border-2 border-slate-200 rounded-2xl focus:border-brand-accent outline-none bg-slate-50"
       >
 
-      <p id="otpErrorMessage" class="hidden text-xs font-bold text-rose-500">Invalid OTP. Please check with customer!</p>
+      <p id="otpErrorMessage" class="hidden text-xs font-bold text-rose-500">Invalid delivery code. Please check with customer.</p>
 
       <div class="grid grid-cols-2 gap-2 pt-2">
         <button onclick="closeOtpModal()" class="py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600">

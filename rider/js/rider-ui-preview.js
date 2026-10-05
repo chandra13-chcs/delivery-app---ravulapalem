@@ -1,6 +1,23 @@
-const PREVIEW_API_BASE_URL = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-  ? 'http://localhost:5000'
-  : '';
+function resolvePreviewApiBaseUrl() {
+  const config = typeof window !== 'undefined' ? (
+    window.__APP_CONFIG__
+    || window.__MYSHOPZY_CONFIG__
+    || window.RIDER_APP_CONFIG
+    || {}
+  ) : {};
+  const configuredBaseUrl = (
+    config.apiBaseUrl
+    || config.backendApiBaseUrl
+    || config.riderApiBaseUrl
+    || ''
+  );
+
+  if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return 'http://localhost:5000';
+  return '';
+}
+
+const PREVIEW_API_BASE_URL = resolvePreviewApiBaseUrl();
 const previewState = {
   online: false,
   activeScreen: 'home',

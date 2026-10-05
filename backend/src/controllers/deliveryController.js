@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const db = require("../config/db");
 const {
   generateOtp,
@@ -82,6 +83,26 @@ function validateUuid(value) {
   return UUID_PATTERN.test(String(value || ""));
 }
 
+function getDeliveryCodeSecret() {
+  const secret = process.env.OTP_HMAC_SECRET || process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
+  if (typeof secret !== "string" || Buffer.byteLength(secret, "utf8") < 32) {
+    throw new Error("Delivery code verification is unavailable.");
+  }
+  return secret;
+}
+
+function hashDeliveryCode(orderId, code) {
+  return crypto.createHmac("sha256", getDeliveryCodeSecret())
+    .update(`myshopzy-delivery-code-v1\0${orderId}\0${code}`, "utf8")
+    .digest();
+}
+
+function matchesDeliveryCode(storedDigest, orderId, code) {
+  const actual = Buffer.isBuffer(storedDigest) ? storedDigest : Buffer.from(storedDigest || []);
+  const expected = hashDeliveryCode(orderId, code);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
 async function resolveApprovedRider(userId, queryable = db) {
   const result = await queryable.query(
     `SELECT r.id, r.verification_status, r.is_available, u.display_name, u.phone_e164
@@ -93,6 +114,20 @@ async function resolveApprovedRider(userId, queryable = db) {
     [userId]
   );
   return result.rows[0] || null;
+}
+
+async function getRiderActiveAssignments(client, riderId, excludeAssignmentId = null) {
+  const result = await client.query(
+    `SELECT da.id, da.status, da.order_id
+     FROM delivery_assignments da
+     WHERE da.rider_id = $1
+       AND da.status = ANY($2::text[])
+       AND ($3::uuid IS NULL OR da.id <> $3)
+     ORDER BY da.assigned_at DESC
+     FOR UPDATE OF da`,
+    [riderId, ACTIVE_ASSIGNMENT_STATUSES, excludeAssignmentId || null]
+  );
+  return result.rows;
 }
 
 async function hasCurrentRiderAvailability(riderId, queryable = db) {
@@ -407,8 +442,9 @@ async function lockRiderAssignment(client, userId, assignmentId) {
   const result = await client.query(
     `SELECT da.id, da.order_id, da.rider_id, da.status AS assignment_status,
             da.accepted_at, o.order_number, o.order_type, o.status AS order_status,
-            o.customer_user_id, o.delivery_otp_hmac, o.delivery_otp_expires_at,
-            o.delivery_otp_verified_at
+            o.customer_user_id, o.delivery_code, o.delivery_code_hmac,
+            o.delivery_code_generated_at, o.delivery_code_verified_at,
+            o.delivery_code_attempt_count
      FROM delivery_assignments da JOIN orders o ON o.id = da.order_id
      WHERE da.id = $1 AND da.rider_id = $2
      FOR UPDATE OF da, o`,
@@ -462,6 +498,13 @@ async function riderDecision(req, res, decision) {
     if (decision === "ACCEPTED" && !(await hasCurrentRiderAvailability(rider.id, client))) {
       await client.query("ROLLBACK");
       return respondError(res, 403, "Rider must be online to accept a new delivery offer.");
+    }
+    if (decision === "ACCEPTED") {
+      const activeAssignments = await getRiderActiveAssignments(client, rider.id, assignment.id);
+      if (activeAssignments.length > 0) {
+        await client.query("ROLLBACK");
+        return respondError(res, 409, "You already have an active delivery. Complete it before accepting another one.");
+      }
     }
 
     await client.query(
@@ -834,68 +877,36 @@ async function issuePickupOtp(req, res) {
 async function issueDeliveryOtp(req, res) {
   const orderId = req.params.orderId;
   if (!validateUuid(orderId)) return respondError(res, 400, "Invalid order id.");
-  let client;
   try {
-    client = await db.connect();
-    await client.query("BEGIN");
-    const targetResult = await client.query(
-      `SELECT o.id, o.status, o.delivery_otp_expires_at, oa.recipient_phone_e164
-       FROM orders o JOIN order_addresses oa ON oa.order_id = o.id
-       WHERE o.id = $1 AND o.customer_user_id = $2 FOR UPDATE OF o`,
+    const orderResult = await db.query(
+      `SELECT id, customer_user_id, status
+       FROM orders
+       WHERE id = $1 AND customer_user_id = $2`,
       [orderId, req.user.id]
     );
-    const target = targetResult.rows[0];
-    if (!target) {
-      await client.query("ROLLBACK");
+    const order = orderResult.rows[0];
+    if (!order) {
       return respondError(res, 404, "Order not found.");
     }
-    if (target.status !== "OUT_FOR_DELIVERY") {
-      await client.query("ROLLBACK");
-      return respondError(res, 409, "Delivery code is available only while the order is out for delivery.");
-    }
-    const destination = `delivery:${target.id}`;
-    if (await deliveryOtpRequestCount(client, destination, "DELIVERY") >= OTP_MAX_REQUESTS_PER_WINDOW) {
-      await client.query("ROLLBACK");
-      return respondError(res, 429, "Delivery code request limit exceeded.");
-    }
-    const code = generateOtp();
-    const digest = hashOtp(destination, "DELIVERY", code);
-    const delivery = await sendOtp({ destination: target.recipient_phone_e164, purpose: "DELIVERY", code });
-    if (!delivery?.delivered) {
-      await client.query("ROLLBACK");
-      return respondError(res, 503, "Delivery code delivery is not configured.");
-    }
-    await client.query(
-      `INSERT INTO otp_verifications (user_id, destination, channel, purpose, otp_hmac, expires_at, max_attempts)
-       VALUES ($1, $2, 'SMS', 'DELIVERY', $3, now() + ($4::int * interval '1 millisecond'), $5)`,
-      [req.user.id, destination, digest, OTP_TTL_MS, OTP_MAX_ATTEMPTS]
-    );
-    await client.query(
-      `UPDATE orders
-       SET delivery_otp_hmac = $2,
-           delivery_otp_expires_at = now() + ($3::int * interval '1 millisecond'),
-           delivery_otp_verified_at = NULL,
-           updated_at = now()
-       WHERE id = $1`,
-      [target.id, digest, OTP_TTL_MS]
-    );
-    await client.query("COMMIT");
-    return res.json({ success: true, message: "Delivery code sent to the order contact.", data: { expires_in_seconds: OTP_TTL_MS / 1000 } });
+    return respondError(res, 410, "Delivery codes are generated when the order is placed and are shown only to the customer.");
   } catch (error) {
-    if (client) await client.query("ROLLBACK").catch(() => {});
-    if (error.code === "OTP_DELIVERY_UNAVAILABLE") return respondError(res, 503, "Delivery code delivery is not configured.");
-    console.error("Delivery code issuance failed:", error.message);
+    console.error("Legacy delivery code issuance failed:", error.message);
     return respondError(res, 500, "Unable to issue delivery code.");
-  } finally {
-    client?.release();
   }
 }
 
-async function completeDelivery(req, res) {
+async function verifyDeliveryCode(req, res) {
   const assignmentId = req.params.assignmentId;
-  const code = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
+  const code = typeof req.body?.delivery_code === "string"
+    ? req.body.delivery_code.trim()
+    : typeof req.body?.code === "string"
+      ? req.body.code.trim()
+      : typeof req.body?.otp === "string"
+        ? req.body.otp.trim()
+        : "";
   if (!validateUuid(assignmentId)) return respondError(res, 400, "Invalid assignment id.");
-  if (!/^\d{6}$/.test(code)) return respondError(res, 400, "A valid delivery code is required.");
+  if (!/^\d{4}$/.test(code)) return respondError(res, 400, "A valid 4-digit delivery code is required.");
+
   let client;
   try {
     client = await db.connect();
@@ -905,49 +916,59 @@ async function completeDelivery(req, res) {
       await client.query("ROLLBACK");
       return respondError(res, locked.error.status, locked.error.message);
     }
-    const { rider, assignment } = locked;
+
+    const { assignment } = locked;
     if (assignment.assignment_status === "COMPLETED" && assignment.order_status === "DELIVERED") {
       await client.query("ROLLBACK");
-      return respondError(res, 409, "Delivery code has already been used.");
+      return respondError(res, 409, "This delivery has already been completed.");
     }
     if (assignment.assignment_status !== "OUT_FOR_DELIVERY" || assignment.order_status !== "OUT_FOR_DELIVERY") {
       await client.query("ROLLBACK");
       return respondError(res, 409, "Only an out-for-delivery assignment can be completed.");
     }
-    if (!assignment.delivery_otp_hmac || !assignment.delivery_otp_expires_at
-        || new Date(assignment.delivery_otp_expires_at) <= new Date()) {
+    if (!assignment.delivery_code_hmac || !assignment.delivery_code_generated_at) {
       await client.query("ROLLBACK");
-      return respondError(res, 409, "A valid delivery code is not available.");
+      return respondError(res, 409, "A valid delivery code is not available for this order.");
     }
-    const destination = `delivery:${assignment.order_id}`;
-    const challengeResult = await client.query(
-      `SELECT id, otp_hmac, attempt_count, max_attempts
-       FROM otp_verifications
-       WHERE destination = $1 AND purpose = 'DELIVERY' AND consumed_at IS NULL
-         AND expires_at > now()
-       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
-      [destination]
-    );
-    const challenge = challengeResult.rows[0];
-    if (!challenge || challenge.attempt_count >= challenge.max_attempts) {
+    const maxAttempts = 3;
+    const currentAttemptCount = Number(assignment.delivery_code_attempt_count || 0);
+    if (currentAttemptCount >= maxAttempts) {
       await client.query("ROLLBACK");
-      return respondError(res, 429, "Delivery code attempts are exhausted or the code has expired.");
+      return respondError(res, 429, "Delivery code verification is locked after 3 failed attempts.");
     }
-    const matches = matchesOtp(challenge.otp_hmac, destination, "DELIVERY", code)
-      && Buffer.from(assignment.delivery_otp_hmac).equals(Buffer.from(challenge.otp_hmac));
+
+    const matches = matchesDeliveryCode(assignment.delivery_code_hmac, assignment.order_id, code);
     if (!matches) {
-      await client.query("UPDATE otp_verifications SET attempt_count = attempt_count + 1 WHERE id = $1", [challenge.id]);
+      const nextAttemptCount = currentAttemptCount + 1;
+      await client.query(
+        `UPDATE orders
+         SET delivery_code_attempt_count = $2,
+             updated_at = now()
+         WHERE id = $1`,
+        [assignment.order_id, nextAttemptCount]
+      );
       await client.query("COMMIT");
-      return respondError(res, 400, "Delivery code is invalid.");
+      if (nextAttemptCount >= maxAttempts) {
+        return respondError(res, 429, "Delivery code verification is locked after 3 failed attempts.");
+      }
+      return respondError(res, 400, "Delivery code does not match this order.");
     }
+
     const earningConfig = await loadRiderEarningConfig(client);
     const earningSnapshot = calculateRiderEarningSnapshot(earningConfig);
-    await client.query("UPDATE otp_verifications SET consumed_at = now() WHERE id = $1", [challenge.id]);
-    await client.query("UPDATE orders SET delivery_otp_verified_at = now() WHERE id = $1", [assignment.order_id]);
-    await writeOrderStatus(client, req, assignment.order_id, "DELIVERED", "Delivery code verified by assigned rider");
-    await client.query("UPDATE orders SET delivered_at = now(), updated_at = now() WHERE id = $1", [assignment.order_id]);
     await client.query(
-      `UPDATE delivery_assignments SET status = 'COMPLETED', completed_at = now(), updated_at = now()
+      `UPDATE orders
+       SET delivery_code_attempt_count = 0,
+           delivery_code_verified_at = now(),
+           delivered_at = now(),
+           updated_at = now()
+       WHERE id = $1`,
+      [assignment.order_id]
+    );
+    await writeOrderStatus(client, req, assignment.order_id, "DELIVERED", "Delivery code verified by assigned rider");
+    await client.query(
+      `UPDATE delivery_assignments
+       SET status = 'COMPLETED', completed_at = now(), updated_at = now()
        WHERE id = $1`,
       [assignment.id]
     );
@@ -962,11 +983,15 @@ async function completeDelivery(req, res) {
     return res.json({ success: true, data: { assignment_id: assignment.id, status: "COMPLETED", order_status: "DELIVERED" } });
   } catch (error) {
     if (client) await client.query("ROLLBACK").catch(() => {});
-    console.error("Delivery completion failed:", error.message);
-    return respondError(res, 500, "Unable to complete delivery.");
+    console.error("Delivery code verification failed:", error.message);
+    return respondError(res, 500, "Unable to verify delivery code.");
   } finally {
     client?.release();
   }
+}
+
+async function completeDelivery(req, res) {
+  return verifyDeliveryCode(req, res);
 }
 
 async function updateRiderLocation(req, res) {
@@ -1187,6 +1212,7 @@ module.exports = {
   startOutForDelivery,
   issuePickupOtp,
   issueDeliveryOtp,
+  verifyDeliveryCode,
   completeDelivery,
   updateRiderLocation,
   getCustomerTracking,

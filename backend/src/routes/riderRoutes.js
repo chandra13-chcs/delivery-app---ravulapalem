@@ -25,6 +25,7 @@ const {
   arriveAtParcelPickup,
   confirmPickup,
   startOutForDelivery,
+  verifyDeliveryCode,
   completeDelivery,
   updateRiderLocation
 } = require("../controllers/deliveryController");
@@ -69,6 +70,7 @@ router.post("/deliveries/:assignmentId/pickups/:fulfillmentId/arrive", arriveAtP
 router.post("/deliveries/:assignmentId/parcel-pickup/arrive", arriveAtParcelPickup);
 router.post("/deliveries/:assignmentId/pickups/:fulfillmentId/confirm", confirmPickup);
 router.post("/deliveries/:assignmentId/out-for-delivery", startOutForDelivery);
+router.post("/deliveries/:assignmentId/verify-delivery-code", verifyDeliveryCode);
 router.post("/deliveries/:assignmentId/complete", completeDelivery);
 router.post("/locations", updateRiderLocation);
 

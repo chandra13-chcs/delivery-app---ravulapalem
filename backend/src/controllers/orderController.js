@@ -18,6 +18,8 @@ const ORDER_PROJECTION = `
   SELECT o.id, o.order_number, o.customer_user_id, o.status, o.order_type,
          o.currency, o.subtotal, o.delivery_fee, o.tax_amount, o.discount_amount,
          o.rider_tip, o.total_amount, o.customer_note, o.cancellation_reason,
+         o.delivery_code, o.delivery_code_hmac, o.delivery_code_generated_at,
+         o.delivery_code_verified_at, o.delivery_code_attempt_count,
          o.placed_at, o.accepted_at, o.dispatched_at, o.delivered_at, o.cancelled_at,
          u.display_name AS customer_name, u.phone_e164 AS customer_phone,
          oa.recipient_name, oa.recipient_phone_e164, oa.address_line1, oa.address_line2,
@@ -283,7 +285,10 @@ function presentOrder(row) {
     parcel_drop_address: row.parcel_drop_address,
     parcel_description: row.parcel_description,
     ...deliveryPromise,
-    delivery_otp: "----",
+    delivery_code: row.delivery_code || null,
+    delivery_code_generated_at: row.delivery_code_generated_at || null,
+    delivery_code_verified_at: row.delivery_code_verified_at || null,
+    delivery_code_attempt_count: Number(row.delivery_code_attempt_count || 0),
     placed_at: row.placed_at,
     created_at_ms: createdAtMs,
     accepted_at: row.accepted_at,
@@ -343,6 +348,30 @@ async function getCustomerOrder(req, res) {
 
 function buildOrderNumber() {
   return `MSZ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+function getDeliveryCodeSecret() {
+  const secret = process.env.OTP_HMAC_SECRET || process.env.JWT_SECRET || process.env.ADMIN_JWT_SECRET;
+  if (typeof secret !== "string" || Buffer.byteLength(secret, "utf8") < 32) {
+    throw new Error("Delivery code verification is unavailable.");
+  }
+  return secret;
+}
+
+function generateDeliveryCode() {
+  return crypto.randomInt(1000, 10000).toString();
+}
+
+function hashDeliveryCode(orderId, code) {
+  return crypto.createHmac("sha256", getDeliveryCodeSecret())
+    .update(`myshopzy-delivery-code-v1\0${orderId}\0${code}`, "utf8")
+    .digest();
+}
+
+function matchesDeliveryCode(storedDigest, orderId, code) {
+  const expected = hashDeliveryCode(orderId, code);
+  const actual = Buffer.from(storedDigest || []);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
 async function createCustomerOrder(req, res) {
@@ -497,16 +526,23 @@ async function createCustomerOrder(req, res) {
     }
 
     const totalAmount = roundMoney(subtotal + deliveryFee + taxAmount + finalTip - discountAmount);
+    const deliveryCode = generateDeliveryCode();
     const orderResult = await client.query(
       `INSERT INTO orders
          (order_number, customer_user_id, status, order_type, currency, subtotal,
-          delivery_fee, tax_amount, discount_amount, rider_tip, total_amount, customer_note)
-       VALUES ($1, $2, 'PLACED', $3, 'INR', $4, $5, $6, $7, $8, $9, $10)
+          delivery_fee, tax_amount, discount_amount, rider_tip, total_amount, customer_note,
+          delivery_code, delivery_code_generated_at, delivery_code_attempt_count)
+       VALUES ($1, $2, 'PLACED', $3, 'INR', $4, $5, $6, $7, $8, $9, $10, $11, now(), 0)
        RETURNING id, order_number, status, order_type, subtotal, delivery_fee, tax_amount,
-                 discount_amount, rider_tip, total_amount, placed_at`,
-      [buildOrderNumber(), req.user.id, orderType, subtotal, deliveryFee, taxAmount, discountAmount, finalTip, totalAmount, note]
+                 discount_amount, rider_tip, total_amount, delivery_code,
+                 delivery_code_generated_at, placed_at`,
+      [buildOrderNumber(), req.user.id, orderType, subtotal, deliveryFee, taxAmount, discountAmount, finalTip, totalAmount, note, deliveryCode]
     );
     const order = orderResult.rows[0];
+    await client.query(
+      `UPDATE orders SET delivery_code_hmac = $2, updated_at = now() WHERE id = $1`,
+      [order.id, hashDeliveryCode(order.id, deliveryCode)]
+    );
 
     await client.query(
       `INSERT INTO order_addresses
@@ -609,6 +645,8 @@ async function createCustomerOrder(req, res) {
         payment_mode: paymentMethod,
         placed_at: order.placed_at,
         created_at_ms: order.placed_at ? new Date(order.placed_at).getTime() : null,
+        delivery_code: order.delivery_code || null,
+        delivery_code_generated_at: order.delivery_code_generated_at || null,
         ...deliveryPromise,
         items: resolvedLines.map(line => ({
           product_id: line.product_id,
